@@ -1,0 +1,5 @@
+{
+  "name": "UniData AI-Insights System",
+  "description": "A centralized digital data warehouse for university administrative reports, featuring AI-powered extraction, statistical analysis, and trend forecasting.",
+  "requestFramePermissions": []
+}
