@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo } from './types';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -52,6 +52,28 @@ const INITIAL_REPORTS: UniversityReport[] = [
       proposals: []
     },
     extractionDate: new Date().toISOString()
+  }
+];
+
+// Mock Scientific Records
+const INITIAL_SCIENTIFIC_RECORDS: ScientificRecord[] = [
+  {
+    id: uuidv4(),
+    lecturerName: "Nguyễn Văn An",
+    recordName: "Nghiên cứu ứng dụng Blockchain trong quản lý đào tạo",
+    academicYear: "2023-2024",
+    requestSupport: true,
+    type: "Bài báo ISI/SCOPUS",
+    link: "https://drive.google.com/file/d/..."
+  },
+  {
+    id: uuidv4(),
+    lecturerName: "Trần Thị Bình",
+    recordName: "Giải nhất Olympic Tin học Sinh viên",
+    academicYear: "2023-2024",
+    requestSupport: false,
+    type: "Hướng dẫn sinh viên đạt giải thưởng",
+    link: ""
   }
 ];
 
@@ -108,6 +130,7 @@ const INITIAL_SCHOOL_INFO: SchoolInfo = {
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [reports, setReports] = useState<UniversityReport[]>(INITIAL_REPORTS);
+  const [scientificRecords, setScientificRecords] = useState<ScientificRecord[]>(INITIAL_SCIENTIFIC_RECORDS);
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>(INITIAL_ACADEMIC_YEARS);
@@ -131,6 +154,11 @@ const App: React.FC = () => {
     reports.filter(r => r.academicYear === settings.currentAcademicYear),
     [reports, settings.currentAcademicYear]
   );
+  
+  const filteredScientificRecords = useMemo(() => 
+    scientificRecords.filter(r => r.academicYear === settings.currentAcademicYear),
+    [scientificRecords, settings.currentAcademicYear]
+  );
 
 
   // --- HANDLERS ---
@@ -138,6 +166,14 @@ const App: React.FC = () => {
   const handleDataExtracted = (newReport: UniversityReport) => {
     setReports(prev => [newReport, ...prev]);
     setCurrentView('scientific_management'); 
+  };
+  
+  const handleAddScientificRecord = (record: ScientificRecord) => {
+    setScientificRecords(prev => [record, ...prev]);
+  };
+
+  const handleDeleteScientificRecord = (id: string) => {
+    setScientificRecords(prev => prev.filter(r => r.id !== id));
   };
 
   const handleAddUnit = (unit: Unit) => {
@@ -206,6 +242,7 @@ const App: React.FC = () => {
     if (data.academicYears) setAcademicYears(data.academicYears);
     if (data.settings) setSettings(data.settings);
     if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
+    if (data.scientificRecords) setScientificRecords(data.scientificRecords);
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
@@ -242,6 +279,9 @@ const App: React.FC = () => {
         return (
           <DataStorageModule 
             reports={filteredReports} 
+            scientificRecords={filteredScientificRecords}
+            onAddScientificRecord={handleAddScientificRecord}
+            onDeleteScientificRecord={handleDeleteScientificRecord}
             isLocked={isCurrentYearLocked}
             currentAcademicYear={settings.currentAcademicYear}
           />

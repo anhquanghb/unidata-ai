@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
-import { UniversityReport } from '../types';
+import { UniversityReport, ScientificRecord } from '../types';
 import DataScienceModule from './DataScienceModule';
 
 interface DataStorageModuleProps {
   reports: UniversityReport[];
+  scientificRecords: ScientificRecord[];
+  onAddScientificRecord: (record: ScientificRecord) => void;
+  onDeleteScientificRecord: (id: string) => void;
   isLocked: boolean;
   currentAcademicYear: string;
 }
 
 type TabType = 'SCIENTIFIC' | 'TRAINING' | 'PERSONNEL' | 'ADMISSIONS' | 'CLASS' | 'DEPARTMENT' | 'BUSINESS';
 
-const DataStorageModule: React.FC<DataStorageModuleProps> = ({ reports, isLocked, currentAcademicYear }) => {
+const DataStorageModule: React.FC<DataStorageModuleProps> = ({ 
+    reports, 
+    scientificRecords, 
+    onAddScientificRecord,
+    onDeleteScientificRecord,
+    isLocked, 
+    currentAcademicYear 
+}) => {
   const [activeTab, setActiveTab] = useState<TabType>('SCIENTIFIC');
 
   const tabs: { id: TabType; label: string }[] = [
@@ -78,6 +88,9 @@ const DataStorageModule: React.FC<DataStorageModuleProps> = ({ reports, isLocked
          {activeTab === 'SCIENTIFIC' && (
              <DataScienceModule 
                 reports={reports}
+                scientificRecords={scientificRecords}
+                onAddScientificRecord={onAddScientificRecord}
+                onDeleteScientificRecord={onDeleteScientificRecord}
                 isLocked={isLocked}
                 currentAcademicYear={currentAcademicYear}
              />

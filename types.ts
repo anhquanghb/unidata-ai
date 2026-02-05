@@ -35,6 +35,18 @@ export interface UniversityReport {
   extractionDate: string;
 }
 
+// New Interface for Detailed Scientific Management
+export interface ScientificRecord {
+  id: string;
+  lecturerName: string; // Tên giảng viên
+  recordName: string; // Tên công bố/Giải thưởng/Sách
+  academicYear: string; // Báo cáo cho năm học
+  requestSupport: boolean; // true = Đề nghị hỗ trợ, false = Không (Tự báo cáo)
+  type: string; // Loại (Dropdown list)
+  link?: string; // Link Google Drive/URL
+  unitId?: string; // Link to Unit
+}
+
 export interface Unit {
   id: string;
   name: string;
