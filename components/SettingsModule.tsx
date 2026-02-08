@@ -254,6 +254,66 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       alert("Đã lưu cấu hình (Chưa kết nối)!");
   };
 
+  // --- SAVE TO DRIVE HANDLER ---
+  const handleSaveToDrive = async () => {
+    if (!settings.driveConfig.isConnected || !settings.driveConfig.folderId) {
+        alert("Chưa kết nối Google Drive. Vui lòng quay lại tab 'Cấu hình Chung' để kết nối.");
+        return;
+    }
+
+    // Check for token validity
+    const tokenObj = window.gapi?.client?.getToken();
+    const accessToken = tokenObj?.access_token || settings.driveConfig.accessToken;
+
+    if (!accessToken) {
+         alert("Phiên làm việc Google Drive đã hết hạn hoặc chưa được khởi tạo. Vui lòng kết nối lại.");
+         return;
+    }
+
+    const data = {
+      reports,
+      units,
+      users,
+      settings,
+      academicYears,
+      schoolInfo,
+      backupDate: new Date().toISOString(),
+      version: "1.2"
+    };
+
+    const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    const fileContent = JSON.stringify(data, null, 2);
+    const file = new Blob([fileContent], {type: 'application/json'});
+    const metadata = {
+        name: fileName,
+        mimeType: 'application/json',
+        parents: [settings.driveConfig.folderId]
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    try {
+        // Use fetch for multipart upload as gapi client doesn't support it easily for content upload
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+            method: 'POST',
+            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            body: form,
+        });
+        const json = await response.json();
+        
+        if (json.id) {
+            alert(`Đã lưu dữ liệu lên Google Drive thành công!\nTên file: ${fileName}`);
+        } else {
+            console.error("Drive Upload Error:", json);
+            alert("Lỗi: Không thể lưu file lên Google Drive. Chi tiết trong console.");
+        }
+    } catch (error) {
+        console.error("Upload Request Error:", error);
+        alert("Lỗi kết nối mạng khi tải lên Drive.");
+    }
+  };
 
   // --- USER & YEAR HANDLERS ---
   const handleAddUser = () => {
@@ -675,7 +735,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         {activeTab === 'backup' && (
            <div className="space-y-8 max-w-xl">
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                  <h3 className="font-semibold text-blue-900 mb-2">1. Xuất dữ liệu hệ thống</h3>
+                  <h3 className="font-semibold text-blue-900 mb-2">1. Xuất dữ liệu hệ thống (Local)</h3>
                   <p className="text-sm text-blue-700 mb-4">
                       Tải xuống toàn bộ dữ liệu (Báo cáo, Cơ cấu tổ chức, Người dùng, Cài đặt) dưới dạng file JSON để lưu trữ hoặc chuyển sang máy khác.
                   </p>
@@ -690,8 +750,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                   </button>
               </div>
 
+               <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                  <h3 className="font-semibold text-green-900 mb-2">2. Lưu trữ đám mây (Google Drive)</h3>
+                  <p className="text-sm text-green-700 mb-4">
+                      Tải bản sao lưu hiện tại lên thư mục <strong>{settings.driveConfig.folderName || 'UniData_Backups'}</strong> trên Google Drive.
+                  </p>
+                  <button 
+                      onClick={handleSaveToDrive}
+                      disabled={!settings.driveConfig.isConnected}
+                      className={`flex items-center px-4 py-2 text-white rounded transition-colors text-sm font-medium ${settings.driveConfig.isConnected ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      {settings.driveConfig.isConnected ? "Lưu lên Drive" : "Chưa kết nối Drive"}
+                  </button>
+              </div>
+
               <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
-                  <h3 className="font-semibold text-orange-900 mb-2">2. Nhập dữ liệu từ file</h3>
+                  <h3 className="font-semibold text-orange-900 mb-2">3. Nhập dữ liệu từ file (Local)</h3>
                   <p className="text-sm text-orange-700 mb-4">
                       Khôi phục hệ thống từ file backup. <strong className="block mt-1">LƯU Ý: Hành động này sẽ ghi đè toàn bộ dữ liệu hiện tại!</strong>
                   </p>
