@@ -157,6 +157,39 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              const userEmail = userInfo.result.user.emailAddress;
              const userName = userInfo.result.user.displayName;
 
+             // --- SEARCH OR CREATE FOLDER LOGIC ---
+             let targetFolderId = driveFolderId;
+
+             try {
+                 const q = `mimeType='application/vnd.google-apps.folder' and name='${driveFolderName}' and trashed=false`;
+                 const folderResp = await window.gapi.client.drive.files.list({
+                     q: q,
+                     fields: 'files(id, name)',
+                     spaces: 'drive',
+                 });
+                 
+                 if (folderResp.result.files && folderResp.result.files.length > 0) {
+                     targetFolderId = folderResp.result.files[0].id;
+                     console.log("Found existing backup folder:", targetFolderId);
+                 } else {
+                     const fileMetadata = {
+                         name: driveFolderName,
+                         mimeType: 'application/vnd.google-apps.folder'
+                     };
+                     const createResp = await window.gapi.client.drive.files.create({
+                         resource: fileMetadata,
+                         fields: 'id'
+                     });
+                     targetFolderId = createResp.result.id;
+                     console.log("Created new backup folder:", targetFolderId);
+                 }
+             } catch (err) {
+                 console.error("Error managing drive folder:", err);
+                 alert("Cảnh báo: Không thể kiểm tra/tạo thư mục sao lưu. Vui lòng kiểm tra quyền truy cập.");
+             }
+             
+             setDriveFolderId(targetFolderId);
+
              onUpdateSettings({
                 ...settings,
                 driveConfig: {
@@ -165,16 +198,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     clientId: effectiveClientId,
                     accessToken: resp.access_token,
                     accountName: `${userName} (${userEmail})`,
-                    folderId: driveFolderId,
+                    folderId: targetFolderId,
                     folderName: driveFolderName
                 }
              });
 
-             alert(`Kết nối thành công với tài khoản: ${userEmail}`);
+             alert(`Kết nối thành công với tài khoản: ${userEmail}\nThư mục dữ liệu: ${driveFolderName}`);
 
            } catch (err: any) {
              console.error("Error fetching drive info", err);
-             alert("Đăng nhập thành công nhưng không thể lấy thông tin tài khoản.");
+             alert("Đăng nhập thành công nhưng xảy ra lỗi khi khởi tạo thư mục.");
            }
         }
       },
@@ -199,9 +232,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                 ...settings.driveConfig,
                 isConnected: false,
                 accessToken: undefined,
-                accountName: undefined
+                accountName: undefined,
+                folderId: '',
             }
         });
+        setDriveFolderId('');
     }
   };
 
