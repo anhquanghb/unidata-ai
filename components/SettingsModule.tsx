@@ -30,6 +30,7 @@ interface SettingsModuleProps {
 
 const SCOPES = 'https://www.googleapis.com/auth/drive.file'; // Access only files created by the app
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION'; // Key for localStorage
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
@@ -111,6 +112,57 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     if (!window.google) loadGis(); else setIsGisLoaded(true);
   }, []);
 
+  // --- RESTORE SESSION FROM LOCAL STORAGE ---
+  useEffect(() => {
+    // Only restore if not already connected and gapi is loaded (to set token)
+    if (!settings.driveConfig.isConnected) {
+        const savedSession = localStorage.getItem(STORAGE_KEY);
+        if (savedSession) {
+            try {
+                const parsed = JSON.parse(savedSession);
+                // Check if token is likely expired (approx 1 hour usually). 
+                // We use 50 minutes to be safe.
+                const now = Date.now();
+                const elapsed = now - parsed.timestamp;
+                const EXPIRE_THRESHOLD = 50 * 60 * 1000; // 50 minutes
+
+                if (elapsed < EXPIRE_THRESHOLD) {
+                    console.log("Restoring Drive session from LocalStorage...");
+                    
+                    // Update Global State
+                    onUpdateSettings({
+                        ...settings,
+                        driveConfig: parsed.config
+                    });
+
+                    // Update Local State
+                    setDriveFolderId(parsed.config.folderId);
+                    setDriveFolderName(parsed.config.folderName);
+                    
+                } else {
+                    console.log("Saved Drive session expired. Clearing.");
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+            } catch (e) {
+                console.error("Error restoring session:", e);
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+    }
+  }, [settings.driveConfig.isConnected]);
+
+  // --- SYNC GAPI TOKEN WHEN SETTINGS CHANGE ---
+  useEffect(() => {
+      if (isGapiLoaded && settings.driveConfig.isConnected && settings.driveConfig.accessToken) {
+          // Ensure gapi client has the token so API calls work
+          const currentToken = window.gapi.client.getToken();
+          if (!currentToken) {
+              window.gapi.client.setToken({ access_token: settings.driveConfig.accessToken });
+          }
+      }
+  }, [isGapiLoaded, settings.driveConfig.isConnected, settings.driveConfig.accessToken]);
+
+
   const handleSavePrompts = () => {
     onUpdateSettings({ ...settings, extractionPrompt, analysisPrompt });
     alert("Đã lưu cấu hình AI Prompts!");
@@ -190,18 +242,26 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              
              setDriveFolderId(targetFolderId);
 
+             const newConfig = {
+                isConnected: true,
+                clientId: effectiveClientId,
+                accessToken: resp.access_token,
+                accountName: `${userName} (${userEmail})`,
+                folderId: targetFolderId,
+                folderName: driveFolderName
+             };
+
+             // Update State
              onUpdateSettings({
                 ...settings,
-                driveConfig: {
-                    ...settings.driveConfig,
-                    isConnected: true,
-                    clientId: effectiveClientId,
-                    accessToken: resp.access_token,
-                    accountName: `${userName} (${userEmail})`,
-                    folderId: targetFolderId,
-                    folderName: driveFolderName
-                }
+                driveConfig: newConfig
              });
+
+             // Save to LocalStorage for persistence
+             localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                 config: newConfig,
+                 timestamp: Date.now()
+             }));
 
              alert(`Kết nối thành công với tài khoản: ${userEmail}\nThư mục dữ liệu: ${driveFolderName}`);
 
@@ -218,13 +278,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleDisconnectDrive = () => {
-    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa.");
+    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa và bạn sẽ cần đăng nhập lại.");
     if (confirm) {
         if (settings.driveConfig.accessToken && window.google) {
             window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
                 console.log('Token revoked');
             });
         }
+        
+        // Clear Local Storage
+        localStorage.removeItem(STORAGE_KEY);
 
         onUpdateSettings({
             ...settings,
@@ -267,6 +330,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
     if (!accessToken) {
          alert("Phiên làm việc Google Drive đã hết hạn hoặc chưa được khởi tạo. Vui lòng kết nối lại.");
+         handleDisconnectDrive();
          return;
     }
 
@@ -281,9 +345,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       version: "1.2"
     };
 
+    // VERSIONING: Always create a new filename based on timestamp
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     const fileContent = JSON.stringify(data, null, 2);
     const file = new Blob([fileContent], {type: 'application/json'});
+    
     const metadata = {
         name: fileName,
         mimeType: 'application/json',
@@ -301,10 +367,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
             body: form,
         });
+        
+        if (response.status === 401) {
+            alert("Phiên đăng nhập hết hạn. Vui lòng kết nối lại.");
+            handleDisconnectDrive();
+            return;
+        }
+
         const json = await response.json();
         
         if (json.id) {
-            alert(`Đã lưu dữ liệu lên Google Drive thành công!\nTên file: ${fileName}`);
+            alert(`Đã lưu bản mới lên Google Drive thành công!\nTên file: ${fileName}`);
         } else {
             console.error("Drive Upload Error:", json);
             alert("Lỗi: Không thể lưu file lên Google Drive. Chi tiết trong console.");
@@ -570,7 +643,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                                         <p className="text-xs text-green-600">{settings.driveConfig.accountName}</p>
                                     </div>
                                 </div>
-                                <button onClick={handleDisconnectDrive} className="text-xs text-red-600 hover:underline font-medium">Ngắt kết nối</button>
+                                <button onClick={handleDisconnectDrive} className="px-3 py-1 bg-white border border-red-200 rounded text-xs text-red-600 hover:bg-red-50 font-medium">Đăng xuất</button>
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-green-200">
@@ -763,7 +836,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
-                      {settings.driveConfig.isConnected ? "Lưu lên Drive" : "Chưa kết nối Drive"}
+                      {settings.driveConfig.isConnected ? "Lưu lên Drive (Tạo phiên bản mới)" : "Chưa kết nối Drive"}
                   </button>
               </div>
 
