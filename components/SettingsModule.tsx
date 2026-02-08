@@ -403,25 +403,41 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                 </h3>
                 
                 <div className="space-y-4">
-                    {/* Client ID Input - Always visible to configure */}
+                    {/* Client ID Input - Securely displayed if from ENV */}
                     <div>
                          <label className="block text-xs font-semibold text-slate-500 mb-1">Google Client ID (OAuth 2.0)</label>
-                         <input 
-                             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs disabled:bg-slate-50 disabled:text-slate-500"
-                             value={effectiveClientId}
-                             onChange={(e) => !envClientId && setManualClientId(e.target.value)}
-                             placeholder="VD: 123456789-abc...apps.googleusercontent.com"
-                             disabled={settings.driveConfig?.isConnected || !!envClientId}
-                         />
+                         
                          {envClientId ? (
-                             <p className="text-[10px] text-green-600 mt-1 flex items-center">
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                 Đã tải từ biến môi trường (VITE_GOOGLE_CLIENT_ID)
-                             </p>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                </div>
+                                <input 
+                                    className="w-full border border-green-200 bg-green-50 rounded pl-10 px-3 py-2 text-sm focus:outline-none font-mono text-green-700 cursor-not-allowed"
+                                    value="••••••••••••••••••••••••••••••••••••••••"
+                                    disabled
+                                    type="text"
+                                />
+                                 <p className="text-[10px] text-green-600 mt-1 flex items-center">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                     Đã tải an toàn từ biến môi trường (VITE_GOOGLE_CLIENT_ID)
+                                 </p>
+                            </div>
                          ) : (
-                             <p className="text-[10px] text-slate-400 mt-1">
-                                 * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
-                             </p>
+                             <>
+                                <input 
+                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs disabled:bg-slate-50 disabled:text-slate-500"
+                                    value={manualClientId}
+                                    onChange={(e) => setManualClientId(e.target.value)}
+                                    placeholder="VD: 123456789-abc...apps.googleusercontent.com"
+                                    disabled={settings.driveConfig?.isConnected}
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
+                                </p>
+                             </>
                          )}
                     </div>
 
