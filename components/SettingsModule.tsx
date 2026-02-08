@@ -56,7 +56,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [virtualAssistantUrl, setVirtualAssistantUrl] = useState(settings.virtualAssistantUrl || "https://gemini.google.com/app");
 
   // Drive State
-  const [driveClientId, setDriveClientId] = useState(settings.driveConfig?.clientId || '');
+  // Prioritize Environment Variable
+  const envClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+  
+  // State for manual input (used if Env Var is missing)
+  const [manualClientId, setManualClientId] = useState(settings.driveConfig?.clientId || '');
+  
+  // The actual Client ID to use
+  const effectiveClientId = envClientId || manualClientId;
+
   const [driveFolderId, setDriveFolderId] = useState(settings.driveConfig?.folderId || '');
   const [driveFolderName, setDriveFolderName] = useState(settings.driveConfig?.folderName || 'UniData_Backups');
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
@@ -116,8 +124,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // --- DRIVE HANDLERS (REAL IMPLEMENTATION) ---
   
   const handleConnectDrive = () => {
-    if (!driveClientId) {
-        alert("Vui lòng nhập Google Client ID trước khi kết nối.");
+    if (!effectiveClientId) {
+        alert("Vui lòng nhập Google Client ID hoặc cấu hình biến môi trường VITE_GOOGLE_CLIENT_ID.");
         return;
     }
     if (!isGapiLoaded || !isGisLoaded) {
@@ -127,7 +135,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
     // Initialize Token Client
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: driveClientId,
+      client_id: effectiveClientId,
       scope: SCOPES,
       callback: async (resp: any) => {
         if (resp.error) {
@@ -140,7 +148,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
            // Success! Fetch User Info to confirm
            try {
              // Ensure access token is set for GAPI calls
-             // Note: In real world apps, manage token expiry.
              window.gapi.client.setToken(resp);
              
              const userInfo = await window.gapi.client.drive.about.get({
@@ -155,7 +162,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                 driveConfig: {
                     ...settings.driveConfig,
                     isConnected: true,
-                    clientId: driveClientId,
+                    clientId: effectiveClientId,
                     accessToken: resp.access_token,
                     accountName: `${userName} (${userEmail})`,
                     folderId: driveFolderId,
@@ -180,7 +187,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const handleDisconnectDrive = () => {
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa.");
     if (confirm) {
-        // Revoke token if needed, usually just clearing local state is enough for client-side
         if (settings.driveConfig.accessToken && window.google) {
             window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
                 console.log('Token revoked');
@@ -205,7 +211,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           ...settings,
           driveConfig: {
               ...settings.driveConfig,
-              clientId: driveClientId,
+              clientId: manualClientId,
               folderId: driveFolderId,
               folderName: driveFolderName
           }
@@ -401,31 +407,40 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     <div>
                          <label className="block text-xs font-semibold text-slate-500 mb-1">Google Client ID (OAuth 2.0)</label>
                          <input 
-                             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"
-                             value={driveClientId}
-                             onChange={(e) => setDriveClientId(e.target.value)}
+                             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs disabled:bg-slate-50 disabled:text-slate-500"
+                             value={effectiveClientId}
+                             onChange={(e) => !envClientId && setManualClientId(e.target.value)}
                              placeholder="VD: 123456789-abc...apps.googleusercontent.com"
-                             disabled={settings.driveConfig?.isConnected}
+                             disabled={settings.driveConfig?.isConnected || !!envClientId}
                          />
-                         <p className="text-[10px] text-slate-400 mt-1">
-                             * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
-                         </p>
+                         {envClientId ? (
+                             <p className="text-[10px] text-green-600 mt-1 flex items-center">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                 Đã tải từ biến môi trường (VITE_GOOGLE_CLIENT_ID)
+                             </p>
+                         ) : (
+                             <p className="text-[10px] text-slate-400 mt-1">
+                                 * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
+                             </p>
+                         )}
                     </div>
 
                     {!settings.driveConfig?.isConnected ? (
                         <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
                              <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu.</p>
                              <div className="flex justify-center gap-2">
-                                 <button 
-                                    onClick={handleSaveDriveConfigOnly}
-                                    className="px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                 >
-                                    Lưu Client ID
-                                 </button>
+                                 {!envClientId && (
+                                     <button 
+                                        onClick={handleSaveDriveConfigOnly}
+                                        className="px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                     >
+                                        Lưu Client ID
+                                     </button>
+                                 )}
                                  <button 
                                     onClick={handleConnectDrive}
-                                    disabled={!driveClientId}
-                                    className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!driveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                    disabled={!effectiveClientId}
+                                    className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                                  >
                                     <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                                     Kết nối Google Drive
@@ -602,111 +617,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     * Khi năm học bị "Khóa", toàn bộ dữ liệu thuộc năm đó sẽ chuyển sang chế độ <strong>Chỉ xem</strong>.
                 </p>
              </div>
-          </div>
-        )}
-
-        {/* TAB: USERS */}
-        {activeTab === 'users' && (
-          <div>
-            <div className="mb-6 overflow-hidden border border-slate-200 rounded-lg">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3">Họ tên</th>
-                    <th className="px-4 py-3">Tên đăng nhập</th>
-                    <th className="px-4 py-3">Vai trò</th>
-                    <th className="px-4 py-3 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-800">{user.fullName}</td>
-                      <td className="px-4 py-3 text-slate-600">{user.username}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                          {user.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button 
-                          onClick={() => onRemoveUser(user.id)}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
-                        >
-                          Xóa
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="font-medium text-slate-800 mb-3 text-sm">Thêm người dùng mới</h4>
-              <div className="flex flex-col md:flex-row gap-3">
-                <input 
-                  type="text" placeholder="Họ và tên" 
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
-                  value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})}
-                />
-                <input 
-                  type="text" placeholder="Username" 
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
-                  value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})}
-                />
-                <select 
-                  className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
-                  value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as any})}
-                >
-                  <option value="staff">Nhân viên</option>
-                  <option value="admin">Quản trị viên</option>
-                </select>
-                <button 
-                  onClick={handleAddUser}
-                  disabled={!newUser.fullName || !newUser.username}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium disabled:opacity-50"
-                >
-                  Thêm
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB: PROMPTS */}
-        {activeTab === 'prompts' && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Prompt Trích xuất Dữ liệu (Extraction)</label>
-              <p className="text-xs text-slate-500 mb-2">Sử dụng <code>{`{{text}}`}</code> để đại diện cho nội dung văn bản đầu vào.</p>
-              <textarea
-                value={extractionPrompt}
-                onChange={(e) => setExtractionPrompt(e.target.value)}
-                rows={6}
-                className="w-full border border-slate-300 rounded-lg p-3 font-mono text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Prompt Phân tích & Xu hướng (Analysis)</label>
-              <p className="text-xs text-slate-500 mb-2">Sử dụng <code>{`{{data}}`}</code> cho dữ liệu JSON và <code>{`{{query}}`}</code> cho câu hỏi của người dùng.</p>
-              <textarea
-                value={analysisPrompt}
-                onChange={(e) => setAnalysisPrompt(e.target.value)}
-                rows={6}
-                className="w-full border border-slate-300 rounded-lg p-3 font-mono text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-slate-100">
-               <button 
-                onClick={handleSavePrompts}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Lưu Prompt
-              </button>
-            </div>
           </div>
         )}
 
