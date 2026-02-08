@@ -10,6 +10,13 @@ import SettingsModule from './components/SettingsModule';
 import VersionSelectorModal from './components/VersionSelectorModal';
 import { v4 as uuidv4 } from 'uuid';
 
+declare global {
+  interface Window {
+    gapi: any;
+    google: any;
+  }
+}
+
 // Mock initial data
 const INITIAL_REPORTS: UniversityReport[] = [
   {
@@ -161,39 +168,45 @@ const App: React.FC = () => {
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
 
   // --- INITIALIZATION ---
-  // Simulate checking Drive on startup
   useEffect(() => {
-    // We simulate a check: if Drive is configured (e.g. from local storage in a real app, 
-    // but here we rely on the default INITIAL_SETTINGS or if the user enabled it previously in session)
-    // For Demo: If we want to demonstrate the modal, we can check a flag or just settings.driveConfig.isConnected.
-    // Since settings reset on refresh in this sandbox, we will manually toggle isConnected in settings to true 
-    // for demonstration purposes if needed, OR we just assume if it's connected we scan.
-    
-    // To demo the feature without persistence: Let's assume the user has connected drive in a previous "session"
-    // For this specific turn, we will only trigger if isConnected is true. 
-    // NOTE: Default is false. User must go to settings -> Connect Drive. 
-    // THEN on next mount (or immediate effect if we depend on settings) it would scan.
-    
-    if (settings.driveConfig.isConnected) {
+    if (settings.driveConfig.isConnected && settings.driveConfig.folderId) {
         scanDriveVersions();
     }
-  }, [settings.driveConfig.isConnected]);
+  }, [settings.driveConfig.isConnected, settings.driveConfig.folderId]);
 
-  const scanDriveVersions = () => {
+  const scanDriveVersions = async () => {
+      if (!settings.driveConfig.folderId || !settings.driveConfig.accessToken) {
+          console.warn("Missing folderId or accessToken for scanning");
+          return;
+      }
+      
       setIsVersionModalOpen(true);
       setIsLoadingVersions(true);
       
-      // Simulate API latency
-      setTimeout(() => {
-          // Mock data returned from Google Drive API
-          const mockVersions: BackupVersion[] = [
-              { id: 'v3', fileName: 'unidata_backup_2023-10-27_v1.2.json', createdTime: new Date().toISOString(), size: '150 KB' },
-              { id: 'v2', fileName: 'unidata_backup_2023-10-26_v1.1.json', createdTime: new Date(Date.now() - 86400000).toISOString(), size: '142 KB' },
-              { id: 'v1', fileName: 'unidata_backup_2023-10-20_v1.0.json', createdTime: new Date(Date.now() - 86400000 * 7).toISOString(), size: '120 KB' },
-          ];
-          setBackupVersions(mockVersions);
+      try {
+          const response = await window.gapi.client.drive.files.list({
+              q: `'${settings.driveConfig.folderId}' in parents and mimeType = 'application/json' and trashed = false`,
+              fields: 'files(id, name, createdTime, size)',
+              orderBy: 'createdTime desc',
+              pageSize: 10
+          });
+          
+          const files = response.result.files;
+          const versions: BackupVersion[] = files.map((f: any) => ({
+              id: f.id,
+              fileName: f.name,
+              createdTime: f.createdTime,
+              size: f.size ? `${(parseInt(f.size) / 1024).toFixed(1)} KB` : 'Unknown'
+          }));
+          
+          setBackupVersions(versions);
+      } catch (error) {
+          console.error("Error scanning drive:", error);
+          // Only alert if we expected it to work (not silent startup scan)
+          // alert("Lỗi khi quét phiên bản từ Google Drive.");
+      } finally {
           setIsLoadingVersions(false);
-      }, 1500);
+      }
   };
 
   const handleVersionConfirm = (versionId: string) => {
