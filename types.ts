@@ -135,6 +135,8 @@ export interface SchoolInfo {
 
 export interface GoogleDriveConfig {
   isConnected: boolean;
+  clientId?: string; // Required for real OAuth
+  accessToken?: string; // Session token
   accountName?: string;
   folderId: string;
   folderName: string;
