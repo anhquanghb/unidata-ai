@@ -1,6 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+
+// Declare globals for Google Scripts
+declare global {
+  interface Window {
+    gapi: any;
+    google: any;
+  }
+}
 
 interface SettingsModuleProps {
   settings: SystemSettings;
@@ -19,6 +27,9 @@ interface SettingsModuleProps {
   onImportData: (data: any) => void;
   onUpdateSchoolInfo: (info: SchoolInfo) => void;
 }
+
+const SCOPES = 'https://www.googleapis.com/auth/drive.file'; // Access only files created by the app
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
@@ -45,8 +56,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [virtualAssistantUrl, setVirtualAssistantUrl] = useState(settings.virtualAssistantUrl || "https://gemini.google.com/app");
 
   // Drive State
+  const [driveClientId, setDriveClientId] = useState(settings.driveConfig?.clientId || '');
   const [driveFolderId, setDriveFolderId] = useState(settings.driveConfig?.folderId || '');
   const [driveFolderName, setDriveFolderName] = useState(settings.driveConfig?.folderName || 'UniData_Backups');
+  const [isGapiLoaded, setIsGapiLoaded] = useState(false);
+  const [isGisLoaded, setIsGisLoaded] = useState(false);
 
   const [newUser, setNewUser] = useState({ fullName: '', username: '', role: 'staff' as 'admin' | 'staff' });
   const [newYearCode, setNewYearCode] = useState('');
@@ -62,6 +76,33 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- GOOGLE DRIVE SCRIPTS LOADING ---
+  useEffect(() => {
+    const loadGapi = () => {
+      const script = document.createElement('script');
+      script.src = 'https://apis.google.com/js/api.js';
+      script.onload = () => {
+        window.gapi.load('client', async () => {
+          await window.gapi.client.init({
+             discoveryDocs: [DISCOVERY_DOC],
+          });
+          setIsGapiLoaded(true);
+        });
+      };
+      document.body.appendChild(script);
+    };
+
+    const loadGis = () => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.onload = () => setIsGisLoaded(true);
+      document.body.appendChild(script);
+    };
+
+    if (!window.gapi) loadGapi(); else setIsGapiLoaded(true);
+    if (!window.google) loadGis(); else setIsGisLoaded(true);
+  }, []);
+
   const handleSavePrompts = () => {
     onUpdateSettings({ ...settings, extractionPrompt, analysisPrompt });
     alert("Đã lưu cấu hình AI Prompts!");
@@ -72,50 +113,108 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       alert("Đã lưu cấu hình chung!");
   };
 
-  // Drive Handlers
+  // --- DRIVE HANDLERS (REAL IMPLEMENTATION) ---
+  
   const handleConnectDrive = () => {
-    // Simulation of OAuth flow
-    const confirm = window.confirm("Hệ thống sẽ chuyển hướng đến Google để xác thực. Bạn có đồng ý?");
-    if (confirm) {
-        onUpdateSettings({
-            ...settings,
-            driveConfig: {
-                ...settings.driveConfig,
-                isConnected: true,
-                accountName: "admin@university.edu.vn",
-                folderId: driveFolderId || "1A2B3C_dummy_folder_id",
-                folderName: driveFolderName
-            }
-        });
-        alert("Kết nối Google Drive thành công!");
+    if (!driveClientId) {
+        alert("Vui lòng nhập Google Client ID trước khi kết nối.");
+        return;
     }
+    if (!isGapiLoaded || !isGisLoaded) {
+        alert("Đang tải thư viện Google, vui lòng thử lại sau vài giây.");
+        return;
+    }
+
+    // Initialize Token Client
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: driveClientId,
+      scope: SCOPES,
+      callback: async (resp: any) => {
+        if (resp.error) {
+           console.error(resp);
+           alert("Lỗi đăng nhập Google Drive: " + resp.error);
+           return;
+        }
+
+        if (resp.access_token) {
+           // Success! Fetch User Info to confirm
+           try {
+             // Ensure access token is set for GAPI calls
+             // Note: In real world apps, manage token expiry.
+             window.gapi.client.setToken(resp);
+             
+             const userInfo = await window.gapi.client.drive.about.get({
+                fields: "user, storageQuota"
+             });
+
+             const userEmail = userInfo.result.user.emailAddress;
+             const userName = userInfo.result.user.displayName;
+
+             onUpdateSettings({
+                ...settings,
+                driveConfig: {
+                    ...settings.driveConfig,
+                    isConnected: true,
+                    clientId: driveClientId,
+                    accessToken: resp.access_token,
+                    accountName: `${userName} (${userEmail})`,
+                    folderId: driveFolderId,
+                    folderName: driveFolderName
+                }
+             });
+
+             alert(`Kết nối thành công với tài khoản: ${userEmail}`);
+
+           } catch (err: any) {
+             console.error("Error fetching drive info", err);
+             alert("Đăng nhập thành công nhưng không thể lấy thông tin tài khoản.");
+           }
+        }
+      },
+    });
+
+    // Trigger Pop-up
+    tokenClient.requestAccessToken({ prompt: 'consent' });
   };
 
   const handleDisconnectDrive = () => {
-    if(window.confirm("Ngắt kết nối sẽ khiến hệ thống không thể tự động sao lưu. Tiếp tục?")) {
+    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa.");
+    if (confirm) {
+        // Revoke token if needed, usually just clearing local state is enough for client-side
+        if (settings.driveConfig.accessToken && window.google) {
+            window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
+                console.log('Token revoked');
+            });
+        }
+
         onUpdateSettings({
             ...settings,
             driveConfig: {
                 ...settings.driveConfig,
                 isConnected: false,
+                accessToken: undefined,
                 accountName: undefined
             }
         });
     }
   };
 
-  const handleSaveDriveFolder = () => {
+  const handleSaveDriveConfigOnly = () => {
+      // Saves Client ID/Folder without connecting
       onUpdateSettings({
           ...settings,
           driveConfig: {
               ...settings.driveConfig,
+              clientId: driveClientId,
               folderId: driveFolderId,
               folderName: driveFolderName
           }
       });
-      alert("Đã cập nhật cấu hình thư mục!");
+      alert("Đã lưu cấu hình (Chưa kết nối)!");
   };
 
+
+  // --- USER & YEAR HANDLERS ---
   const handleAddUser = () => {
     if (!newUser.fullName || !newUser.username) return;
     onAddUser({
@@ -292,61 +391,87 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                 <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide flex items-center">
                     <svg className="w-5 h-5 mr-2 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12.01 1.984c-1.127 0-2.17.61-2.735 1.594L2.09 16.34c-.567.983-.567 2.19 0 3.173.565.985 1.608 1.595 2.735 1.595h14.35c1.128 0 2.172-.61 2.736-1.595.567-.982.567-2.19 0-3.172L14.746 3.578c-.565-.984-1.608-1.594-2.735-1.594zM12.01 4.49l7.175 12.766H4.834L12.01 4.49z"/>
-                        <path d="M7.886 17.256h8.25L12.01 9.87z" fill="white"/> {/* Simplified icon approximation */}
+                        <path d="M7.886 17.256h8.25L12.01 9.87z" fill="white"/>
                     </svg>
-                    Cấu hình Lưu trữ Google Drive
+                    Cấu hình Google Drive (Real)
                 </h3>
                 
-                {!settings.driveConfig?.isConnected ? (
-                    <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
-                         <p className="text-slate-600 mb-4">Kết nối với Google Drive để tự động đồng bộ và khôi phục dữ liệu phiên bản.</p>
-                         <button 
-                            onClick={handleConnectDrive}
-                            className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50"
-                         >
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" className="w-5 h-5 mr-2" alt="Drive" />
-                            Đăng nhập Google Drive
-                         </button>
+                <div className="space-y-4">
+                    {/* Client ID Input - Always visible to configure */}
+                    <div>
+                         <label className="block text-xs font-semibold text-slate-500 mb-1">Google Client ID (OAuth 2.0)</label>
+                         <input 
+                             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"
+                             value={driveClientId}
+                             onChange={(e) => setDriveClientId(e.target.value)}
+                             placeholder="VD: 123456789-abc...apps.googleusercontent.com"
+                             disabled={settings.driveConfig?.isConnected}
+                         />
+                         <p className="text-[10px] text-slate-400 mt-1">
+                             * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
+                         </p>
                     </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
-                            <div className="flex items-center">
-                                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+
+                    {!settings.driveConfig?.isConnected ? (
+                        <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
+                             <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu.</p>
+                             <div className="flex justify-center gap-2">
+                                 <button 
+                                    onClick={handleSaveDriveConfigOnly}
+                                    className="px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                 >
+                                    Lưu Client ID
+                                 </button>
+                                 <button 
+                                    onClick={handleConnectDrive}
+                                    disabled={!driveClientId}
+                                    className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!driveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                 >
+                                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                                    Kết nối Google Drive
+                                 </button>
+                             </div>
+                        </div>
+                    ) : (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-green-800">Đã kết nối</p>
+                                        <p className="text-xs text-green-600">{settings.driveConfig.accountName}</p>
+                                    </div>
+                                </div>
+                                <button onClick={handleDisconnectDrive} className="text-xs text-red-600 hover:underline font-medium">Ngắt kết nối</button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-green-200">
+                                <div>
+                                    <label className="block text-xs font-semibold text-green-700 mb-1">Tên Thư mục Lưu trữ</label>
+                                    <input 
+                                        className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        value={driveFolderName}
+                                        onChange={(e) => setDriveFolderName(e.target.value)}
+                                    />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-green-800">Đã kết nối</p>
-                                    <p className="text-xs text-green-600">Tài khoản: {settings.driveConfig.accountName}</p>
+                                    <label className="block text-xs font-semibold text-green-700 mb-1">Folder ID (Tùy chọn)</label>
+                                    <input 
+                                        className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                                        value={driveFolderId}
+                                        onChange={(e) => setDriveFolderId(e.target.value)}
+                                        placeholder="Để trống để tự tạo"
+                                    />
                                 </div>
                             </div>
-                            <button onClick={handleDisconnectDrive} className="text-xs text-red-600 hover:underline">Ngắt kết nối</button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Tên Thư mục trên Drive</label>
-                                <input 
-                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    value={driveFolderName}
-                                    onChange={(e) => setDriveFolderName(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Folder ID (Tùy chọn)</label>
-                                <input 
-                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                                    value={driveFolderId}
-                                    onChange={(e) => setDriveFolderId(e.target.value)}
-                                    placeholder="xxxxxxxxxxxxxxxx"
-                                />
+                            <div className="flex justify-end mt-2">
+                                <button onClick={handleSaveDriveConfigOnly} className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700">Cập nhật thư mục</button>
                             </div>
                         </div>
-                        <div className="flex justify-end">
-                            <button onClick={handleSaveDriveFolder} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Lưu cấu hình thư mục</button>
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
              </div>
 
              {/* External Services Section */}
