@@ -612,11 +612,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     {!settings.driveConfig?.isConnected ? (
                         <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
                              <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu.</p>
-                             <div className="flex justify-center gap-2">
+                             
+                             <div className="flex justify-center gap-2 mt-4">
                                  {!envClientId && (
                                      <button 
                                         onClick={handleSaveDriveConfigOnly}
-                                        className="px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                        className="px-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50"
                                      >
                                         Lưu Client ID
                                      </button>
@@ -627,7 +628,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                                     className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                                  >
                                     <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                                    Kiểm tra kết nối (Xác thực)
+                                    {settings.driveConfig?.isConnected ? "Xác thực lại / Kết nối tài khoản khác" : "Kiểm tra kết nối (Xác thực)"}
                                  </button>
                              </div>
                         </div>
@@ -665,15 +666,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                                     />
                                 </div>
                             </div>
-                            <div className="flex justify-between mt-4">
+                            <div className="flex justify-between items-center mt-4">
                                 <button 
                                     onClick={handleConnectDrive}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center bg-white px-3 py-1 rounded border border-blue-200 hover:bg-blue-50"
+                                    disabled={!effectiveClientId}
+                                    className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                                 >
-                                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                                    Xác thực lại / Kết nối tài khoản khác
+                                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                                    {settings.driveConfig?.isConnected ? "Xác thực lại / Kết nối tài khoản khác" : "Kiểm tra kết nối (Xác thực)"}
                                 </button>
-                                <button onClick={handleSaveDriveConfigOnly} className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700">Cập nhật thư mục</button>
+                                <button onClick={handleSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Cập nhật thư mục</button>
                             </div>
                         </div>
                     )}
