@@ -35,23 +35,82 @@ export interface UniversityReport {
   extractionDate: string;
 }
 
-// New Interface for Detailed Scientific Management
+// --- Data Management Interfaces ---
+
 export interface ScientificRecord {
   id: string;
-  lecturerName: string; // Tên giảng viên
-  recordName: string; // Tên công bố/Giải thưởng/Sách
-  academicYear: string; // Báo cáo cho năm học
-  requestSupport: boolean; // true = Đề nghị hỗ trợ, false = Không (Tự báo cáo)
-  type: string; // Loại (Dropdown list)
-  link?: string; // Link Google Drive/URL
-  unitId?: string; // Link to Unit
+  lecturerName: string;
+  recordName: string;
+  academicYear: string;
+  requestSupport: boolean;
+  type: string;
+  link?: string;
+  unitId?: string;
 }
+
+export interface TrainingRecord {
+  id: string;
+  programName: string; // Tên chương trình/học phần
+  level: string; // Đại học, Sau đại học
+  status: string; // Đang tuyển sinh, Đang đào tạo
+  studentsCount: number;
+  academicYear: string;
+}
+
+export interface PersonnelRecord {
+  id: string;
+  fullName: string;
+  title: string; // Học hàm/Học vị
+  position: string; // Chức vụ
+  department: string; // Bộ môn/Phòng
+  startDate: string;
+  academicYear: string;
+}
+
+export interface AdmissionRecord {
+  id: string;
+  major: string; // Ngành
+  quota: number; // Chỉ tiêu
+  applications: number; // Số hồ sơ
+  admitted: number; // Trúng tuyển
+  score: number; // Điểm chuẩn
+  academicYear: string;
+}
+
+export interface ClassRecord {
+  id: string;
+  className: string;
+  advisor: string;
+  monitor: string; // Lớp trưởng
+  size: number;
+  academicYear: string;
+}
+
+export interface DepartmentRecord {
+  id: string;
+  activityName: string;
+  date: string;
+  attendees: number;
+  description: string;
+  academicYear: string;
+}
+
+export interface BusinessRecord {
+  id: string;
+  partnerName: string;
+  activityType: string; // MOU, Tài trợ, Thực tập
+  value?: string; // Giá trị hợp đồng/tài trợ
+  status: string;
+  academicYear: string;
+}
+
+// --- System Interfaces ---
 
 export interface Unit {
   id: string;
   name: string;
   code: string;
-  type: 'school' | 'faculty' | 'department'; // Cấp Trường, Cấp Khoa, Cấp Bộ môn
+  type: 'school' | 'faculty' | 'department';
   parentId?: string;
 }
 
@@ -65,7 +124,7 @@ export interface UserProfile {
 
 export interface AcademicYear {
   id: string;
-  code: string; // e.g. "2023-2024"
+  code: string;
   isLocked: boolean;
 }
 
@@ -74,10 +133,27 @@ export interface SchoolInfo {
   code: string;
 }
 
+export interface GoogleDriveConfig {
+  isConnected: boolean;
+  accountName?: string;
+  folderId: string;
+  folderName: string;
+  lastSync?: string;
+}
+
+export interface BackupVersion {
+  id: string;
+  fileName: string;
+  createdTime: string;
+  size: string;
+}
+
 export interface SystemSettings {
-  currentAcademicYear: string; // Refers to AcademicYear.code
+  currentAcademicYear: string;
   extractionPrompt: string;
   analysisPrompt: string;
+  virtualAssistantUrl: string;
+  driveConfig: GoogleDriveConfig; // New Field
 }
 
 export type ViewState = 'dashboard' | 'ingestion' | 'analysis' | 'scientific_management' | 'organization' | 'settings';

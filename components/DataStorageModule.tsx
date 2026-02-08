@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { UniversityReport, ScientificRecord } from '../types';
 import DataScienceModule from './DataScienceModule';
+import TrainingModule from './ingestion_modules/TrainingModule';
+import PersonnelModule from './ingestion_modules/PersonnelModule';
+import AdmissionsModule from './ingestion_modules/AdmissionsModule';
+import ClassModule from './ingestion_modules/ClassModule';
+import DepartmentModule from './ingestion_modules/DepartmentModule';
+import BusinessModule from './ingestion_modules/BusinessModule';
 
 interface DataStorageModuleProps {
   reports: UniversityReport[];
@@ -33,15 +39,9 @@ const DataStorageModule: React.FC<DataStorageModuleProps> = ({
     { id: 'BUSINESS', label: 'Quan hệ Doanh nghiệp' },
   ];
 
-  const renderPlaceholder = (title: string) => (
-     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-        </svg>
-        <h3 className="text-lg font-medium text-slate-700">Phân hệ {title}</h3>
-        <p className="text-slate-500 mt-2">Tính năng đang được phát triển. Vui lòng quay lại sau.</p>
-     </div>
-  );
+  const handleDummyImport = (data: any[]) => {
+    console.log("Import functionality is not enabled in this view.", data);
+  };
 
   return (
     <div className="p-8 h-full flex flex-col">
@@ -95,12 +95,24 @@ const DataStorageModule: React.FC<DataStorageModuleProps> = ({
                 currentAcademicYear={currentAcademicYear}
              />
          )}
-         {activeTab === 'TRAINING' && renderPlaceholder('Đào tạo')}
-         {activeTab === 'PERSONNEL' && renderPlaceholder('Nhân sự')}
-         {activeTab === 'ADMISSIONS' && renderPlaceholder('Tuyển sinh')}
-         {activeTab === 'CLASS' && renderPlaceholder('Lớp sinh viên')}
-         {activeTab === 'DEPARTMENT' && renderPlaceholder('Tổ bộ môn')}
-         {activeTab === 'BUSINESS' && renderPlaceholder('Quan hệ Doanh nghiệp')}
+         {activeTab === 'TRAINING' && (
+             <TrainingModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
+         {activeTab === 'PERSONNEL' && (
+             <PersonnelModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
+         {activeTab === 'ADMISSIONS' && (
+             <AdmissionsModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
+         {activeTab === 'CLASS' && (
+             <ClassModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
+         {activeTab === 'DEPARTMENT' && (
+             <DepartmentModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
+         {activeTab === 'BUSINESS' && (
+             <BusinessModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
+         )}
       </div>
     </div>
   );

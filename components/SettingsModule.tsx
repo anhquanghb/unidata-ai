@@ -42,6 +42,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // Local state for forms
   const [extractionPrompt, setExtractionPrompt] = useState(settings.extractionPrompt);
   const [analysisPrompt, setAnalysisPrompt] = useState(settings.analysisPrompt);
+  const [virtualAssistantUrl, setVirtualAssistantUrl] = useState(settings.virtualAssistantUrl || "https://gemini.google.com/app");
+
+  // Drive State
+  const [driveFolderId, setDriveFolderId] = useState(settings.driveConfig?.folderId || '');
+  const [driveFolderName, setDriveFolderName] = useState(settings.driveConfig?.folderName || 'UniData_Backups');
 
   const [newUser, setNewUser] = useState({ fullName: '', username: '', role: 'staff' as 'admin' | 'staff' });
   const [newYearCode, setNewYearCode] = useState('');
@@ -60,6 +65,55 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const handleSavePrompts = () => {
     onUpdateSettings({ ...settings, extractionPrompt, analysisPrompt });
     alert("Đã lưu cấu hình AI Prompts!");
+  };
+
+  const handleSaveGeneral = () => {
+      onUpdateSettings({ ...settings, virtualAssistantUrl });
+      alert("Đã lưu cấu hình chung!");
+  };
+
+  // Drive Handlers
+  const handleConnectDrive = () => {
+    // Simulation of OAuth flow
+    const confirm = window.confirm("Hệ thống sẽ chuyển hướng đến Google để xác thực. Bạn có đồng ý?");
+    if (confirm) {
+        onUpdateSettings({
+            ...settings,
+            driveConfig: {
+                ...settings.driveConfig,
+                isConnected: true,
+                accountName: "admin@university.edu.vn",
+                folderId: driveFolderId || "1A2B3C_dummy_folder_id",
+                folderName: driveFolderName
+            }
+        });
+        alert("Kết nối Google Drive thành công!");
+    }
+  };
+
+  const handleDisconnectDrive = () => {
+    if(window.confirm("Ngắt kết nối sẽ khiến hệ thống không thể tự động sao lưu. Tiếp tục?")) {
+        onUpdateSettings({
+            ...settings,
+            driveConfig: {
+                ...settings.driveConfig,
+                isConnected: false,
+                accountName: undefined
+            }
+        });
+    }
+  };
+
+  const handleSaveDriveFolder = () => {
+      onUpdateSettings({
+          ...settings,
+          driveConfig: {
+              ...settings.driveConfig,
+              folderId: driveFolderId,
+              folderName: driveFolderName
+          }
+      });
+      alert("Đã cập nhật cấu hình thư mục!");
   };
 
   const handleAddUser = () => {
@@ -188,7 +242,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 min-h-[400px]">
-        {/* TAB: GENERAL - ACADEMIC YEARS & SCHOOL INFO */}
+        {/* TAB: GENERAL */}
         {activeTab === 'general' && (
           <div className="space-y-8">
              {/* School Info Section */}
@@ -231,6 +285,86 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                         </div>
                     )}
                 </div>
+             </div>
+
+             {/* Google Drive Configuration */}
+             <div className="border-b border-slate-100 pb-8">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.01 1.984c-1.127 0-2.17.61-2.735 1.594L2.09 16.34c-.567.983-.567 2.19 0 3.173.565.985 1.608 1.595 2.735 1.595h14.35c1.128 0 2.172-.61 2.736-1.595.567-.982.567-2.19 0-3.172L14.746 3.578c-.565-.984-1.608-1.594-2.735-1.594zM12.01 4.49l7.175 12.766H4.834L12.01 4.49z"/>
+                        <path d="M7.886 17.256h8.25L12.01 9.87z" fill="white"/> {/* Simplified icon approximation */}
+                    </svg>
+                    Cấu hình Lưu trữ Google Drive
+                </h3>
+                
+                {!settings.driveConfig?.isConnected ? (
+                    <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
+                         <p className="text-slate-600 mb-4">Kết nối với Google Drive để tự động đồng bộ và khôi phục dữ liệu phiên bản.</p>
+                         <button 
+                            onClick={handleConnectDrive}
+                            className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50"
+                         >
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" className="w-5 h-5 mr-2" alt="Drive" />
+                            Đăng nhập Google Drive
+                         </button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-green-800">Đã kết nối</p>
+                                    <p className="text-xs text-green-600">Tài khoản: {settings.driveConfig.accountName}</p>
+                                </div>
+                            </div>
+                            <button onClick={handleDisconnectDrive} className="text-xs text-red-600 hover:underline">Ngắt kết nối</button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Tên Thư mục trên Drive</label>
+                                <input 
+                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={driveFolderName}
+                                    onChange={(e) => setDriveFolderName(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Folder ID (Tùy chọn)</label>
+                                <input 
+                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                                    value={driveFolderId}
+                                    onChange={(e) => setDriveFolderId(e.target.value)}
+                                    placeholder="xxxxxxxxxxxxxxxx"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <button onClick={handleSaveDriveFolder} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Lưu cấu hình thư mục</button>
+                        </div>
+                    </div>
+                )}
+             </div>
+
+             {/* External Services Section */}
+             <div className="border-b border-slate-100 pb-8">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Kết nối Trợ lý ảo (AI Assistant)</h3>
+                <div className="flex gap-4 items-end">
+                    <div className="flex-1">
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">Link Trợ lý ảo (Gemini/ChatGPT...)</label>
+                        <input 
+                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="https://gemini.google.com/app"
+                            value={virtualAssistantUrl}
+                            onChange={(e) => setVirtualAssistantUrl(e.target.value)}
+                        />
+                    </div>
+                    <button onClick={handleSaveGeneral} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Lưu Link</button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">Đường dẫn này sẽ được mở khi bạn nhấn nút "Mở Trợ lý ảo" trong module Tiếp nhận dữ liệu.</p>
              </div>
 
              {/* Academic Years Section */}

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord } from './types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -7,6 +7,7 @@ import AnalysisModule from './components/AnalysisModule';
 import DataStorageModule from './components/DataStorageModule';
 import OrganizationModule from './components/OrganizationModule';
 import SettingsModule from './components/SettingsModule';
+import VersionSelectorModal from './components/VersionSelectorModal';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock initial data
@@ -120,6 +121,12 @@ const INITIAL_SETTINGS: SystemSettings = {
   currentAcademicYear: "2023-2024",
   extractionPrompt: DEFAULT_EXTRACTION_PROMPT,
   analysisPrompt: DEFAULT_ANALYSIS_PROMPT,
+  virtualAssistantUrl: "https://gemini.google.com/app",
+  driveConfig: {
+      isConnected: false,
+      folderId: "",
+      folderName: "UniData_Backups"
+  }
 };
 
 const INITIAL_SCHOOL_INFO: SchoolInfo = {
@@ -131,12 +138,76 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [reports, setReports] = useState<UniversityReport[]>(INITIAL_REPORTS);
   const [scientificRecords, setScientificRecords] = useState<ScientificRecord[]>(INITIAL_SCIENTIFIC_RECORDS);
+  
+  // Placeholder state for other modules to prevent errors during demo
+  // In a real app, these would have their own useState definitions
+  const [trainingRecords, setTrainingRecords] = useState<any[]>([]);
+  const [personnelRecords, setPersonnelRecords] = useState<any[]>([]);
+  const [admissionRecords, setAdmissionRecords] = useState<any[]>([]);
+  const [classRecords, setClassRecords] = useState<any[]>([]);
+  const [departmentRecords, setDepartmentRecords] = useState<any[]>([]);
+  const [businessRecords, setBusinessRecords] = useState<any[]>([]);
+
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>(INITIAL_ACADEMIC_YEARS);
   const [settings, setSettings] = useState<SystemSettings>(INITIAL_SETTINGS);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>(INITIAL_SCHOOL_INFO);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Cloud/Version State
+  const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const [backupVersions, setBackupVersions] = useState<BackupVersion[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
+  // --- INITIALIZATION ---
+  // Simulate checking Drive on startup
+  useEffect(() => {
+    // We simulate a check: if Drive is configured (e.g. from local storage in a real app, 
+    // but here we rely on the default INITIAL_SETTINGS or if the user enabled it previously in session)
+    // For Demo: If we want to demonstrate the modal, we can check a flag or just settings.driveConfig.isConnected.
+    // Since settings reset on refresh in this sandbox, we will manually toggle isConnected in settings to true 
+    // for demonstration purposes if needed, OR we just assume if it's connected we scan.
+    
+    // To demo the feature without persistence: Let's assume the user has connected drive in a previous "session"
+    // For this specific turn, we will only trigger if isConnected is true. 
+    // NOTE: Default is false. User must go to settings -> Connect Drive. 
+    // THEN on next mount (or immediate effect if we depend on settings) it would scan.
+    
+    if (settings.driveConfig.isConnected) {
+        scanDriveVersions();
+    }
+  }, [settings.driveConfig.isConnected]);
+
+  const scanDriveVersions = () => {
+      setIsVersionModalOpen(true);
+      setIsLoadingVersions(true);
+      
+      // Simulate API latency
+      setTimeout(() => {
+          // Mock data returned from Google Drive API
+          const mockVersions: BackupVersion[] = [
+              { id: 'v3', fileName: 'unidata_backup_2023-10-27_v1.2.json', createdTime: new Date().toISOString(), size: '150 KB' },
+              { id: 'v2', fileName: 'unidata_backup_2023-10-26_v1.1.json', createdTime: new Date(Date.now() - 86400000).toISOString(), size: '142 KB' },
+              { id: 'v1', fileName: 'unidata_backup_2023-10-20_v1.0.json', createdTime: new Date(Date.now() - 86400000 * 7).toISOString(), size: '120 KB' },
+          ];
+          setBackupVersions(mockVersions);
+          setIsLoadingVersions(false);
+      }, 1500);
+  };
+
+  const handleVersionConfirm = (versionId: string) => {
+      // Here we would fetch the specific file content from Drive using versionId
+      // and then call handleImportData(json).
+      // For simulation:
+      if (versionId) {
+          alert(`Đã tải xuống phiên bản ${versionId} từ Google Drive và đồng bộ dữ liệu thành công!`);
+          // We don't actually overwrite state here because we don't have the file content, 
+          // but we simulate the success flow.
+      }
+      setIsVersionModalOpen(false);
+  };
+
 
   // --- GLOBAL STATE DERIVATION ---
   
@@ -166,6 +237,36 @@ const App: React.FC = () => {
   const handleDataExtracted = (newReport: UniversityReport) => {
     setReports(prev => [newReport, ...prev]);
     setCurrentView('scientific_management'); 
+  };
+  
+  const handleDataImport = (type: string, data: any[]) => {
+      switch (type) {
+          case 'SCIENTIFIC':
+              setScientificRecords(prev => [...data, ...prev]);
+              break;
+          case 'TRAINING':
+              setTrainingRecords(prev => [...data, ...prev]);
+              break;
+          case 'PERSONNEL':
+              setPersonnelRecords(prev => [...data, ...prev]);
+              break;
+          case 'ADMISSIONS':
+              setAdmissionRecords(prev => [...data, ...prev]);
+              break;
+          case 'CLASS':
+              setClassRecords(prev => [...data, ...prev]);
+              break;
+          case 'DEPARTMENT':
+              setDepartmentRecords(prev => [...data, ...prev]);
+              break;
+          case 'BUSINESS':
+              setBusinessRecords(prev => [...data, ...prev]);
+              break;
+          default:
+              console.warn("Unknown import type:", type);
+      }
+      // Optional: switch view to storage to show imported data
+      // setCurrentView('scientific_management'); 
   };
   
   const handleAddScientificRecord = (record: ScientificRecord) => {
@@ -261,11 +362,11 @@ const App: React.FC = () => {
       case 'ingestion':
         return (
           <IngestionModule 
-            onDataExtracted={handleDataExtracted} 
-            customPrompt={settings.extractionPrompt}
+            onDataImport={handleDataImport}
             academicYears={academicYears}
             currentAcademicYearCode={settings.currentAcademicYear}
             isLocked={isCurrentYearLocked}
+            virtualAssistantUrl={settings.virtualAssistantUrl}
           />
         );
       case 'analysis':
@@ -322,7 +423,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans relative">
       <Sidebar 
         currentView={currentView} 
         onViewChange={setCurrentView} 
@@ -333,6 +434,14 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto transition-all duration-300">
         {renderContent()}
       </main>
+
+      {/* Version Selector Modal */}
+      <VersionSelectorModal 
+        isOpen={isVersionModalOpen}
+        versions={backupVersions}
+        isLoading={isLoadingVersions}
+        onConfirm={handleVersionConfirm}
+      />
     </div>
   );
 };
