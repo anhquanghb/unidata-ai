@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord } from './types';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -7,6 +7,7 @@ import AnalysisModule from './components/AnalysisModule';
 import DataStorageModule from './components/DataStorageModule';
 import OrganizationModule from './components/OrganizationModule';
 import SettingsModule from './components/SettingsModule';
+import FacultyModule from './components/FacultyModule';
 import VersionSelectorModal from './components/VersionSelectorModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -85,6 +86,100 @@ const INITIAL_SCIENTIFIC_RECORDS: ScientificRecord[] = [
   }
 ];
 
+// Mock Faculty Data (Dao Anh Quang)
+const INITIAL_FACULTIES: Faculty[] = [
+  {
+  "id": "f-265311016",
+  "name": { "vi": "Đào Anh Quang", "en": "Dao Anh Quang" },
+  "rank": { "vi": "Giảng viên", "en": "Lecturer" },
+  "degree": { "vi": "Tiến sĩ", "en": "Doctor of Philosophy" },
+  "academicTitle": { "vi": "", "en": "" },
+  "position": { "vi": "Phó trưởng khoa Môi trường và Khoa học tự nhiên", "en": "Vice Dean of Faculty of Environment and Natural Sciences" },
+  "experience": { "vi": "11", "en": "11" },
+  "careerStartYear": 2015,
+  "dob": "",
+  "office": "Phòng 306C, CS Hòa Khánh, Đại học Duy Tân",
+  "tel": "(0888).792.661",
+  "cell": "(+84) 888 79 2661",
+  "email": "daoanhquang@duytan.edu.vn",
+  "educationList": [
+    {
+      "id": "edu-1",
+      "degree": { "vi": "Tiến sĩ kỹ thuật", "en": "Doctor of Philosophy in Engineering" },
+      "discipline": { "vi": "Hóa học và Vật lý vật liệu", "en": "Chemistry and Material Physics" },
+      "institution": { "vi": "Trường Đại học Khoa học Kỹ thuật Huazhong, Trung Quốc", "en": "Huazhong University of Science and Technology, China" },
+      "year": "2015"
+    },
+    {
+      "id": "edu-2",
+      "degree": { "vi": "Thạc sĩ giáo dục học", "en": "Master of Education" },
+      "discipline": { "vi": "Phương pháp giảng dạy môn Hóa học", "en": "Chemistry Teaching Methodology" },
+      "institution": { "vi": "Đại học Huế, Việt Nam", "en": "Hue University, Vietnam" },
+      "year": "2009"
+    }
+  ],
+  "academicExperienceList": [
+    {
+      "id": "ae-1",
+      "institution": { "vi": "Trường Công nghệ, Trường Đại học Duy Tân", "en": "School of Technology, Duy Tan University" },
+      "rank": { "vi": "Quản lý & Giảng dạy", "en": "Management & Teaching" },
+      "title": { "vi": "Phó trưởng khoa Môi trường và khoa học tự nhiên", "en": "Vice Dean of Faculty of Environment and Natural Sciences" },
+      "period": "2022 - Nay",
+      "isFullTime": true
+    }
+  ],
+  "nonAcademicExperienceList": [],
+  "publicationsList": [
+     {
+      "id": "pub-1",
+      "text": {
+        "vi": "Nguyen Minh Quang, et al., 'Chemometrically optimized electrochemical decoupling...', Journal of Electroanalytical Chemistry, 2026.",
+        "en": "Nguyen Minh Quang, et al., 'Chemometrically optimized electrochemical decoupling...', Journal of Electroanalytical Chemistry, 2026."
+      }
+    }
+  ],
+  "certificationsList": [],
+  "honorsList": [],
+  "serviceActivitiesList": [],
+  "professionalDevelopmentList": [],
+  "membershipsList": [
+     {
+      "id": "mem-1",
+      "content": { "vi": "Thành viên Hiệp hội CDIO", "en": "Member of CDIO Association" }
+    }
+  ]
+ }
+];
+
+const INITIAL_TITLES: FacultyTitles = {
+    ranks: [
+      { id: "r1", name: { vi: "Giảng viên", en: "Lecturer" }, abbreviation: { vi: "GV", en: "Lec" } },
+      { id: "r2", name: { vi: "Giảng viên cao cấp", en: "Senior Lecturer" }, abbreviation: { vi: "GVC", en: "Snr Lec" } },
+      { id: "r3", name: { vi: "Trợ giảng", en: "Teaching Assistant" }, abbreviation: { vi: "TG", en: "TA" } },
+      { id: "r4", name: { vi: "Chuyên viên", en: "Specialist" }, abbreviation: { vi: "CV", en: "Spec" } },
+      { id: "r5", name: { vi: "Kỹ thuật viên", en: "Technician" }, abbreviation: { vi: "KTV", en: "Tech" } }
+    ],
+    degrees: [
+      { id: "d1", name: { vi: "Tiến sĩ", en: "Ph.D" }, abbreviation: { vi: "TS", en: "PhD" } },
+      { id: "d2", name: { vi: "Thạc sĩ", en: "Master" }, abbreviation: { vi: "ThS", en: "MA/MSc" } },
+      { id: "d3", name: { vi: "Kỹ sư", en: "Engineer" }, abbreviation: { vi: "KS", en: "Eng" } },
+      { id: "d4", name: { vi: "Cử nhân", en: "Bachelor" }, abbreviation: { vi: "CN", en: "BA/BSc" } }
+    ],
+    academicTitles: [
+      { id: "at1", name: { vi: "Không", en: "None" }, abbreviation: { vi: "", en: "" } },
+      { id: "at2", name: { vi: "Giáo sư", en: "Professor" }, abbreviation: { vi: "GS", en: "Prof" } },
+      { id: "at3", name: { vi: "Phó giáo sư", en: "Associate Professor" }, abbreviation: { vi: "PGS", en: "Assoc. Prof" } }
+    ],
+    positions: [
+      { id: "p1", name: { vi: "Giảng viên", en: "Faculty Member" }, abbreviation: { vi: "GV", en: "Fac" } },
+      { id: "p2", name: { vi: "Trưởng khoa", en: "Dean" }, abbreviation: { vi: "TK", en: "Dean" } },
+      { id: "p3", name: { vi: "Phó trưởng khoa", en: "Vice Dean" }, abbreviation: { vi: "PTK", en: "V.Dean" } },
+      { id: "p4", name: { vi: "Trưởng bộ môn", en: "Head of Department" }, abbreviation: { vi: "TBM", en: "HoD" } },
+      { id: "pos-1768969239310", name: { vi: "Nghiên cứu viên", en: "Researcher" }, abbreviation: { vi: "NCV", en: "Res" } },
+      { id: "pos-1768970272946", name: { vi: "Giảng viên thỉnh giảng", en: "Invited lecturer" }, abbreviation: { vi: "TG", en: "Inv" } }
+    ]
+};
+
 // IDs for initial linking
 const FACULTY_ENV_ID = uuidv4();
 const FACULTY_EE_ID = uuidv4();
@@ -99,6 +194,16 @@ const INITIAL_UNITS: Unit[] = [
   { id: FACULTY_EE_ID, name: "Khoa Điện - Điện tử", code: "FEEE", type: "faculty" },
   { id: uuidv4(), name: "Bộ môn Tự động hóa", code: "BM-TDH", type: "department", parentId: FACULTY_EE_ID },
   { id: uuidv4(), name: "Bộ môn Hệ thống điện", code: "BM-HTD", type: "department", parentId: FACULTY_EE_ID },
+];
+
+// Initial Human Resources Data
+const INITIAL_HR_RECORDS: HumanResourceRecord[] = [
+    {
+        id: uuidv4(),
+        unitId: FACULTY_ENV_ID,
+        facultyId: "f-265311016", // Dao Anh Quang
+        role: "Phó trưởng khoa"
+    }
 ];
 
 const INITIAL_USERS: UserProfile[] = [
@@ -153,6 +258,15 @@ const App: React.FC = () => {
   const [classRecords, setClassRecords] = useState<ClassRecord[]>([]);
   const [departmentRecords, setDepartmentRecords] = useState<DepartmentRecord[]>([]);
   const [businessRecords, setBusinessRecords] = useState<BusinessRecord[]>([]);
+
+  // State for Faculty Module
+  const [faculties, setFaculties] = useState<Faculty[]>(INITIAL_FACULTIES);
+  const [facultyTitles, setFacultyTitles] = useState<FacultyTitles>(INITIAL_TITLES);
+  // Dummy courses state for Faculty Module stats context
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  // State for Human Resources (Organization Module)
+  const [humanResources, setHumanResources] = useState<HumanResourceRecord[]>(INITIAL_HR_RECORDS);
 
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
@@ -395,6 +509,11 @@ const App: React.FC = () => {
     if (data.classRecords) setClassRecords(data.classRecords);
     if (data.departmentRecords) setDepartmentRecords(data.departmentRecords);
     if (data.businessRecords) setBusinessRecords(data.businessRecords);
+
+    // Restore Faculty Module Data
+    if (data.faculties) setFaculties(data.faculties);
+    if (data.facultyTitles) setFacultyTitles(data.facultyTitles);
+    if (data.humanResources) setHumanResources(data.humanResources);
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
@@ -438,6 +557,17 @@ const App: React.FC = () => {
             currentAcademicYear={settings.currentAcademicYear}
           />
         );
+      case 'faculty_profiles':
+        return (
+          <FacultyModule 
+             faculties={faculties}
+             setFaculties={setFaculties}
+             facultyTitles={facultyTitles}
+             setFacultyTitles={setFacultyTitles}
+             courses={courses}
+             geminiConfig={{ apiKey: (import.meta as any).env?.API_KEY }}
+          />
+        );
       case 'organization':
         return (
           <OrganizationModule 
@@ -446,6 +576,9 @@ const App: React.FC = () => {
             onUpdateUnit={handleUpdateUnit}
             onRemoveUnit={handleRemoveUnit}
             isLocked={isCurrentYearLocked}
+            faculties={faculties}
+            humanResources={humanResources}
+            onUpdateHumanResources={setHumanResources}
           />
         );
       case 'settings':

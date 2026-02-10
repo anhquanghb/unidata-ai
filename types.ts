@@ -114,6 +114,15 @@ export interface Unit {
   parentId?: string;
 }
 
+// NEW: Data structure for linking Faculty to Units
+export interface HumanResourceRecord {
+  id: string;
+  unitId: string;
+  facultyId: string;
+  role?: string; // Optional: Trưởng khoa, nhân viên, etc.
+  assignedDate?: string;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -158,4 +167,102 @@ export interface SystemSettings {
   driveConfig: GoogleDriveConfig; // New Field
 }
 
-export type ViewState = 'dashboard' | 'ingestion' | 'analysis' | 'scientific_management' | 'organization' | 'settings';
+export type ViewState = 'dashboard' | 'ingestion' | 'analysis' | 'scientific_management' | 'organization' | 'settings' | 'faculty_profiles';
+
+// --- NEW FACULTY MODULE TYPES ---
+
+export type Language = 'vi' | 'en';
+
+export interface BilingualString {
+  vi: string;
+  en: string;
+}
+
+export interface FacultyListItem {
+  id: string;
+  content: BilingualString;
+}
+
+export interface FacultyEducation {
+  id: string;
+  year: string;
+  degree: BilingualString;
+  discipline: BilingualString;
+  institution: BilingualString;
+}
+
+export interface FacultyExperience {
+  id: string;
+  period: string;
+  institution: BilingualString;
+  rank: BilingualString;
+  title: BilingualString;
+  isFullTime: boolean;
+}
+
+export interface FacultyNonAcademicExperience {
+  id: string;
+  period: string;
+  company: BilingualString;
+  title: BilingualString;
+  description: BilingualString;
+  isFullTime: boolean;
+}
+
+export interface FacultyPublication {
+  id: string;
+  text: BilingualString;
+}
+
+export interface Faculty {
+  id: string;
+  name: BilingualString;
+  rank: BilingualString;
+  degree: BilingualString;
+  academicTitle: BilingualString;
+  position: BilingualString;
+  experience: BilingualString; // String to hold calculated years
+  dob?: string;
+  office?: string;
+  officeHours?: string;
+  tel?: string;
+  cell?: string;
+  email?: string;
+  educationList: FacultyEducation[];
+  academicExperienceList: FacultyExperience[];
+  nonAcademicExperienceList: FacultyNonAcademicExperience[];
+  publicationsList: FacultyPublication[];
+  certificationsList: FacultyListItem[];
+  honorsList: FacultyListItem[];
+  serviceActivitiesList: FacultyListItem[];
+  professionalDevelopmentList: FacultyListItem[];
+  membershipsList: FacultyListItem[];
+  isAbet?: boolean;
+  instructorDetails?: any;
+  careerStartYear?: number;
+  workload?: number; // Calculated field
+}
+
+export interface FacultyTitle {
+    id: string;
+    name: BilingualString;
+    abbreviation: BilingualString;
+}
+
+export interface FacultyTitles {
+    degrees: FacultyTitle[];
+    ranks: FacultyTitle[];
+    academicTitles: FacultyTitle[];
+    positions: FacultyTitle[];
+}
+
+// Simplified Course interface for Faculty Stats
+export interface Course {
+    id: string;
+    code: string;
+    name: string;
+    credits: number;
+    instructorIds: string[];
+    isAbet?: boolean;
+    isEssential?: boolean;
+}

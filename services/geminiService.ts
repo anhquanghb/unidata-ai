@@ -134,3 +134,52 @@ export const analyzeTrend = async (reports: UniversityReport[], query: string, p
     return "Đã xảy ra lỗi trong quá trình phân tích.";
   }
 };
+
+// --- Faculty Module Services ---
+
+export const translateContent = async (text: string, targetLang: 'vi' | 'en', config?: any): Promise<string> => {
+  try {
+    const prompt = `Translate the following text to ${targetLang === 'vi' ? 'Vietnamese' : 'English'}. Return ONLY the translated text, no explanations. Text: "${text}"`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
+    return response.text?.trim() || text;
+  } catch (error) {
+    console.error("Translation error:", error);
+    return text;
+  }
+};
+
+export const importFacultyFromPdf = async (base64Pdf: string, config?: any): Promise<any> => {
+  try {
+    const prompt = `Extract faculty profile information from this CV document. 
+    Return a JSON object matching the following structure (fields can be empty string if not found):
+    {
+      "name": { "vi": "", "en": "" },
+      "rank": { "vi": "", "en": "" },
+      "email": "",
+      "tel": "",
+      "educationList": [ { "year": "", "degree": {"vi": "", "en": ""}, "institution": {"vi": "", "en": ""} } ],
+      "experience": { "vi": "0", "en": "0" },
+      "careerStartYear": 2020
+    }
+    For bilingual fields, try to infer or translate if only one language is present.`;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: {
+            parts: [
+                { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
+                { text: prompt }
+            ]
+        },
+        config: { responseMimeType: "application/json" }
+    });
+
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("PDF Extraction error:", error);
+    return null;
+  }
+};
