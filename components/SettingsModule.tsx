@@ -29,11 +29,13 @@ interface SettingsModuleProps {
   onToggleLockAcademicYear: (id: string) => void;
   onImportData: (data: any) => void;
   onUpdateSchoolInfo: (info: SchoolInfo) => void;
+  onShowVersions?: () => void;
 }
 
 const SCOPES = 'https://www.googleapis.com/auth/drive.file'; // Access only files created by the app
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION'; // Key for localStorage
+const TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes safety threshold
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
@@ -50,7 +52,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onDeleteAcademicYear,
   onToggleLockAcademicYear,
   onImportData,
-  onUpdateSchoolInfo
+  onUpdateSchoolInfo,
+  onShowVersions
 }) => {
   // Ordered: Backup -> Users -> Prompts -> General
   const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'prompts' | 'general'>('backup');
@@ -99,162 +102,186 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     if (!window.google) loadGis(); else setIsGisLoaded(true);
   }, []);
 
-  // --- RESTORE SESSION FROM LOCAL STORAGE ---
-  useEffect(() => {
-    // Only restore if not already connected and gapi is loaded (to set token)
-    if (!settings.driveConfig.isConnected) {
-        const savedSession = localStorage.getItem(STORAGE_KEY);
-        if (savedSession) {
-            try {
-                const parsed = JSON.parse(savedSession);
-                // Check if token is likely expired (approx 1 hour usually). 
-                // We use 50 minutes to be safe.
-                const now = Date.now();
-                const elapsed = now - parsed.timestamp;
-                const EXPIRE_THRESHOLD = 50 * 60 * 1000; // 50 minutes
+  // --- AUTHENTICATION CORE FUNCTION ---
+  const authenticateDrive = (clientId: string, promptType: string, savedConfig?: any) => {
+    if (!window.google || !window.gapi) {
+        console.warn("Google libraries not loaded yet.");
+        return;
+    }
 
-                if (elapsed < EXPIRE_THRESHOLD) {
-                    console.log("Restoring Drive session from LocalStorage...");
-                    
-                    // Update Global State
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPES,
+        callback: async (resp: any) => {
+            if (resp.error) {
+                if (promptType === '' && (resp.error === 'immediate_failed' || resp.error === 'access_denied')) {
+                    console.log("Silent refresh failed or access denied. Clearing session.");
+                    localStorage.removeItem(STORAGE_KEY);
+                    // Update state to disconnected
                     onUpdateSettings({
                         ...settings,
-                        driveConfig: parsed.config
+                        driveConfig: {
+                            ...settings.driveConfig,
+                            isConnected: false,
+                            accessToken: undefined
+                        }
+                    });
+                } else {
+                    alert("Lỗi đăng nhập Google Drive: " + resp.error);
+                }
+                return;
+            }
+
+            if (resp.access_token) {
+                try {
+                    // Ensure access token is set for GAPI calls
+                    window.gapi.client.setToken(resp);
+                    
+                    const userInfo = await window.gapi.client.drive.about.get({
+                       fields: "user, storageQuota"
                     });
 
-                    // Update Local State
-                    setDriveFolderId(parsed.config.folderId);
-                    setDriveFolderName(parsed.config.folderName);
-                    
-                } else {
-                    console.log("Saved Drive session expired. Clearing.");
-                    localStorage.removeItem(STORAGE_KEY);
+                    const userEmail = userInfo.result.user.emailAddress;
+                    const userName = userInfo.result.user.displayName;
+
+                    // --- FOLDER LOGIC ---
+                    // If we have saved config, prefer using that ID/Name to avoid duplicate lookups/creates
+                    let targetFolderId = savedConfig?.folderId || driveFolderId;
+                    let targetFolderName = savedConfig?.folderName || driveFolderName;
+
+                    if (!targetFolderId) {
+                         // Search or Create
+                         try {
+                             const q = `mimeType='application/vnd.google-apps.folder' and name='${targetFolderName}' and trashed=false`;
+                             const folderResp = await window.gapi.client.drive.files.list({
+                                 q: q,
+                                 fields: 'files(id, name)',
+                                 spaces: 'drive',
+                             });
+                             
+                             if (folderResp.result.files && folderResp.result.files.length > 0) {
+                                 targetFolderId = folderResp.result.files[0].id;
+                             } else {
+                                 const fileMetadata = {
+                                     name: targetFolderName,
+                                     mimeType: 'application/vnd.google-apps.folder'
+                                 };
+                                 const createResp = await window.gapi.client.drive.files.create({
+                                     resource: fileMetadata,
+                                     fields: 'id'
+                                 });
+                                 targetFolderId = createResp.result.id;
+                             }
+                         } catch (err) {
+                             console.error("Folder error:", err);
+                             if (promptType !== '') alert("Cảnh báo: Không thể quản lý thư mục backup.");
+                         }
+                    }
+
+                    // Update local state
+                    setDriveFolderId(targetFolderId);
+                    setDriveFolderName(targetFolderName);
+
+                    const newConfig = {
+                       isConnected: true,
+                       clientId: clientId,
+                       accessToken: resp.access_token,
+                       accountName: `${userName} (${userEmail})`,
+                       folderId: targetFolderId,
+                       folderName: targetFolderName
+                    };
+
+                    // Update Global Settings
+                    onUpdateSettings({
+                       ...settings,
+                       driveConfig: newConfig
+                    });
+
+                    // Save to LocalStorage
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                        config: newConfig,
+                        timestamp: Date.now()
+                    }));
+
+                    if (promptType === 'consent') {
+                        alert(`Kết nối thành công!\nTài khoản: ${userEmail}`);
+                    }
+
+                } catch (err: any) {
+                    console.error("Auth Processing Error", err);
+                    if (promptType !== '') alert("Lỗi khi xử lý thông tin tài khoản.");
                 }
-            } catch (e) {
-                console.error("Error restoring session:", e);
-                localStorage.removeItem(STORAGE_KEY);
             }
-        }
-    }
-  }, [settings.driveConfig.isConnected]);
-
-  // --- SYNC GAPI TOKEN WHEN SETTINGS CHANGE ---
-  useEffect(() => {
-      if (isGapiLoaded && settings.driveConfig.isConnected && settings.driveConfig.accessToken) {
-          // Ensure gapi client has the token so API calls work
-          const currentToken = window.gapi.client.getToken();
-          if (!currentToken) {
-              window.gapi.client.setToken({ access_token: settings.driveConfig.accessToken });
-          }
-      }
-  }, [isGapiLoaded, settings.driveConfig.isConnected, settings.driveConfig.accessToken]);
-
-  // --- DRIVE HANDLERS (REAL IMPLEMENTATION) ---
-  
-  const handleConnectDrive = () => {
-    if (!effectiveClientId) {
-        alert("Vui lòng nhập Google Client ID hoặc cấu hình biến môi trường VITE_GOOGLE_CLIENT_ID.");
-        return;
-    }
-    if (!isGapiLoaded || !isGisLoaded) {
-        alert("Đang tải thư viện Google, vui lòng thử lại sau vài giây.");
-        return;
-    }
-
-    // Initialize Token Client
-    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: effectiveClientId,
-      scope: SCOPES,
-      callback: async (resp: any) => {
-        if (resp.error) {
-           console.error(resp);
-           alert("Lỗi đăng nhập Google Drive: " + resp.error);
-           return;
-        }
-
-        if (resp.access_token) {
-           // Success! Fetch User Info to confirm
-           try {
-             // Ensure access token is set for GAPI calls
-             window.gapi.client.setToken(resp);
-             
-             const userInfo = await window.gapi.client.drive.about.get({
-                fields: "user, storageQuota"
-             });
-
-             const userEmail = userInfo.result.user.emailAddress;
-             const userName = userInfo.result.user.displayName;
-
-             // --- SEARCH OR CREATE FOLDER LOGIC ---
-             let targetFolderId = driveFolderId;
-
-             try {
-                 const q = `mimeType='application/vnd.google-apps.folder' and name='${driveFolderName}' and trashed=false`;
-                 const folderResp = await window.gapi.client.drive.files.list({
-                     q: q,
-                     fields: 'files(id, name)',
-                     spaces: 'drive',
-                 });
-                 
-                 if (folderResp.result.files && folderResp.result.files.length > 0) {
-                     targetFolderId = folderResp.result.files[0].id;
-                     console.log("Found existing backup folder:", targetFolderId);
-                 } else {
-                     const fileMetadata = {
-                         name: driveFolderName,
-                         mimeType: 'application/vnd.google-apps.folder'
-                     };
-                     const createResp = await window.gapi.client.drive.files.create({
-                         resource: fileMetadata,
-                         fields: 'id'
-                     });
-                     targetFolderId = createResp.result.id;
-                     console.log("Created new backup folder:", targetFolderId);
-                 }
-             } catch (err) {
-                 console.error("Error managing drive folder:", err);
-                 alert("Cảnh báo: Không thể kiểm tra/tạo thư mục sao lưu. Vui lòng kiểm tra quyền truy cập.");
-             }
-             
-             setDriveFolderId(targetFolderId);
-
-             const newConfig = {
-                isConnected: true,
-                clientId: effectiveClientId,
-                accessToken: resp.access_token,
-                accountName: `${userName} (${userEmail})`,
-                folderId: targetFolderId,
-                folderName: driveFolderName
-             };
-
-             // Update State
-             onUpdateSettings({
-                ...settings,
-                driveConfig: newConfig
-             });
-
-             // Save to LocalStorage for persistence
-             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                 config: newConfig,
-                 timestamp: Date.now()
-             }));
-
-             alert(`Kiểm tra kết nối thành công!\nTrạng thái: Đã kết nối\nTài khoản: ${userEmail}\nThư mục: ${driveFolderName}`);
-
-           } catch (err: any) {
-             console.error("Error fetching drive info", err);
-             alert("Đăng nhập thành công nhưng xảy ra lỗi khi khởi tạo thư mục.");
-           }
-        }
-      },
+        },
     });
 
-    // Trigger Pop-up
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    // Request token
+    // prompt: '' -> Silent refresh
+    // prompt: 'consent' -> Force account selection
+    tokenClient.requestAccessToken({ prompt: promptType });
+  };
+
+
+  // --- RESTORE SESSION & AUTO REFRESH ---
+  useEffect(() => {
+    if (!isGisLoaded || !isGapiLoaded) return;
+    
+    // Check local storage
+    const savedSession = localStorage.getItem(STORAGE_KEY);
+    
+    if (savedSession) {
+        try {
+            const parsed = JSON.parse(savedSession);
+            const savedConfig = parsed.config;
+            const clientId = envClientId || savedConfig.clientId;
+
+            if (!clientId) return;
+
+            // Sync manual ID state if needed
+            if (!envClientId && savedConfig.clientId !== manualClientId) {
+                setManualClientId(savedConfig.clientId);
+            }
+
+            const now = Date.now();
+            const isExpired = (now - parsed.timestamp) >= TOKEN_EXPIRY_MS;
+
+            if (!isExpired) {
+                // Token is still valid (fresh enough) -> Restore immediately
+                // This gives the "Instant Connected" experience
+                onUpdateSettings({ ...settings, driveConfig: savedConfig });
+                setDriveFolderId(savedConfig.folderId);
+                setDriveFolderName(savedConfig.folderName);
+                
+                // Ensure GAPI has the token
+                if (window.gapi.client) {
+                    window.gapi.client.setToken({ access_token: savedConfig.accessToken });
+                }
+            } else {
+                // Token Expired -> Silent Refresh
+                // "Khi Token hết hạn: Hệ thống gọi requestAccessToken({ prompt: '' })"
+                console.log("Session expired. Attempting silent refresh...");
+                authenticateDrive(clientId, '', savedConfig);
+            }
+        } catch (e) {
+            console.error("Error restoring session:", e);
+            localStorage.removeItem(STORAGE_KEY);
+        }
+    }
+  }, [isGisLoaded, isGapiLoaded]); // Run once when libs are ready
+
+  // --- USER HANDLER ---
+  const handleConnectDrive = () => {
+    if (!effectiveClientId) {
+        alert("Vui lòng nhập Google Client ID.");
+        return;
+    }
+    // "Lần đầu: Gọi requestAccessToken({ prompt: 'consent' })"
+    // "Xác thực lại: Gọi requestAccessToken({ prompt: 'consent' })"
+    authenticateDrive(effectiveClientId, 'consent');
   };
 
   const handleDisconnectDrive = () => {
-    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa và bạn sẽ cần đăng nhập lại.");
+    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa.");
     if (confirm) {
         if (settings.driveConfig.accessToken && window.google) {
             window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
@@ -262,7 +289,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             });
         }
         
-        // Clear Local Storage
         localStorage.removeItem(STORAGE_KEY);
 
         onUpdateSettings({
@@ -280,7 +306,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleSaveDriveConfigOnly = () => {
-      // Saves Client ID/Folder without connecting
       onUpdateSettings({
           ...settings,
           driveConfig: {
@@ -290,23 +315,21 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               folderName: driveFolderName
           }
       });
-      alert("Đã lưu cấu hình! Vui lòng nhấn nút 'Kiểm tra kết nối' để hoàn tất và kích hoạt trạng thái Đã kết nối.");
+      alert("Đã lưu cấu hình! Vui lòng nhấn nút 'Kiểm tra kết nối' để hoàn tất.");
   };
 
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
     if (!settings.driveConfig.isConnected || !settings.driveConfig.folderId) {
-        alert("Chưa kết nối Google Drive. Vui lòng quay lại tab 'Cấu hình Chung' để kết nối.");
+        alert("Chưa kết nối Google Drive.");
         return;
     }
 
-    // Check for token validity
+    // Double check token validity before upload
     const tokenObj = window.gapi?.client?.getToken();
-    const accessToken = tokenObj?.access_token || settings.driveConfig.accessToken;
-
-    if (!accessToken) {
-         alert("Phiên làm việc Google Drive đã hết hạn hoặc chưa được khởi tạo. Vui lòng kết nối lại.");
-         handleDisconnectDrive();
+    if (!tokenObj) {
+         alert("Phiên làm việc lỗi. Đang thử làm mới...");
+         handleConnectDrive(); // Re-trigger auth
          return;
     }
 
@@ -321,7 +344,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       version: "1.2"
     };
 
-    // VERSIONING: Always create a new filename based on timestamp
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     const fileContent = JSON.stringify(data, null, 2);
     const file = new Blob([fileContent], {type: 'application/json'});
@@ -337,16 +359,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     form.append('file', file);
 
     try {
-        // Use fetch for multipart upload as gapi client doesn't support it easily for content upload
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
             method: 'POST',
-            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            headers: new Headers({ 'Authorization': 'Bearer ' + tokenObj.access_token }),
             body: form,
         });
         
         if (response.status === 401) {
-            alert("Phiên đăng nhập hết hạn. Vui lòng kết nối lại.");
-            handleDisconnectDrive();
+            // Token expired during upload
+            console.log("401 Unauthorized during upload. Refreshing...");
+            authenticateDrive(effectiveClientId, ''); // Try silent refresh
+            alert("Phiên đăng nhập hết hạn. Hệ thống đang thử kết nối lại. Vui lòng thử lại sau giây lát.");
             return;
         }
 
@@ -356,7 +379,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             alert(`Đã lưu bản mới lên Google Drive thành công!\nTên file: ${fileName}`);
         } else {
             console.error("Drive Upload Error:", json);
-            alert("Lỗi: Không thể lưu file lên Google Drive. Chi tiết trong console.");
+            alert("Lỗi: Không thể lưu file lên Google Drive.");
         }
     } catch (error) {
         console.error("Upload Request Error:", error);
@@ -426,7 +449,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
       <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
         {[
-          { id: 'backup', label: 'Sao lưu dữ liệu' },
+          { id: 'backup', label: 'Dữ liệu' },
           { id: 'users', label: 'Quản lý User' },
           { id: 'prompts', label: 'AI Prompts' },
           { id: 'general', label: 'Cấu hình Chung' },
@@ -455,6 +478,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             onImportClick={handleImportClick}
             onFileChange={handleFileChange}
             fileInputRef={fileInputRef}
+            onShowVersions={onShowVersions}
           />
         )}
 

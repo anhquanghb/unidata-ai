@@ -428,6 +428,7 @@ const App: React.FC = () => {
             onToggleLockAcademicYear={handleToggleLockAcademicYear}
             onImportData={handleImportData}
             onUpdateSchoolInfo={handleUpdateSchoolInfo}
+            onShowVersions={() => scanDriveVersions()}
           />
         );
       default:
