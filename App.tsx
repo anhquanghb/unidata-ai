@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion } from './types';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -146,14 +146,13 @@ const App: React.FC = () => {
   const [reports, setReports] = useState<UniversityReport[]>(INITIAL_REPORTS);
   const [scientificRecords, setScientificRecords] = useState<ScientificRecord[]>(INITIAL_SCIENTIFIC_RECORDS);
   
-  // Placeholder state for other modules to prevent errors during demo
-  // In a real app, these would have their own useState definitions
-  const [trainingRecords, setTrainingRecords] = useState<any[]>([]);
-  const [personnelRecords, setPersonnelRecords] = useState<any[]>([]);
-  const [admissionRecords, setAdmissionRecords] = useState<any[]>([]);
-  const [classRecords, setClassRecords] = useState<any[]>([]);
-  const [departmentRecords, setDepartmentRecords] = useState<any[]>([]);
-  const [businessRecords, setBusinessRecords] = useState<any[]>([]);
+  // State for all other data modules
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
+  const [personnelRecords, setPersonnelRecords] = useState<PersonnelRecord[]>([]);
+  const [admissionRecords, setAdmissionRecords] = useState<AdmissionRecord[]>([]);
+  const [classRecords, setClassRecords] = useState<ClassRecord[]>([]);
+  const [departmentRecords, setDepartmentRecords] = useState<DepartmentRecord[]>([]);
+  const [businessRecords, setBusinessRecords] = useState<BusinessRecord[]>([]);
 
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
@@ -202,38 +201,73 @@ const App: React.FC = () => {
           setBackupVersions(versions);
       } catch (error) {
           console.error("Error scanning drive:", error);
-          // Only alert if we expected it to work (not silent startup scan)
-          // alert("Lỗi khi quét phiên bản từ Google Drive.");
       } finally {
           setIsLoadingVersions(false);
       }
   };
 
-  const handleVersionConfirm = (versionId: string) => {
-      // Here we would fetch the specific file content from Drive using versionId
-      // and then call handleImportData(json).
-      // For simulation:
-      if (versionId) {
-          alert(`Đã tải xuống phiên bản ${versionId} từ Google Drive và đồng bộ dữ liệu thành công!`);
-          // We don't actually overwrite state here because we don't have the file content, 
-          // but we simulate the success flow.
+  const handleVersionConfirm = async (versionId: string) => {
+      if (!versionId) return;
+
+      const accessToken = settings.driveConfig.accessToken;
+      if (!accessToken) {
+          alert("Không tìm thấy Access Token. Vui lòng kết nối lại Google Drive.");
+          return;
       }
-      setIsVersionModalOpen(false);
+
+      try {
+          // Re-use loading state to indicate activity
+          setIsLoadingVersions(true);
+
+          // 1. Fetch the file content from Drive
+          // We use fetch directly because GAPI client might try to parse response automatically
+          // and we want raw control, or simply because it's cleaner for 'alt=media'
+          const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${versionId}?alt=media`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const backupData = await response.json();
+
+          // 2. Validate structure (Basic check)
+          // We check for at least one key key property to ensure it's a valid backup file
+          if (!backupData.version && !backupData.reports && !backupData.users) {
+             throw new Error("File không đúng định dạng dữ liệu hệ thống UniData.");
+          }
+
+          // 3. Hydrate Data (Restore State)
+          handleImportData(backupData);
+
+          alert(`Khôi phục dữ liệu từ phiên bản thành công!`);
+          setIsVersionModalOpen(false);
+
+      } catch (error: any) {
+          console.error("Lỗi khi tải bản sao lưu:", error);
+          alert("Lỗi khi tải dữ liệu từ Google Drive: " + (error.message || error));
+      } finally {
+          setIsLoadingVersions(false);
+      }
   };
 
 
   // --- GLOBAL STATE DERIVATION ---
   
-  // 1. Get current active year object
   const currentAcademicYearObj = useMemo(() => 
     academicYears.find(y => y.code === settings.currentAcademicYear), 
     [academicYears, settings.currentAcademicYear]
   );
 
-  // 2. Check if locked
   const isCurrentYearLocked = currentAcademicYearObj ? currentAcademicYearObj.isLocked : false;
 
-  // 3. Filter reports by current year for ALL modules
   const filteredReports = useMemo(() => 
     reports.filter(r => r.academicYear === settings.currentAcademicYear),
     [reports, settings.currentAcademicYear]
@@ -278,8 +312,6 @@ const App: React.FC = () => {
           default:
               console.warn("Unknown import type:", type);
       }
-      // Optional: switch view to storage to show imported data
-      // setCurrentView('scientific_management'); 
   };
   
   const handleAddScientificRecord = (record: ScientificRecord) => {
@@ -299,7 +331,6 @@ const App: React.FC = () => {
   };
 
   const handleRemoveUnit = (id: string) => {
-    // Enhanced to delete children for this demo:
     const deleteIds = new Set([id]);
     const findChildren = (parentId: string) => {
       units.forEach(u => {
@@ -321,7 +352,6 @@ const App: React.FC = () => {
     setUsers(users.filter(u => u.id !== id));
   };
 
-  // Academic Year Handlers
   const handleAddAcademicYear = (year: AcademicYear) => {
     setAcademicYears([...academicYears, year]);
   };
@@ -330,7 +360,6 @@ const App: React.FC = () => {
     const oldYear = academicYears.find(y => y.id === updatedYear.id);
     setAcademicYears(academicYears.map(y => y.id === updatedYear.id ? updatedYear : y));
     
-    // If we renamed the current active year, update settings
     if (oldYear && oldYear.code === settings.currentAcademicYear && oldYear.code !== updatedYear.code) {
       setSettings(prev => ({
         ...prev,
@@ -350,13 +379,22 @@ const App: React.FC = () => {
   };
 
   const handleImportData = (data: any) => {
+    // Restore Core Data
     if (data.reports) setReports(data.reports);
     if (data.units) setUnits(data.units);
     if (data.users) setUsers(data.users);
     if (data.academicYears) setAcademicYears(data.academicYears);
     if (data.settings) setSettings(data.settings);
     if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
+
+    // Restore Record Data
     if (data.scientificRecords) setScientificRecords(data.scientificRecords);
+    if (data.trainingRecords) setTrainingRecords(data.trainingRecords);
+    if (data.personnelRecords) setPersonnelRecords(data.personnelRecords);
+    if (data.admissionRecords) setAdmissionRecords(data.admissionRecords);
+    if (data.classRecords) setClassRecords(data.classRecords);
+    if (data.departmentRecords) setDepartmentRecords(data.departmentRecords);
+    if (data.businessRecords) setBusinessRecords(data.businessRecords);
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
@@ -413,12 +451,22 @@ const App: React.FC = () => {
       case 'settings':
         return (
           <SettingsModule
+            // Core
             reports={reports}
             units={units}
             settings={settings}
             users={users}
             academicYears={academicYears}
             schoolInfo={schoolInfo}
+            // Records
+            scientificRecords={scientificRecords}
+            trainingRecords={trainingRecords}
+            personnelRecords={personnelRecords}
+            admissionRecords={admissionRecords}
+            classRecords={classRecords}
+            departmentRecords={departmentRecords}
+            businessRecords={businessRecords}
+            // Handlers
             onUpdateSettings={setSettings}
             onAddUser={handleAddUser}
             onRemoveUser={handleRemoveUser}

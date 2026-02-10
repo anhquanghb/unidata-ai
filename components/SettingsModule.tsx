@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo } from '../types';
+import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
 import AIPromptModule from './SettingsModules/AIPromptModule';
@@ -20,6 +20,16 @@ interface SettingsModuleProps {
   units: Unit[];
   academicYears: AcademicYear[];
   schoolInfo: SchoolInfo;
+  
+  // Data Records
+  scientificRecords: ScientificRecord[];
+  trainingRecords: TrainingRecord[];
+  personnelRecords: PersonnelRecord[];
+  admissionRecords: AdmissionRecord[];
+  classRecords: ClassRecord[];
+  departmentRecords: DepartmentRecord[];
+  businessRecords: BusinessRecord[];
+
   onUpdateSettings: (settings: SystemSettings) => void;
   onAddUser: (user: UserProfile) => void;
   onRemoveUser: (id: string) => void;
@@ -32,7 +42,8 @@ interface SettingsModuleProps {
   onShowVersions?: () => void;
 }
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file'; // Access only files created by the app
+// Updated SCOPES to include readonly access for restoring backups
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION'; // Key for localStorage
 const TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes safety threshold
@@ -44,6 +55,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   units,
   academicYears,
   schoolInfo,
+  // Records
+  scientificRecords,
+  trainingRecords,
+  personnelRecords,
+  admissionRecords,
+  classRecords,
+  departmentRecords,
+  businessRecords,
+  // Handlers
   onUpdateSettings,
   onAddUser,
   onRemoveUser,
@@ -333,13 +353,24 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
          return;
     }
 
+    // Prepare COMPLETE system data
     const data = {
+      // Core
       reports,
       units,
       users,
       settings,
       academicYears,
       schoolInfo,
+      // Records
+      scientificRecords,
+      trainingRecords,
+      personnelRecords,
+      admissionRecords,
+      classRecords,
+      departmentRecords,
+      businessRecords,
+      // Metadata
       backupDate: new Date().toISOString(),
       version: "1.2"
     };
@@ -388,13 +419,24 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleExport = () => {
+    // Prepare COMPLETE system data
     const data = {
+      // Core
       reports,
       units,
       users,
       settings,
       academicYears,
       schoolInfo,
+      // Records
+      scientificRecords,
+      trainingRecords,
+      personnelRecords,
+      admissionRecords,
+      classRecords,
+      departmentRecords,
+      businessRecords,
+      // Metadata
       backupDate: new Date().toISOString(),
       version: "1.2"
     };
