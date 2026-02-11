@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord } from '../types';
+import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
 import AIPromptModule from './SettingsModules/AIPromptModule';
 import GeneralConfigModule from './SettingsModules/GeneralConfigModule';
+import DataConfigModule from './SettingsModules/DataConfigModule';
 
 // Declare globals for Google Scripts
 declare global {
@@ -29,6 +30,10 @@ interface SettingsModuleProps {
   classRecords: ClassRecord[];
   departmentRecords: DepartmentRecord[];
   businessRecords: BusinessRecord[];
+  
+  // Data Config
+  dataConfigGroups?: DataConfigGroup[];
+  onUpdateDataConfigGroups?: (groups: DataConfigGroup[]) => void;
 
   onUpdateSettings: (settings: SystemSettings) => void;
   onAddUser: (user: UserProfile) => void;
@@ -63,6 +68,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   classRecords,
   departmentRecords,
   businessRecords,
+  // Data Config
+  dataConfigGroups = [],
+  onUpdateDataConfigGroups,
   // Handlers
   onUpdateSettings,
   onAddUser,
@@ -75,8 +83,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onUpdateSchoolInfo,
   onShowVersions
 }) => {
-  // Ordered: Backup -> Users -> Prompts -> General
-  const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'prompts' | 'general'>('backup');
+  // Ordered: Backup -> Users -> Prompts -> DataConfig -> General
+  const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'prompts' | 'data_config' | 'general'>('backup');
 
   // Drive State
   // Prioritize Environment Variable
@@ -170,7 +178,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     let targetFolderName = savedConfig?.folderName || driveFolderName;
 
                     if (!targetFolderId) {
-                         // Search or Create
+                         // Search or Create Root Backup Folder
                          try {
                              const q = `mimeType='application/vnd.google-apps.folder' and name='${targetFolderName}' and trashed=false`;
                              const folderResp = await window.gapi.client.drive.files.list({
@@ -198,6 +206,37 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                          }
                     }
 
+                    // --- DATA SUB-FOLDER LOGIC (New Feature) ---
+                    let dataFolderId = savedConfig?.dataFolderId;
+                    if (targetFolderId) {
+                         try {
+                             const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
+                             const dataFolderResp = await window.gapi.client.drive.files.list({
+                                 q: qData,
+                                 fields: 'files(id, name)',
+                                 spaces: 'drive',
+                             });
+
+                             if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
+                                 dataFolderId = dataFolderResp.result.files[0].id;
+                             } else {
+                                 // Create 'Data' subfolder
+                                 const dataFolderMetadata = {
+                                     name: 'Data',
+                                     mimeType: 'application/vnd.google-apps.folder',
+                                     parents: [targetFolderId]
+                                 };
+                                 const createDataResp = await window.gapi.client.drive.files.create({
+                                     resource: dataFolderMetadata,
+                                     fields: 'id'
+                                 });
+                                 dataFolderId = createDataResp.result.id;
+                             }
+                         } catch (err) {
+                             console.error("Data Sub-folder error:", err);
+                         }
+                    }
+
                     // Update local state
                     setDriveFolderId(targetFolderId);
                     setDriveFolderName(targetFolderName);
@@ -208,7 +247,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        accessToken: resp.access_token,
                        accountName: `${userName} (${userEmail})`,
                        folderId: targetFolderId,
-                       folderName: targetFolderName
+                       folderName: targetFolderName,
+                       dataFolderId: dataFolderId // Store subfolder ID
                     };
 
                     // Update Global Settings
@@ -224,7 +264,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     }));
 
                     if (promptType === 'consent') {
-                        alert(`Kết nối thành công!\nTài khoản: ${userEmail}`);
+                        alert(`Kết nối thành công!\nTài khoản: ${userEmail}\nThư mục Upload: ${targetFolderName}/Data`);
                     }
 
                 } catch (err: any) {
@@ -370,6 +410,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
+      // Data Config
+      dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
       version: "1.2"
@@ -436,6 +478,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
+      // Data Config
+      dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
       version: "1.2"
@@ -483,23 +527,24 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Cài đặt Hệ thống</h2>
-        <p className="text-slate-600">Quản lý tham số hệ thống, thông tin trường, người dùng và cấu hình AI.</p>
+        <p className="text-slate-600">Quản lý tham số hệ thống, thông tin trường, người dùng, AI và cấu hình dữ liệu.</p>
       </div>
 
-      <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
+      <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit overflow-x-auto">
         {[
-          { id: 'backup', label: 'Dữ liệu' },
+          { id: 'backup', label: 'Dữ liệu & Backup' },
           { id: 'users', label: 'Quản lý User' },
           { id: 'prompts', label: 'AI Prompts' },
+          { id: 'data_config', label: 'Cấu hình Dữ liệu' },
           { id: 'general', label: 'Cấu hình Chung' },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            className={`whitespace-nowrap px-4 py-2 rounded-md text-sm font-medium transition-all ${
               activeTab === tab.id 
                 ? 'bg-white text-blue-600 shadow-sm' 
                 : 'text-slate-500 hover:text-slate-700'
@@ -538,6 +583,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
            <AIPromptModule 
               settings={settings}
               onUpdateSettings={onUpdateSettings}
+           />
+        )}
+
+         {/* TAB: DATA CONFIG */}
+         {activeTab === 'data_config' && onUpdateDataConfigGroups && (
+           <DataConfigModule 
+              groups={dataConfigGroups}
+              onUpdateGroups={onUpdateDataConfigGroups}
            />
         )}
 

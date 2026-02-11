@@ -1,118 +1,108 @@
 import React, { useState } from 'react';
-import { UniversityReport, ScientificRecord } from '../types';
-import DataScienceModule from './DataScienceModule';
-import TrainingModule from './ingestion_modules/TrainingModule';
-import PersonnelModule from './ingestion_modules/PersonnelModule';
-import AdmissionsModule from './ingestion_modules/AdmissionsModule';
-import ClassModule from './ingestion_modules/ClassModule';
-import DepartmentModule from './ingestion_modules/DepartmentModule';
-import BusinessModule from './ingestion_modules/BusinessModule';
+import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, GoogleDriveConfig } from '../types';
+import DynamicDataManager from './DynamicDataManager';
+import { Database, FolderOpen } from 'lucide-react';
 
 interface DataStorageModuleProps {
-  reports: UniversityReport[];
-  scientificRecords: ScientificRecord[];
-  onAddScientificRecord: (record: ScientificRecord) => void;
-  onDeleteScientificRecord: (id: string) => void;
   isLocked: boolean;
   currentAcademicYear: string;
+  
+  // Dynamic Data
+  dataConfigGroups: DataConfigGroup[];
+  dynamicDataStore: Record<string, DynamicRecord[]>;
+  onUpdateDynamicData: (groupId: string, data: DynamicRecord[]) => void;
+  onUpdateDataConfigGroups: (groups: DataConfigGroup[]) => void;
+
+  // Context Lookups
+  units: Unit[];
+  faculties: Faculty[];
+  academicYears: AcademicYear[];
+  
+  // Drive Config for File Upload
+  driveConfig?: GoogleDriveConfig;
 }
 
-type TabType = 'SCIENTIFIC' | 'TRAINING' | 'PERSONNEL' | 'ADMISSIONS' | 'CLASS' | 'DEPARTMENT' | 'BUSINESS';
-
 const DataStorageModule: React.FC<DataStorageModuleProps> = ({ 
-    reports, 
-    scientificRecords, 
-    onAddScientificRecord,
-    onDeleteScientificRecord,
     isLocked, 
-    currentAcademicYear 
+    currentAcademicYear,
+    dataConfigGroups,
+    dynamicDataStore,
+    onUpdateDynamicData,
+    onUpdateDataConfigGroups,
+    units,
+    faculties,
+    academicYears,
+    driveConfig
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('SCIENTIFIC');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(dataConfigGroups.length > 0 ? dataConfigGroups[0].id : null);
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'SCIENTIFIC', label: 'Khoa học & Công nghệ' },
-    { id: 'TRAINING', label: 'Đào tạo' },
-    { id: 'PERSONNEL', label: 'Nhân sự' },
-    { id: 'ADMISSIONS', label: 'Tuyển sinh' },
-    { id: 'CLASS', label: 'Lớp sinh viên' },
-    { id: 'DEPARTMENT', label: 'Tổ bộ môn' },
-    { id: 'BUSINESS', label: 'Quan hệ Doanh nghiệp' },
-  ];
-
-  const handleDummyImport = (data: any[]) => {
-    console.log("Import functionality is not enabled in this view.", data);
-  };
+  const selectedGroup = dataConfigGroups.find(g => g.id === selectedGroupId);
+  const selectedGroupData = selectedGroupId ? (dynamicDataStore[selectedGroupId] || []) : [];
 
   return (
-    <div className="p-8 h-full flex flex-col">
-      {/* Header Area */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-            <h2 className="text-2xl font-bold text-slate-800">Quản lý Thông tin Dữ liệu</h2>
-            <div className="flex items-center gap-2 mt-1">
-                <p className="text-slate-600">Kho dữ liệu số hóa tập trung toàn trường.</p>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
-                    {currentAcademicYear}
-                </span>
-                {isLocked && (
-                    <span className="flex items-center px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-xs font-bold border border-red-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                        Read Only
-                    </span>
-                )}
-            </div>
-        </div>
+    <div className="h-full flex overflow-hidden">
+      {/* Sidebar: Data Groups List */}
+      <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full">
+          <div className="p-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Database size={20} className="text-blue-600" />
+                  Nhóm Dữ liệu
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">Danh mục quản lý thông tin</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {dataConfigGroups.length === 0 && (
+                  <div className="text-center p-4 text-slate-400 text-sm italic">
+                      Chưa có nhóm dữ liệu nào được cấu hình trong Cài đặt.
+                  </div>
+              )}
+              {dataConfigGroups.map(group => (
+                  <button
+                      key={group.id}
+                      onClick={() => setSelectedGroupId(group.id)}
+                      className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                          selectedGroupId === group.id 
+                              ? 'bg-blue-600 text-white shadow-md' 
+                              : 'text-slate-600 hover:bg-white hover:shadow-sm'
+                      }`}
+                  >
+                      <FolderOpen size={16} />
+                      <span className="truncate">{group.name}</span>
+                  </button>
+              ))}
+          </div>
+          <div className="p-4 border-t border-slate-200 text-xs text-slate-400 text-center">
+              Năm học: <strong>{currentAcademicYear}</strong>
+          </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 border-b border-slate-200 overflow-x-auto">
-        <div className="flex space-x-1">
-            {tabs.map((tab) => (
-                <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`whitespace-nowrap px-4 py-2 border-b-2 text-sm font-medium transition-colors ${
-                        activeTab === tab.id
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                    }`}
-                >
-                    {tab.label}
-                </button>
-            ))}
-        </div>
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-         {activeTab === 'SCIENTIFIC' && (
-             <DataScienceModule 
-                reports={reports}
-                scientificRecords={scientificRecords}
-                onAddScientificRecord={onAddScientificRecord}
-                onDeleteScientificRecord={onDeleteScientificRecord}
-                isLocked={isLocked}
-                currentAcademicYear={currentAcademicYear}
-             />
-         )}
-         {activeTab === 'TRAINING' && (
-             <TrainingModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
-         {activeTab === 'PERSONNEL' && (
-             <PersonnelModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
-         {activeTab === 'ADMISSIONS' && (
-             <AdmissionsModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
-         {activeTab === 'CLASS' && (
-             <ClassModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
-         {activeTab === 'DEPARTMENT' && (
-             <DepartmentModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
-         {activeTab === 'BUSINESS' && (
-             <BusinessModule isLocked={isLocked} currentAcademicYear={currentAcademicYear} onImport={handleDummyImport} />
-         )}
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+          {selectedGroup ? (
+              <DynamicDataManager 
+                  key={selectedGroup.id}
+                  group={selectedGroup}
+                  data={selectedGroupData}
+                  isLocked={isLocked}
+                  currentAcademicYear={currentAcademicYear}
+                  onUpdateData={(newData) => onUpdateDynamicData(selectedGroup.id, newData)}
+                  onUpdateGroupConfig={(newGroup) => {
+                      const updatedGroups = dataConfigGroups.map(g => g.id === newGroup.id ? newGroup : g);
+                      onUpdateDataConfigGroups(updatedGroups);
+                  }}
+                  // Lookups
+                  units={units}
+                  faculties={faculties}
+                  academicYears={academicYears}
+                  // Drive Config
+                  driveConfig={driveConfig}
+              />
+          ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <Database size={64} className="mb-4 opacity-20" />
+                  <p className="text-lg font-medium">Vui lòng chọn một Nhóm dữ liệu</p>
+              </div>
+          )}
       </div>
     </div>
   );

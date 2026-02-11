@@ -27,6 +27,10 @@ interface GeneralConfigModuleProps {
   onSetCurrentYear: (code: string) => void;
 }
 
+// Global declarations from parent settings module
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION';
+
 const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   settings,
   schoolInfo,
@@ -88,6 +92,18 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const cancelEditingYear = () => {
     setEditingYearId(null);
   };
+
+  // Re-implementing the auth logic here to handle folder creation properly
+  // This overrides the simple onConnectDrive passed from parent if we want to handle custom logic
+  // However, simpler to just modify the parent SettingsModule.tsx logic? 
+  // Actually, let's keep the UI here but logic in SettingsModule is preferred.
+  // BUT, to satisfy the requirement "When connecting...", I will modify how SettingsModule works or inject logic here.
+  // Since I cannot change SettingsModule's internal authenticateDrive easily without modifying it, 
+  // I will rely on the fact that I am updating GeneralConfigModule which calls onConnectDrive.
+  // Wait, I need to update the logic in SettingsModule.tsx to create the Data folder.
+  // Since the user asked to change the system behavior when configuring Drive, 
+  // I will modify SettingsModule.tsx's authenticateDrive function in the next change block.
+  // This file is mostly UI.
 
   return (
     <div className="space-y-8">
@@ -184,7 +200,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
               {!settings.driveConfig?.isConnected ? (
                   <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
-                       <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu.</p>
+                       <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu và lưu trữ tập tin.</p>
                        
                        <div className="flex justify-center gap-2 mt-4">
                            {!envClientId && (
@@ -230,13 +246,20 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               />
                           </div>
                           <div>
-                              <label className="block text-xs font-semibold text-green-700 mb-1">Folder ID (Tùy chọn)</label>
+                              <label className="block text-xs font-semibold text-green-700 mb-1">Folder ID (Backup)</label>
                               <input 
                                   className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
                                   value={driveFolderId}
                                   onChange={(e) => setDriveFolderId(e.target.value)}
-                                  placeholder="Để trống để tự tạo"
+                                  placeholder="Tự động tạo"
+                                  disabled
                               />
+                          </div>
+                          <div className="col-span-2">
+                             <div className="flex items-center gap-2 text-xs text-green-700 bg-green-100 p-2 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
+                                <span>Thư mục upload file: <strong>{driveFolderName}/Data</strong> (ID: {settings.driveConfig.dataFolderId ? settings.driveConfig.dataFolderId.substring(0, 8) + '...' : 'Chưa tạo'})</span>
+                             </div>
                           </div>
                       </div>
                       <div className="flex justify-between items-center mt-4">
@@ -246,9 +269,9 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                           >
                               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                              {settings.driveConfig?.isConnected ? "Xác thực lại / Kết nối tài khoản khác" : "Kiểm tra kết nối (Xác thực)"}
+                              {settings.driveConfig?.isConnected ? "Xác thực lại / Quét lại thư mục" : "Kiểm tra kết nối"}
                           </button>
-                          <button onClick={onSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Cập nhật thư mục</button>
+                          <button onClick={onSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Cập nhật cấu hình</button>
                       </div>
                   </div>
               )}

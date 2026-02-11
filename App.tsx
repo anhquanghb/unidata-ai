@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord } from './types';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord, DataConfigGroup, DynamicRecord } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -206,6 +206,49 @@ const INITIAL_HR_RECORDS: HumanResourceRecord[] = [
     }
 ];
 
+// Initial Data Config Groups (Example: Scientific Research)
+const SCIENTIFIC_GROUP_ID = uuidv4();
+const INITIAL_DATA_CONFIGS: DataConfigGroup[] = [
+  {
+    id: SCIENTIFIC_GROUP_ID,
+    name: "Quản lý Đề tài Nghiên cứu",
+    description: "Cấu hình trường dữ liệu cho đề tài các cấp",
+    fields: [
+      { id: uuidv4(), key: "topicName", label: "Tên đề tài", type: "text", required: true },
+      { id: uuidv4(), key: "budget", label: "Kinh phí (VNĐ)", type: "number_int", required: false },
+      { id: uuidv4(), key: "startDate", label: "Năm bắt đầu", type: "number_int", required: true },
+      { 
+        id: uuidv4(), 
+        key: "status", 
+        label: "Trạng thái", 
+        type: "select_single", 
+        required: true,
+        options: [
+          { id: "opt1", label: "Đang thực hiện", value: "ongoing" },
+          { id: "opt2", label: "Đã nghiệm thu", value: "completed" },
+          { id: "opt3", label: "Đã thanh lý", value: "cancelled" }
+        ]
+      },
+      { id: uuidv4(), key: "leadUnit", label: "Đơn vị chủ trì", type: "reference", required: true, referenceTarget: "units" },
+      { id: uuidv4(), key: "contractFile", label: "Hợp đồng (Scan)", type: "file", required: false }
+    ],
+    charts: [
+        { id: uuidv4(), title: 'Tổng Kinh phí theo Năm', type: 'line', xAxisField: 'startDate', yAxisField: 'budget' },
+        { id: uuidv4(), title: 'Số lượng theo Trạng thái', type: 'pie', categoryField: 'status' }
+    ]
+  }
+];
+
+// Mock data for the dynamic group
+const INITIAL_DYNAMIC_DATA: Record<string, DynamicRecord[]> = {
+    [SCIENTIFIC_GROUP_ID]: [
+        { id: uuidv4(), topicName: "AI Research 2023", budget: 50000000, startDate: 2023, status: "completed", leadUnit: FACULTY_ENV_ID, academicYear: "2023-2024" },
+        { id: uuidv4(), topicName: "Blockchain Edu", budget: 120000000, startDate: 2024, status: "ongoing", leadUnit: FACULTY_EE_ID, academicYear: "2023-2024" },
+        { id: uuidv4(), topicName: "Smart City IoT", budget: 80000000, startDate: 2023, status: "ongoing", leadUnit: FACULTY_EE_ID, academicYear: "2023-2024" },
+        { id: uuidv4(), topicName: "Green Energy", budget: 30000000, startDate: 2022, status: "cancelled", leadUnit: FACULTY_ENV_ID, academicYear: "2022-2023" }
+    ]
+};
+
 const INITIAL_USERS: UserProfile[] = [
   { id: uuidv4(), fullName: "Nguyễn Văn Admin", username: "admin", role: "admin" },
   { id: uuidv4(), fullName: "Trần Thị Thư Ký", username: "staff01", role: "staff" },
@@ -267,6 +310,10 @@ const App: React.FC = () => {
 
   // State for Human Resources (Organization Module)
   const [humanResources, setHumanResources] = useState<HumanResourceRecord[]>(INITIAL_HR_RECORDS);
+  
+  // State for Data Configuration Module (DYNAMIC)
+  const [dataConfigGroups, setDataConfigGroups] = useState<DataConfigGroup[]>(INITIAL_DATA_CONFIGS);
+  const [dynamicDataStore, setDynamicDataStore] = useState<Record<string, DynamicRecord[]>>(INITIAL_DYNAMIC_DATA);
 
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
@@ -333,9 +380,6 @@ const App: React.FC = () => {
           // Re-use loading state to indicate activity
           setIsLoadingVersions(true);
 
-          // 1. Fetch the file content from Drive
-          // We use fetch directly because GAPI client might try to parse response automatically
-          // and we want raw control, or simply because it's cleaner for 'alt=media'
           const response = await fetch(
             `https://www.googleapis.com/drive/v3/files/${versionId}?alt=media`,
             {
@@ -352,13 +396,10 @@ const App: React.FC = () => {
 
           const backupData = await response.json();
 
-          // 2. Validate structure (Basic check)
-          // We check for at least one key key property to ensure it's a valid backup file
           if (!backupData.version && !backupData.reports && !backupData.users) {
              throw new Error("File không đúng định dạng dữ liệu hệ thống UniData.");
           }
 
-          // 3. Hydrate Data (Restore State)
           handleImportData(backupData);
 
           alert(`Khôi phục dữ liệu từ phiên bản thành công!`);
@@ -514,11 +555,23 @@ const App: React.FC = () => {
     if (data.faculties) setFaculties(data.faculties);
     if (data.facultyTitles) setFacultyTitles(data.facultyTitles);
     if (data.humanResources) setHumanResources(data.humanResources);
+    
+    // Restore Data Config & Dynamic Data
+    if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
+    if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
     setSchoolInfo(info);
   }
+
+  // --- Dynamic Data Handlers ---
+  const handleUpdateDynamicData = (groupId: string, data: DynamicRecord[]) => {
+      setDynamicDataStore(prev => ({
+          ...prev,
+          [groupId]: data
+      }));
+  };
 
   const renderContent = () => {
     switch (currentView) {
@@ -549,12 +602,20 @@ const App: React.FC = () => {
       case 'scientific_management':
         return (
           <DataStorageModule 
-            reports={filteredReports} 
-            scientificRecords={filteredScientificRecords}
-            onAddScientificRecord={handleAddScientificRecord}
-            onDeleteScientificRecord={handleDeleteScientificRecord}
+            // Generic props
             isLocked={isCurrentYearLocked}
             currentAcademicYear={settings.currentAcademicYear}
+            // Dynamic Data Props
+            dataConfigGroups={dataConfigGroups}
+            dynamicDataStore={dynamicDataStore}
+            onUpdateDynamicData={handleUpdateDynamicData}
+            onUpdateDataConfigGroups={setDataConfigGroups} // To save chart configs
+            // Context for Lookups
+            units={units}
+            faculties={faculties}
+            academicYears={academicYears}
+            // Drive Config (New)
+            driveConfig={settings.driveConfig}
           />
         );
       case 'faculty_profiles':
@@ -599,6 +660,9 @@ const App: React.FC = () => {
             classRecords={classRecords}
             departmentRecords={departmentRecords}
             businessRecords={businessRecords}
+            // Data Config
+            dataConfigGroups={dataConfigGroups}
+            onUpdateDataConfigGroups={setDataConfigGroups}
             // Handlers
             onUpdateSettings={setSettings}
             onAddUser={handleAddUser}

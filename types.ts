@@ -149,6 +149,7 @@ export interface GoogleDriveConfig {
   accountName?: string;
   folderId: string;
   folderName: string;
+  dataFolderId?: string; // Sub-folder for file uploads
   lastSync?: string;
 }
 
@@ -265,4 +266,71 @@ export interface Course {
     instructorIds: string[];
     isAbet?: boolean;
     isEssential?: boolean;
+}
+
+// --- DATA CONFIGURATION MODULE TYPES ---
+
+export type DataFieldType = 
+  // Primitive
+  | 'text' 
+  | 'textarea' 
+  | 'number_int' 
+  | 'number_float' 
+  | 'date'
+  // Choice
+  | 'select_single' 
+  | 'select_multiple'
+  // Logic & Reference
+  | 'boolean'
+  | 'reference'
+  // File
+  | 'file';
+
+export type ReferenceTarget = 'units' | 'academicYears' | 'faculties';
+
+export interface DataFieldOption {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface DataFieldDefinition {
+  id: string;
+  key: string;       // JSON property key (e.g., 'researchTitle')
+  label: string;     // Display label (e.g., 'Tên đề tài')
+  type: DataFieldType;
+  required: boolean;
+  description?: string;
+  // For Choice Types
+  options?: DataFieldOption[];
+  // For Reference Types
+  referenceTarget?: ReferenceTarget;
+}
+
+export type ChartType = 'line' | 'bar' | 'pie' | 'radar';
+
+export interface ChartConfig {
+  id: string;
+  title: string;
+  type: ChartType;
+  // Configuration specific to chart type
+  xAxisField?: string;      // Used for Line/Bar (Dimension)
+  yAxisField?: string;      // Used for Line/Bar (Metric)
+  categoryField?: string;   // Used for Pie (Category)
+  radarFields?: string[];   // Used for Radar (Metrics)
+  color?: string;
+}
+
+export interface DataConfigGroup {
+  id: string;
+  name: string;        // e.g., "Quản lý Sinh viên", "Nghiên cứu Khoa học"
+  description?: string;
+  fields: DataFieldDefinition[];
+  charts?: ChartConfig[]; // New: Store chart configurations
+}
+
+export interface DynamicRecord {
+  id: string;
+  academicYear?: string; // Always injected
+  [key: string]: any;
 }
