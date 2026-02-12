@@ -150,6 +150,7 @@ export interface GoogleDriveConfig {
   folderId: string;
   folderName: string;
   dataFolderId?: string; // Sub-folder for file uploads
+  externalSourceFolderId?: string; // New: Read-only source folder
   lastSync?: string;
 }
 

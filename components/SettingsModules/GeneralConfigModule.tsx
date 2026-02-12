@@ -19,6 +19,10 @@ interface GeneralConfigModuleProps {
   setDriveFolderId: (val: string) => void;
   driveFolderName: string;
   setDriveFolderName: (val: string) => void;
+  // New prop for external source
+  externalSourceFolderId?: string;
+  setExternalSourceFolderId?: (val: string) => void;
+
   envClientId: string;
   effectiveClientId: string;
   onConnectDrive: () => void;
@@ -44,6 +48,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   manualClientId, setManualClientId,
   driveFolderId, setDriveFolderId,
   driveFolderName, setDriveFolderName,
+  externalSourceFolderId, setExternalSourceFolderId, // Destructure new props
   envClientId, effectiveClientId,
   onConnectDrive, onDisconnectDrive, onSaveDriveConfigOnly,
   onSetCurrentYear
@@ -92,18 +97,6 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const cancelEditingYear = () => {
     setEditingYearId(null);
   };
-
-  // Re-implementing the auth logic here to handle folder creation properly
-  // This overrides the simple onConnectDrive passed from parent if we want to handle custom logic
-  // However, simpler to just modify the parent SettingsModule.tsx logic? 
-  // Actually, let's keep the UI here but logic in SettingsModule is preferred.
-  // BUT, to satisfy the requirement "When connecting...", I will modify how SettingsModule works or inject logic here.
-  // Since I cannot change SettingsModule's internal authenticateDrive easily without modifying it, 
-  // I will rely on the fact that I am updating GeneralConfigModule which calls onConnectDrive.
-  // Wait, I need to update the logic in SettingsModule.tsx to create the Data folder.
-  // Since the user asked to change the system behavior when configuring Drive, 
-  // I will modify SettingsModule.tsx's authenticateDrive function in the next change block.
-  // This file is mostly UI.
 
   return (
     <div className="space-y-8">
@@ -238,7 +231,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-green-200">
                           <div>
-                              <label className="block text-xs font-semibold text-green-700 mb-1">Tên Thư mục Lưu trữ</label>
+                              <label className="block text-xs font-semibold text-green-700 mb-1">Tên Thư mục Lưu trữ (Backup)</label>
                               <input 
                                   className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                   value={driveFolderName}
@@ -260,6 +253,20 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
                                 <span>Thư mục upload file: <strong>{driveFolderName}/Data</strong> (ID: {settings.driveConfig.dataFolderId ? settings.driveConfig.dataFolderId.substring(0, 8) + '...' : 'Chưa tạo'})</span>
                              </div>
+                          </div>
+                          <div className="col-span-2 border-t border-green-200 pt-3 mt-1">
+                              <label className="block text-xs font-semibold text-green-700 mb-1">Thư mục Nguồn Dữ liệu (Chỉ đọc)</label>
+                              <div className="flex gap-2">
+                                <input 
+                                    className="flex-1 border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                                    value={externalSourceFolderId || ''}
+                                    onChange={(e) => setExternalSourceFolderId && setExternalSourceFolderId(e.target.value)}
+                                    placeholder="Nhập Drive Folder ID (Dùng để đọc dữ liệu chia sẻ)"
+                                />
+                              </div>
+                              <p className="text-[10px] text-green-600 mt-1">
+                                  * Nhập ID của thư mục Drive mà bạn được chia sẻ quyền xem. Hệ thống sẽ đọc dữ liệu từ thư mục này.
+                              </p>
                           </div>
                       </div>
                       <div className="flex justify-between items-center mt-4">

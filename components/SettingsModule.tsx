@@ -98,6 +98,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   const [driveFolderId, setDriveFolderId] = useState(settings.driveConfig?.folderId || '');
   const [driveFolderName, setDriveFolderName] = useState(settings.driveConfig?.folderName || 'UniData_Backups');
+  // State for the Read-Only Source Folder
+  const [externalSourceFolderId, setExternalSourceFolderId] = useState(settings.driveConfig?.externalSourceFolderId || '');
+
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
 
@@ -240,6 +243,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     // Update local state
                     setDriveFolderId(targetFolderId);
                     setDriveFolderName(targetFolderName);
+                    // Use existing external ID if available, don't overwrite with empty unless intentional
+                    const finalExternalId = savedConfig?.externalSourceFolderId || externalSourceFolderId;
+                    setExternalSourceFolderId(finalExternalId);
 
                     const newConfig = {
                        isConnected: true,
@@ -248,7 +254,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        accountName: `${userName} (${userEmail})`,
                        folderId: targetFolderId,
                        folderName: targetFolderName,
-                       dataFolderId: dataFolderId // Store subfolder ID
+                       dataFolderId: dataFolderId, // Store subfolder ID
+                       externalSourceFolderId: finalExternalId // Store read-only source ID
                     };
 
                     // Update Global Settings
@@ -311,6 +318,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                 onUpdateSettings({ ...settings, driveConfig: savedConfig });
                 setDriveFolderId(savedConfig.folderId);
                 setDriveFolderName(savedConfig.folderName);
+                if (savedConfig.externalSourceFolderId) setExternalSourceFolderId(savedConfig.externalSourceFolderId);
                 
                 // Ensure GAPI has the token
                 if (window.gapi.client) {
@@ -362,6 +370,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             }
         });
         setDriveFolderId('');
+        setExternalSourceFolderId('');
     }
   };
 
@@ -372,7 +381,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               ...settings.driveConfig,
               clientId: manualClientId,
               folderId: driveFolderId,
-              folderName: driveFolderName
+              folderName: driveFolderName,
+              externalSourceFolderId: externalSourceFolderId // Persist the new field
           }
       });
       alert("Đã lưu cấu hình! Vui lòng nhấn nút 'Kiểm tra kết nối' để hoàn tất.");
@@ -614,6 +624,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              setDriveFolderId={setDriveFolderId}
              driveFolderName={driveFolderName}
              setDriveFolderName={setDriveFolderName}
+             
+             // External Read-Only Source Prop
+             externalSourceFolderId={externalSourceFolderId}
+             setExternalSourceFolderId={setExternalSourceFolderId}
+
              envClientId={envClientId}
              effectiveClientId={effectiveClientId}
              onConnectDrive={handleConnectDrive}
