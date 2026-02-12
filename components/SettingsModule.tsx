@@ -162,11 +162,120 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     if (!window.google) loadGis(); else setIsGisLoaded(true);
   }, []);
 
+  // --- REUSABLE SCAN LOGIC ---
+  const performDriveScan = async (accessToken: string, clientId: string) => {
+      try {
+          // Set token for GAPI calls
+          window.gapi.client.setToken({ access_token: accessToken });
+          
+          const userInfo = await window.gapi.client.drive.about.get({
+             fields: "user, storageQuota"
+          });
+
+          const userEmail = userInfo.result.user.emailAddress;
+          const userName = userInfo.result.user.displayName;
+
+          // --- STRICT SCAN LOGIC ---
+          let targetFolderId = '';
+          let dataFolderId = '';
+          let foundConfig = false;
+          let backupCount = 0;
+
+          // 1. Search for Root Backup Folder (UniData_Backups) OWNED BY ME
+          // STRICT QUERY: Must be owned by 'me'
+          const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
+          const folderResp = await window.gapi.client.drive.files.list({
+              q: q,
+              fields: 'files(id, name)',
+              spaces: 'drive',
+          });
+          
+          if (folderResp.result.files && folderResp.result.files.length > 0) {
+              targetFolderId = folderResp.result.files[0].id;
+              console.log("Found existing folder:", targetFolderId);
+
+              // 2. If Found, Search for 'Data' Sub-folder
+              const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
+              const dataFolderResp = await window.gapi.client.drive.files.list({
+                  q: qData,
+                  fields: 'files(id, name)',
+                  spaces: 'drive',
+              });
+
+              if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
+                  dataFolderId = dataFolderResp.result.files[0].id;
+              }
+
+              // 3. Search for Configuration File (external.txt)
+              const qConfig = `name = 'external.txt' and '${targetFolderId}' in parents and trashed=false`;
+              const configResp = await window.gapi.client.drive.files.list({
+                  q: qConfig,
+                  fields: 'files(id, name)',
+              });
+              if (configResp.result.files && configResp.result.files.length > 0) {
+                  foundConfig = true;
+              }
+
+              // 4. Count Backups (JSON files)
+              const qBackups = `mimeType = 'application/json' and '${targetFolderId}' in parents and trashed=false and name != 'external.txt'`;
+              const backupResp = await window.gapi.client.drive.files.list({
+                  q: qBackups,
+                  pageSize: 100, // Limit check
+                  fields: 'files(id)',
+              });
+              backupCount = backupResp.result.files ? backupResp.result.files.length : 0;
+          }
+
+          // Update local state UI
+          setDriveFolderId(targetFolderId);
+          setScanStatus({
+              foundFolder: !!targetFolderId,
+              foundDataFolder: !!dataFolderId,
+              foundConfig: foundConfig,
+              backupCount: backupCount
+          });
+
+          const newSession: GoogleDriveConfig = {
+             isConnected: true,
+             clientId: clientId,
+             accessToken: accessToken,
+             accountName: `${userName} (${userEmail})`,
+             folderId: targetFolderId, 
+             folderName: DEFAULT_FOLDER_NAME,
+             dataFolderId: dataFolderId, 
+             externalSourceFolderId: externalSourceFolderId,
+             lastSync: new Date().toISOString()
+          };
+
+          // Update Global Session State
+          onUpdateDriveSession(newSession);
+
+          // Persist session to LocalStorage
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              config: newSession,
+              timestamp: Date.now()
+          }));
+
+          return true; // Success
+      } catch (err: any) {
+          console.error("Drive Scan Error", err);
+          return false; // Failed
+      }
+  };
+
   // --- AUTHENTICATION CORE FUNCTION ---
-  const authenticateDrive = (clientId: string, promptType: string) => {
+  const authenticateDrive = async (clientId: string, promptType: string) => {
     if (!window.google || !window.gapi) {
         console.warn("Google libraries not loaded yet.");
         return;
+    }
+
+    // Optimization: If we have a token and aren't forcing a prompt, try to reuse it directly
+    if (driveSession.isConnected && driveSession.accessToken && promptType === '') {
+        console.log("Checking existing Drive session...");
+        const success = await performDriveScan(driveSession.accessToken, clientId);
+        if (success) return; // Valid token, no need to popup
+        console.log("Existing token invalid or scan failed. Refreshing...");
     }
 
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -190,108 +299,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
             if (resp.access_token) {
                 try {
-                    // Ensure access token is set for GAPI calls
-                    window.gapi.client.setToken(resp);
-                    
-                    const userInfo = await window.gapi.client.drive.about.get({
-                       fields: "user, storageQuota"
-                    });
-
-                    const userEmail = userInfo.result.user.emailAddress;
-                    const userName = userInfo.result.user.displayName;
-
-                    // --- STRICT SCAN LOGIC ---
-                    let targetFolderId = '';
-                    let dataFolderId = '';
-                    let foundConfig = false;
-                    let backupCount = 0;
-
-                    // 1. Search for Root Backup Folder (UniData_Backups) OWNED BY ME
-                    try {
-                        // STRICT QUERY: Must be owned by 'me'
-                        const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
-                        const folderResp = await window.gapi.client.drive.files.list({
-                            q: q,
-                            fields: 'files(id, name)',
-                            spaces: 'drive',
-                        });
-                        
-                        if (folderResp.result.files && folderResp.result.files.length > 0) {
-                            targetFolderId = folderResp.result.files[0].id;
-                            console.log("Found existing folder:", targetFolderId);
-
-                            // 2. If Found, Search for 'Data' Sub-folder
-                            const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
-                            const dataFolderResp = await window.gapi.client.drive.files.list({
-                                q: qData,
-                                fields: 'files(id, name)',
-                                spaces: 'drive',
-                            });
-
-                            if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
-                                dataFolderId = dataFolderResp.result.files[0].id;
-                            }
-
-                            // 3. Search for Configuration File (external.txt)
-                            const qConfig = `name = 'external.txt' and '${targetFolderId}' in parents and trashed=false`;
-                            const configResp = await window.gapi.client.drive.files.list({
-                                q: qConfig,
-                                fields: 'files(id, name)',
-                            });
-                            if (configResp.result.files && configResp.result.files.length > 0) {
-                                foundConfig = true;
-                            }
-
-                            // 4. Count Backups (JSON files)
-                            const qBackups = `mimeType = 'application/json' and '${targetFolderId}' in parents and trashed=false and name != 'external.txt'`;
-                            const backupResp = await window.gapi.client.drive.files.list({
-                                q: qBackups,
-                                pageSize: 100, // Limit check
-                                fields: 'files(id)',
-                            });
-                            backupCount = backupResp.result.files ? backupResp.result.files.length : 0;
-                        }
-                    } catch (err) {
-                        console.error("Folder scan error:", err);
-                        alert("Lỗi khi quét thư mục trên Drive.");
-                    }
-
-                    // Update local state UI
-                    setDriveFolderId(targetFolderId);
-                    setScanStatus({
-                        foundFolder: !!targetFolderId,
-                        foundDataFolder: !!dataFolderId,
-                        foundConfig: foundConfig,
-                        backupCount: backupCount
-                    });
-
-                    const newSession: GoogleDriveConfig = {
-                       isConnected: true,
-                       clientId: clientId,
-                       accessToken: resp.access_token,
-                       accountName: `${userName} (${userEmail})`,
-                       folderId: targetFolderId, 
-                       folderName: DEFAULT_FOLDER_NAME,
-                       dataFolderId: dataFolderId, 
-                       externalSourceFolderId: externalSourceFolderId,
-                       lastSync: new Date().toISOString()
-                    };
-
-                    // Update Global Session State
-                    onUpdateDriveSession(newSession);
-
-                    // Persist session to LocalStorage
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                        config: newSession,
-                        timestamp: Date.now()
-                    }));
-
+                    await performDriveScan(resp.access_token, clientId);
                     if (promptType.includes('select_account')) {
-                        if (targetFolderId) {
-                            // Silent success or toast could be better, but user requested feedback logic
-                        }
+                       // Optional: success feedback
                     }
-
                 } catch (err: any) {
                     console.error("Auth Processing Error", err);
                     if (promptType !== '') alert("Lỗi khi xử lý thông tin tài khoản.");
@@ -480,9 +491,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         return;
     }
 
+    // Restore token to GAPI if lost but exists in session
+    if (!window.gapi?.client?.getToken() && driveSession.accessToken) {
+        window.gapi.client.setToken({ access_token: driveSession.accessToken });
+    }
+
     // Double check token validity before upload
     const tokenObj = window.gapi?.client?.getToken();
     if (!tokenObj) {
+         // If still no token, assume session invalid
          alert("Phiên làm việc lỗi. Đang thử làm mới...");
          handleConnectDrive(); // Re-trigger auth
          return;
@@ -490,8 +507,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
     // SANITIZE SETTINGS: Remove driveConfig or any sensitive runtime keys
     // We create a clean settings object that does NOT include drive state
-    // Note: The `driveConfig` key might persist in the JSON if we don't explicitly exclude it
-    // even if it's not in the Interface, due to JS object nature.
     const { driveConfig: _ignored, ...safeSettings } = (settings as any);
 
     const data = {
