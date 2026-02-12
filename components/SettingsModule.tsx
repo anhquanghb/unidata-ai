@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig } from '../types';
+import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig, Faculty, FacultyTitles, HumanResourceRecord } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
 import GeneralConfigModule from './SettingsModules/GeneralConfigModule';
@@ -21,6 +21,11 @@ interface SettingsModuleProps {
   academicYears: AcademicYear[];
   schoolInfo: SchoolInfo;
   
+  // Faculty Module Data
+  faculties: Faculty[];
+  facultyTitles: FacultyTitles;
+  humanResources: HumanResourceRecord[];
+
   // Data Records
   scientificRecords: ScientificRecord[];
   trainingRecords: TrainingRecord[];
@@ -62,6 +67,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   units, 
   academicYears,
   schoolInfo,
+  // Faculty Data
+  faculties,
+  facultyTitles,
+  humanResources,
   // Records
   scientificRecords,
   trainingRecords,
@@ -489,6 +498,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       settings: safeSettings, // Use cleaned settings
       academicYears,
       schoolInfo,
+      // Faculty Data
+      faculties,
+      facultyTitles,
+      humanResources,
+      // Records
       scientificRecords,
       trainingRecords,
       personnelRecords,
@@ -555,6 +569,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       settings: safeSettings, // Use cleaned settings
       academicYears,
       schoolInfo,
+      // Faculty Data
+      faculties,
+      facultyTitles,
+      humanResources,
+      // Records
       scientificRecords,
       trainingRecords,
       personnelRecords,

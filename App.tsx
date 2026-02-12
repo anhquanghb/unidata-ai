@@ -640,6 +640,10 @@ const App: React.FC = () => {
             users={users}
             academicYears={academicYears}
             schoolInfo={schoolInfo}
+            // Faculty Data (NEW)
+            faculties={faculties}
+            facultyTitles={facultyTitles}
+            humanResources={humanResources}
             // Records
             scientificRecords={scientificRecords}
             trainingRecords={trainingRecords}
