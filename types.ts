@@ -161,6 +161,12 @@ export interface BackupVersion {
   size: string;
 }
 
+export interface ExternalSource {
+  id: string;   // Folder ID of the external drive
+  name: string; // Display name
+  addedAt: string;
+}
+
 export interface SystemSettings {
   currentAcademicYear: string;
   extractionPrompt: string;

@@ -330,46 +330,20 @@ const App: React.FC = () => {
   // --- INITIALIZATION ---
   useEffect(() => {
     if (settings.driveConfig.isConnected && settings.driveConfig.folderId) {
-        scanDriveVersions();
+        // Trigger modal opening on fresh load if needed, or user action
+        // For now, let's just ensure the modal can be opened from the UI
+        setIsVersionModalOpen(true);
     }
   }, [settings.driveConfig.isConnected, settings.driveConfig.folderId]);
 
-  const scanDriveVersions = async () => {
-      if (!settings.driveConfig.folderId || !settings.driveConfig.accessToken) {
-          console.warn("Missing folderId or accessToken for scanning");
+  const handleVersionConfirm = async (versionId: string, customFileId?: string) => {
+      // If versionId is empty and no customFileId, it means "Fresh Start"
+      if (!versionId && !customFileId) {
+          setIsVersionModalOpen(false);
           return;
       }
-      
-      setIsVersionModalOpen(true);
-      setIsLoadingVersions(true);
-      
-      try {
-          const response = await window.gapi.client.drive.files.list({
-              q: `'${settings.driveConfig.folderId}' in parents and mimeType = 'application/json' and trashed = false`,
-              fields: 'files(id, name, createdTime, size)',
-              orderBy: 'createdTime desc',
-              pageSize: 10
-          });
-          
-          const files = response.result.files;
-          const versions: BackupVersion[] = files.map((f: any) => ({
-              id: f.id,
-              fileName: f.name,
-              createdTime: f.createdTime,
-              size: f.size ? `${(parseInt(f.size) / 1024).toFixed(1)} KB` : 'Unknown'
-          }));
-          
-          setBackupVersions(versions);
-      } catch (error) {
-          console.error("Error scanning drive:", error);
-      } finally {
-          setIsLoadingVersions(false);
-      }
-  };
 
-  const handleVersionConfirm = async (versionId: string) => {
-      if (!versionId) return;
-
+      const fileId = customFileId || versionId;
       const accessToken = settings.driveConfig.accessToken;
       if (!accessToken) {
           alert("Không tìm thấy Access Token. Vui lòng kết nối lại Google Drive.");
@@ -377,11 +351,10 @@ const App: React.FC = () => {
       }
 
       try {
-          // Re-use loading state to indicate activity
           setIsLoadingVersions(true);
 
           const response = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${versionId}?alt=media`,
+            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
             {
               method: 'GET',
               headers: {
@@ -402,7 +375,7 @@ const App: React.FC = () => {
 
           handleImportData(backupData);
 
-          alert(`Khôi phục dữ liệu từ phiên bản thành công!`);
+          alert(`Khôi phục dữ liệu thành công!`);
           setIsVersionModalOpen(false);
 
       } catch (error: any) {
@@ -673,7 +646,7 @@ const App: React.FC = () => {
             onToggleLockAcademicYear={handleToggleLockAcademicYear}
             onImportData={handleImportData}
             onUpdateSchoolInfo={handleUpdateSchoolInfo}
-            onShowVersions={() => scanDriveVersions()}
+            onShowVersions={() => setIsVersionModalOpen(true)}
           />
         );
       default:
@@ -697,9 +670,8 @@ const App: React.FC = () => {
       {/* Version Selector Modal */}
       <VersionSelectorModal 
         isOpen={isVersionModalOpen}
-        versions={backupVersions}
-        isLoading={isLoadingVersions}
         onConfirm={handleVersionConfirm}
+        driveConfig={settings.driveConfig}
       />
     </div>
   );
