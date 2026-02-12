@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord, DataConfigGroup, DynamicRecord } from './types';
+import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord, DataConfigGroup, DynamicRecord, GoogleDriveConfig } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -277,11 +277,13 @@ const INITIAL_SETTINGS: SystemSettings = {
   extractionPrompt: DEFAULT_EXTRACTION_PROMPT,
   analysisPrompt: DEFAULT_ANALYSIS_PROMPT,
   virtualAssistantUrl: "https://gemini.google.com/app",
-  driveConfig: {
-      isConnected: false,
-      folderId: "",
-      folderName: "UniData_Backups"
-  }
+  // driveConfig has been removed from SystemSettings
+};
+
+const INITIAL_DRIVE_SESSION: GoogleDriveConfig = {
+    isConnected: false,
+    folderId: "",
+    folderName: "UniData_Backups"
 };
 
 const INITIAL_SCHOOL_INFO: SchoolInfo = {
@@ -322,6 +324,9 @@ const App: React.FC = () => {
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>(INITIAL_SCHOOL_INFO);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
+  // Runtime Drive Session State (Not persisted in settings)
+  const [driveSession, setDriveSession] = useState<GoogleDriveConfig>(INITIAL_DRIVE_SESSION);
+
   // Cloud/Version State
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [backupVersions, setBackupVersions] = useState<BackupVersion[]>([]);
@@ -329,12 +334,11 @@ const App: React.FC = () => {
 
   // --- INITIALIZATION ---
   useEffect(() => {
-    if (settings.driveConfig.isConnected && settings.driveConfig.folderId) {
+    if (driveSession.isConnected && driveSession.folderId) {
         // Trigger modal opening on fresh load if needed, or user action
-        // For now, let's just ensure the modal can be opened from the UI
         setIsVersionModalOpen(true);
     }
-  }, [settings.driveConfig.isConnected, settings.driveConfig.folderId]);
+  }, [driveSession.isConnected, driveSession.folderId]);
 
   const handleVersionConfirm = async (versionId: string, customFileId?: string) => {
       // If versionId is empty and no customFileId, it means "Fresh Start"
@@ -344,7 +348,7 @@ const App: React.FC = () => {
       }
 
       const fileId = customFileId || versionId;
-      const accessToken = settings.driveConfig.accessToken;
+      const accessToken = driveSession.accessToken;
       if (!accessToken) {
           alert("Không tìm thấy Access Token. Vui lòng kết nối lại Google Drive.");
           return;
@@ -534,12 +538,9 @@ const App: React.FC = () => {
     if (data.users) setUsers(data.users);
     if (data.academicYears) setAcademicYears(data.academicYears);
     
-    // IMPORTANT: Restore settings but preserve current session driveConfig
+    // Restore settings (without overwriting drive session)
     if (data.settings) {
-        setSettings(prev => ({
-            ...data.settings,
-            driveConfig: prev.driveConfig // Keep current session drive config
-        }));
+        setSettings(data.settings);
     }
     
     if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
@@ -582,9 +583,12 @@ const App: React.FC = () => {
       setUsers([]);
       setAcademicYears(INITIAL_ACADEMIC_YEARS); // Keep default years to avoid UI crash
       
-      // Reset Settings (Disconnect Drive)
+      // Reset Settings
       setSettings(INITIAL_SETTINGS); 
       setSchoolInfo(INITIAL_SCHOOL_INFO);
+      
+      // Reset Drive Session (Disconnect)
+      setDriveSession(INITIAL_DRIVE_SESSION);
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
@@ -640,8 +644,8 @@ const App: React.FC = () => {
             units={units}
             faculties={faculties}
             academicYears={academicYears}
-            // Drive Config (New)
-            driveConfig={settings.driveConfig}
+            // Drive Session (New)
+            driveConfig={driveSession}
           />
         );
       case 'faculty_profiles':
@@ -675,6 +679,7 @@ const App: React.FC = () => {
             reports={reports}
             units={units}
             settings={settings}
+            driveSession={driveSession} // Passed separately
             users={users}
             academicYears={academicYears}
             schoolInfo={schoolInfo}
@@ -691,6 +696,7 @@ const App: React.FC = () => {
             onUpdateDataConfigGroups={setDataConfigGroups}
             // Handlers
             onUpdateSettings={setSettings}
+            onUpdateDriveSession={setDriveSession} // Handler for session updates
             onAddUser={handleAddUser}
             onRemoveUser={handleRemoveUser}
             onAddAcademicYear={handleAddAcademicYear}
@@ -727,7 +733,7 @@ const App: React.FC = () => {
         onConfirm={handleVersionConfirm}
         onImportData={handleImportData}
         onClose={() => setIsVersionModalOpen(false)}
-        driveConfig={settings.driveConfig}
+        driveConfig={driveSession}
         currentData={currentDataSnapshot}
       />
     </div>

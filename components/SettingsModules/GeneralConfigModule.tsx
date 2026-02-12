@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { SystemSettings, SchoolInfo, AcademicYear } from '../../types';
+import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig } from '../../types';
 import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
+  driveSession: GoogleDriveConfig;
   schoolInfo: SchoolInfo;
   academicYears: AcademicYear[];
   onUpdateSettings: (settings: SystemSettings) => void;
@@ -53,6 +54,7 @@ interface DriveFile {
 
 const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   settings,
+  driveSession,
   schoolInfo,
   academicYears,
   onUpdateSettings,
@@ -129,7 +131,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   // --- DRIVE API HELPERS ---
 
   const fetchPermissions = async (fileId: string, setState: React.Dispatch<React.SetStateAction<DrivePermission[]>>) => {
-      if (!fileId || !settings.driveConfig.isConnected) return;
+      if (!fileId || !driveSession.isConnected) return;
       try {
           setIsLoadingPermissions(true);
           const response = await window.gapi.client.drive.permissions.list({
@@ -145,7 +147,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   };
 
   const fetchFolderContent = async () => {
-      if (!driveFolderId || !settings.driveConfig.isConnected) return;
+      if (!driveFolderId || !driveSession.isConnected) return;
       try {
           setIsLoadingContent(true);
           const response = await window.gapi.client.drive.files.list({
@@ -205,10 +207,10 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   // Load root permissions when config/id changes
   useEffect(() => {
-      if (settings.driveConfig.isConnected && driveFolderId) {
+      if (driveSession.isConnected && driveFolderId) {
           fetchPermissions(driveFolderId, setRootPermissions);
       }
-  }, [settings.driveConfig.isConnected, driveFolderId]);
+  }, [driveSession.isConnected, driveFolderId]);
 
   return (
     <div className="space-y-8">
@@ -294,7 +296,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               value={manualClientId}
                               onChange={(e) => setManualClientId(e.target.value)}
                               placeholder="VD: 123456789-abc...apps.googleusercontent.com"
-                              disabled={settings.driveConfig?.isConnected}
+                              disabled={driveSession.isConnected}
                           />
                           <p className="text-[10px] text-slate-400 mt-1">
                               * Yêu cầu cấu hình "Authorized JavaScript origins" trên Google Cloud Console khớp với tên miền hiện tại.
@@ -303,7 +305,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    )}
               </div>
 
-              {!settings.driveConfig?.isConnected ? (
+              {!driveSession.isConnected ? (
                   <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 text-center">
                        <p className="text-slate-600 mb-4 text-sm">Kết nối với Google Drive để đồng bộ dữ liệu và lưu trữ tập tin.</p>
                        
@@ -322,7 +324,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                            >
                               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                              {settings.driveConfig?.isConnected ? "Xác thực lại / Kết nối tài khoản khác" : "Kiểm tra kết nối (Xác thực)"}
+                              {driveSession.isConnected ? "Xác thực lại / Kết nối tài khoản khác" : "Kiểm tra kết nối (Xác thực)"}
                            </button>
                        </div>
                   </div>
@@ -336,7 +338,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               </div>
                               <div>
                                   <p className="text-sm font-bold text-green-800">Đã kết nối</p>
-                                  <p className="text-xs text-green-600">{settings.driveConfig.accountName}</p>
+                                  <p className="text-xs text-green-600">{driveSession.accountName}</p>
                               </div>
                           </div>
                           <button onClick={onDisconnectDrive} className="px-3 py-1 bg-white border border-red-200 rounded text-xs text-red-600 hover:bg-red-50 font-medium">Đăng xuất</button>
@@ -547,10 +549,10 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                               disabled={!effectiveClientId}
                               className="text-xs text-green-700 underline hover:text-green-900"
                           >
-                              {settings.driveConfig?.isConnected ? "Xác thực lại / Quét lại thư mục" : "Kiểm tra kết nối"}
+                              {driveSession.isConnected ? "Xác thực lại / Quét lại thư mục" : "Kiểm tra kết nối"}
                           </button>
                           <button onClick={onSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 shadow-sm">
-                              Lưu ID & Folder mở rộng
+                              Lưu ID & Folder mở rộng (Session)
                           </button>
                       </div>
 

@@ -172,7 +172,7 @@ export interface SystemSettings {
   extractionPrompt: string;
   analysisPrompt: string;
   virtualAssistantUrl: string;
-  driveConfig: GoogleDriveConfig; // New Field
+  // driveConfig removed to prevent persistence
 }
 
 export type ViewState = 'dashboard' | 'ingestion' | 'analysis' | 'scientific_management' | 'organization' | 'settings' | 'faculty_profiles';

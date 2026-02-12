@@ -1,8 +1,8 @@
 import React from 'react';
-import { SystemSettings } from '../../types';
+import { SystemSettings, GoogleDriveConfig } from '../../types';
 
 interface BackupDataModuleProps {
-  settings: SystemSettings;
+  driveSession: GoogleDriveConfig; // Use Session State
   onExport: () => void;
   onSaveToDrive: () => void;
   onImportClick: () => void;
@@ -12,7 +12,7 @@ interface BackupDataModuleProps {
 }
 
 const BackupDataModule: React.FC<BackupDataModuleProps> = ({
-  settings,
+  driveSession,
   onExport,
   onSaveToDrive,
   onImportClick,
@@ -26,17 +26,17 @@ const BackupDataModule: React.FC<BackupDataModuleProps> = ({
        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
           <h3 className="font-semibold text-indigo-900 mb-2">1. Chọn dữ liệu từ đám mây (Google Drive)</h3>
           <p className="text-sm text-indigo-700 mb-4">
-              Khôi phục hoặc đồng bộ dữ liệu từ các phiên bản sao lưu đã được lưu trữ trong thư mục <strong>{settings.driveConfig.folderName || 'UniData_Backups'}</strong>.
+              Khôi phục hoặc đồng bộ dữ liệu từ các phiên bản sao lưu đã được lưu trữ trong thư mục <strong>{driveSession.folderName || 'UniData_Backups'}</strong>.
           </p>
           <button 
               onClick={onShowVersions}
-              disabled={!settings.driveConfig.isConnected}
-              className={`flex items-center px-4 py-2 text-white rounded transition-colors text-sm font-medium ${settings.driveConfig.isConnected ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-300 cursor-not-allowed'}`}
+              disabled={!driveSession.isConnected}
+              className={`flex items-center px-4 py-2 text-white rounded transition-colors text-sm font-medium ${driveSession.isConnected ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-300 cursor-not-allowed'}`}
           >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              {settings.driveConfig.isConnected ? "Danh sách bản sao lưu" : "Chưa kết nối Drive"}
+              {driveSession.isConnected ? "Danh sách bản sao lưu" : "Chưa kết nối Drive"}
           </button>
       </div>
 
@@ -44,17 +44,17 @@ const BackupDataModule: React.FC<BackupDataModuleProps> = ({
        <div className="bg-green-50 p-4 rounded-lg border border-green-100">
           <h3 className="font-semibold text-green-900 mb-2">2. Lưu trữ đám mây (Google Drive)</h3>
           <p className="text-sm text-green-700 mb-4">
-              Tải bản sao lưu hiện tại lên thư mục <strong>{settings.driveConfig.folderName || 'UniData_Backups'}</strong> trên Google Drive.
+              Tải bản sao lưu hiện tại lên thư mục <strong>{driveSession.folderName || 'UniData_Backups'}</strong> trên Google Drive.
           </p>
           <button 
               onClick={onSaveToDrive}
-              disabled={!settings.driveConfig.isConnected}
-              className={`flex items-center px-4 py-2 text-white rounded transition-colors text-sm font-medium ${settings.driveConfig.isConnected ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
+              disabled={!driveSession.isConnected}
+              className={`flex items-center px-4 py-2 text-white rounded transition-colors text-sm font-medium ${driveSession.isConnected ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
           >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              {settings.driveConfig.isConnected ? "Lưu lên Drive (Tạo phiên bản mới)" : "Chưa kết nối Drive"}
+              {driveSession.isConnected ? "Lưu lên Drive (Tạo phiên bản mới)" : "Chưa kết nối Drive"}
           </button>
       </div>
 

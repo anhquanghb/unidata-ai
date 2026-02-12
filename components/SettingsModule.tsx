@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup } from '../types';
+import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
 import AIPromptModule from './SettingsModules/AIPromptModule';
@@ -16,6 +16,7 @@ declare global {
 
 interface SettingsModuleProps {
   settings: SystemSettings;
+  driveSession: GoogleDriveConfig; // Separated Session State
   users: UserProfile[];
   reports: UniversityReport[];
   units: Unit[];
@@ -36,6 +37,7 @@ interface SettingsModuleProps {
   onUpdateDataConfigGroups?: (groups: DataConfigGroup[]) => void;
 
   onUpdateSettings: (settings: SystemSettings) => void;
+  onUpdateDriveSession: (session: GoogleDriveConfig) => void; // Handler for Session Updates
   onAddUser: (user: UserProfile) => void;
   onRemoveUser: (id: string) => void;
   onAddAcademicYear: (year: AcademicYear) => void;
@@ -55,6 +57,7 @@ const DEFAULT_FOLDER_NAME = 'UniData_Backups'; // HARDCODED FOLDER NAME
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
+  driveSession,
   users, 
   reports, 
   units, 
@@ -73,6 +76,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onUpdateDataConfigGroups,
   // Handlers
   onUpdateSettings,
+  onUpdateDriveSession,
   onAddUser,
   onRemoveUser,
   onAddAcademicYear,
@@ -91,21 +95,27 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // Prioritize Environment Variable
   const envClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
   
-  // State for manual input (used if Env Var is missing)
-  const [manualClientId, setManualClientId] = useState(settings.driveConfig?.clientId || '');
+  // State for manual input (used if Env Var is missing) - Ephemeral
+  const [manualClientId, setManualClientId] = useState(driveSession.clientId || '');
   
   // The actual Client ID to use
   const effectiveClientId = envClientId || manualClientId;
 
   // Local state for Drive (RUNTIME ONLY, NOT SAVED TO SETTINGS/DISK)
-  const [driveFolderId, setDriveFolderId] = useState('');
-  const [externalSourceFolderId, setExternalSourceFolderId] = useState('');
+  const [driveFolderId, setDriveFolderId] = useState(driveSession.folderId || '');
+  const [externalSourceFolderId, setExternalSourceFolderId] = useState(driveSession.externalSourceFolderId || '');
 
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync props to local state if changed externally
+  useEffect(() => {
+      setDriveFolderId(driveSession.folderId);
+      setExternalSourceFolderId(driveSession.externalSourceFolderId || '');
+  }, [driveSession]);
 
   // --- GOOGLE DRIVE SCRIPTS LOADING ---
   useEffect(() => {
@@ -148,14 +158,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             if (resp.error) {
                 if (promptType === '' && (resp.error === 'immediate_failed' || resp.error === 'access_denied')) {
                     console.log("Silent refresh failed or access denied. Clearing session.");
-                    // Update state to disconnected
-                    onUpdateSettings({
-                        ...settings,
-                        driveConfig: {
-                            ...settings.driveConfig,
-                            isConnected: false,
-                            accessToken: undefined
-                        }
+                    // Update session state to disconnected
+                    onUpdateDriveSession({
+                        ...driveSession,
+                        isConnected: false,
+                        accessToken: undefined
                     });
                 } else {
                     alert("Lỗi đăng nhập Google Drive: " + resp.error);
@@ -213,7 +220,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     // Update local state UI
                     setDriveFolderId(targetFolderId);
 
-                    const newConfig = {
+                    const newSession: GoogleDriveConfig = {
                        isConnected: true,
                        clientId: clientId,
                        accessToken: resp.access_token,
@@ -224,11 +231,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        externalSourceFolderId: externalSourceFolderId
                     };
 
-                    // Update Global Settings (Runtime only)
-                    onUpdateSettings({
-                       ...settings,
-                       driveConfig: newConfig
-                    });
+                    // Update Global Session State
+                    onUpdateDriveSession(newSession);
 
                     if (promptType === 'consent') {
                         if (targetFolderId) {
@@ -252,7 +256,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- MANUAL CREATE FOLDER HANDLER ---
   const handleCreateDefaultFolders = async () => {
-      if (!settings.driveConfig.isConnected) return;
+      if (!driveSession.isConnected) return;
       setIsCreatingFolder(true);
       try {
           // 1. Create Root Folder
@@ -280,14 +284,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
           // 3. Update State
           setDriveFolderId(newFolderId);
-          onUpdateSettings({
-              ...settings,
-              driveConfig: {
-                  ...settings.driveConfig,
-                  folderId: newFolderId,
-                  dataFolderId: newDataFolderId,
-                  folderName: DEFAULT_FOLDER_NAME
-              }
+          onUpdateDriveSession({
+              ...driveSession,
+              folderId: newFolderId,
+              dataFolderId: newDataFolderId,
+              folderName: DEFAULT_FOLDER_NAME
           });
           alert(`Đã khởi tạo thành công thư mục: ${DEFAULT_FOLDER_NAME}`);
 
@@ -311,8 +312,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const handleDisconnectDrive = () => {
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
-        if (settings.driveConfig.accessToken && window.google) {
-            window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
+        if (driveSession.accessToken && window.google) {
+            window.google.accounts.oauth2.revoke(driveSession.accessToken, () => {
                 console.log('Token revoked');
             });
         }
@@ -327,37 +328,18 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleSaveDriveConfigOnly = () => {
-      // Just saves Client ID and External Source ID mostly, since Folder ID is runtime determined
-      onUpdateSettings({
-          ...settings,
-          driveConfig: {
-              ...settings.driveConfig,
-              clientId: manualClientId,
-              externalSourceFolderId: externalSourceFolderId 
-          }
+      // Just saves Client ID and External Source ID to session state (runtime)
+      onUpdateDriveSession({
+          ...driveSession,
+          clientId: manualClientId,
+          externalSourceFolderId: externalSourceFolderId 
       });
-      alert("Đã lưu cấu hình (Phiên hiện tại)!");
-  };
-
-  // --- HELPER: SANITIZE SETTINGS FOR EXPORT ---
-  const getSanitizedSettings = () => {
-      return {
-          ...settings,
-          driveConfig: {
-              isConnected: false,
-              folderId: '',
-              folderName: DEFAULT_FOLDER_NAME,
-              accessToken: undefined,
-              accountName: undefined,
-              dataFolderId: undefined,
-              externalSourceFolderId: undefined
-          }
-      };
+      alert("Đã cập nhật cấu hình phiên làm việc!");
   };
 
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
-    if (!settings.driveConfig.isConnected || !settings.driveConfig.folderId) {
+    if (!driveSession.isConnected || !driveSession.folderId) {
         alert("Chưa kết nối Google Drive hoặc chưa có thư mục lưu trữ.");
         return;
     }
@@ -370,13 +352,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
          return;
     }
 
-    // Prepare COMPLETE system data, but SANITIZE Drive Config
+    // Prepare COMPLETE system data
+    // Note: driveSession is NOT included in the saved 'settings' object here
+    // because it is separate state in App.tsx now.
     const data = {
       // Core
       reports,
       units,
       users,
-      settings: getSanitizedSettings(), // CLEANED SETTINGS
+      settings, 
       academicYears,
       schoolInfo,
       // Records
@@ -391,7 +375,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
-      version: "1.3"
+      version: "1.4"
     };
 
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -401,7 +385,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     const metadata = {
         name: fileName,
         mimeType: 'application/json',
-        parents: [settings.driveConfig.folderId]
+        parents: [driveSession.folderId]
     };
 
     const form = new FormData();
@@ -438,13 +422,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleExport = () => {
-    // Prepare COMPLETE system data, but SANITIZE Drive Config
+    // Prepare COMPLETE system data
     const data = {
       // Core
       reports,
       units,
       users,
-      settings: getSanitizedSettings(), // CLEANED SETTINGS
+      settings,
       academicYears,
       schoolInfo,
       // Records
@@ -459,7 +443,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
-      version: "1.3"
+      version: "1.4"
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -536,7 +520,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         {/* TAB: BACKUP */}
         {activeTab === 'backup' && (
           <BackupDataModule 
-            settings={settings}
+            driveSession={driveSession}
             onExport={handleExport}
             onSaveToDrive={handleSaveToDrive}
             onImportClick={handleImportClick}
@@ -575,6 +559,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         {activeTab === 'general' && (
           <GeneralConfigModule 
              settings={settings}
+             driveSession={driveSession}
              schoolInfo={schoolInfo}
              academicYears={academicYears}
              onUpdateSettings={onUpdateSettings}
