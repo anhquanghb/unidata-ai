@@ -195,9 +195,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     let foundConfig = false;
                     let backupCount = 0;
 
-                    // 1. Search for Root Backup Folder (UniData_Backups)
+                    // 1. Search for Root Backup Folder (UniData_Backups) OWNED BY ME
                     try {
-                        const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false`;
+                        // Added 'me' in owners to query
+                        const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
                         const folderResp = await window.gapi.client.drive.files.list({
                             q: q,
                             fields: 'files(id, name)',
@@ -372,14 +373,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         localStorage.clear();
         sessionStorage.clear();
 
-        // 4. Clear all application data and disconnect via App prop
-        // This triggers setDriveSession(INITIAL_DRIVE_SESSION) in parent
-        onResetSystemData();
-
-        // 5. Reset local state immediately
+        // 4. Reset local state immediately
         setDriveFolderId('');
         setExternalSourceFolderId('');
         setScanStatus({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
+
+        // 5. Reset Drive Session State explicitly to clear IDs
+        onUpdateDriveSession({
+            isConnected: false,
+            clientId: effectiveClientId, 
+            accessToken: undefined,
+            accountName: undefined,
+            folderId: '',
+            folderName: DEFAULT_FOLDER_NAME,
+            dataFolderId: '',
+            externalSourceFolderId: ''
+        });
+
+        // 6. Clear all application data
+        onResetSystemData();
         
         alert("Đã ngắt kết nối và xóa sạch phiên làm việc.");
     }
