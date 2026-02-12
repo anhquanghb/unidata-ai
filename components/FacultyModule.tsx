@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Faculty, FacultyTitles, FacultyTitle, FacultyListItem, Language, Course } from '../types';
-import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal } from 'lucide-react';
+import { Faculty, FacultyTitles, FacultyTitle, FacultyListItem, Language, Course, Unit, HumanResourceRecord } from '../types';
+import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building } from 'lucide-react';
 import { importFacultyFromPdf, translateContent } from '../services/geminiService';
 // import { exportFacultyCvPdf } from '../services/FacultyExportPDF'; // Removed as file not provided, replaced with dummy
 import AILoader from '../components/AILoader';
@@ -13,12 +13,18 @@ interface FacultyModuleProps {
   setFacultyTitles: React.Dispatch<React.SetStateAction<FacultyTitles>>;
   courses: Course[]; // For stats context
   geminiConfig: any; // Passed from App settings
+  
+  // Context for filtering
+  units?: Unit[];
+  humanResources?: HumanResourceRecord[];
+  currentAcademicYear?: string;
 }
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 
     facultyTitles, setFacultyTitles,
-    courses, geminiConfig 
+    courses, geminiConfig,
+    units = [], humanResources = [], currentAcademicYear = ''
 }) => {
   // UI Language State
   const [language, setLanguage] = useState<Language>('vi'); 
@@ -27,6 +33,10 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null); // For the full Profile Modal
   const [isAiLoading, setIsAiLoading] = useState(false);
   
+  // -- Filters --
+  const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'working' | 'left'>('working'); // Default to 'working'
+
   // Data Editing Language State (inside Modal)
   const [editLanguage, setEditLanguage] = useState<Language>('vi');
   
@@ -48,17 +58,70 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
   const [categoryType, setCategoryType] = useState<keyof FacultyTitles>('degrees');
 
   // Sync edit language with UI language initially or when changed, if desired. 
-  // Here we keep them somewhat independent to allow editing EN content while UI is VI, but defaulting matches is good UX.
   useEffect(() => {
       setEditLanguage(language);
   }, [language]);
 
+  // Helper: Get academic year start year
+  const currentYearStart = useMemo(() => {
+      if (!currentAcademicYear) return new Date().getFullYear();
+      const parts = currentAcademicYear.split('-');
+      return parseInt(parts[0]) || new Date().getFullYear();
+  }, [currentAcademicYear]);
+
   const filteredFaculties = useMemo(() => {
+    let filtered = faculties;
+
     // 1. Filter by Search
-    let filtered = faculties.filter(f => 
-      (f.name[language] || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    if (searchQuery) {
+        filtered = filtered.filter(f => 
+            (f.name[language] || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (f.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }
+
+    // 2. Filter by Unit & Status
+    filtered = filtered.filter(f => {
+        // Get all HR records for this person
+        const personRecords = humanResources.filter(hr => hr.facultyId === f.id);
+
+        // Determine if person is "Active" in the current academic year context
+        // Active = Has at least one record where (startDate <= currentYearEnd) AND (endDate is NULL OR endDate >= currentYearStart)
+        // For simplicity, we compare years.
+        const isWorking = personRecords.some(hr => {
+            const start = hr.startDate ? new Date(hr.startDate).getFullYear() : 0;
+            const end = hr.endDate ? new Date(hr.endDate).getFullYear() : 9999;
+            // Overlap logic: Start <= 2024 AND End >= 2023 (assuming 2023-2024)
+            // Using simplified logic: End date must be >= currentYearStart or Null
+            return end >= currentYearStart; 
+        });
+
+        // Status Filter
+        if (statusFilter === 'working' && !isWorking) return false;
+        if (statusFilter === 'left' && isWorking) return false;
+
+        // Unit Filter
+        if (selectedUnitFilter) {
+            // Find if any of their *Active* (or historical, depending on requirement) records match the unit
+            // Usually if filtering by unit, we want people *currently* in that unit or *was* in that unit depending on statusFilter
+            const relevantRecords = statusFilter === 'working' 
+                ? personRecords.filter(hr => {
+                    const end = hr.endDate ? new Date(hr.endDate).getFullYear() : 9999;
+                    return end >= currentYearStart;
+                }) 
+                : personRecords;
+
+            const inUnit = relevantRecords.some(hr => {
+                // Check direct unit or children (if hierarchical) - Simple direct check for now
+                // Or better: get all descendant unit IDs
+                return hr.unitId === selectedUnitFilter; // Keep it simple: direct assignment
+            });
+            
+            if (!inUnit) return false;
+        }
+
+        return true;
+    });
 
     // 3. Sort by Vietnamese Name (Last Word)
     return filtered.sort((a, b) => {
@@ -78,7 +141,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
         // If last names are equal, compare the full string to ensure consistent order
         return comparison !== 0 ? comparison : nameA.localeCompare(nameB, 'vi');
     });
-  }, [faculties, searchQuery, language]);
+  }, [faculties, searchQuery, language, selectedUnitFilter, statusFilter, humanResources, currentYearStart]);
 
   // --- Actions ---
   const handleAdd = () => {
@@ -223,7 +286,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
   // --- Category Management Actions ---
   const addCategoryItem = () => {
       const newItem: FacultyTitle = {
-          id: `${categoryType.slice(0,3)}-${Date.now()}`,
+          id: `${(categoryType as string).slice(0,3)}-${Date.now()}`,
           name: { vi: 'Mục mới', en: 'New Item' },
           abbreviation: { vi: '', en: '' }
       };
@@ -495,15 +558,72 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
       );
   };
 
-  const renderProfiles = () => (
-      <>
-        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0 mb-6">
-            <div className="flex items-center gap-4">
-                <div className="relative w-64"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t("Tìm kiếm nhân sự...", "Search personnel...")} value={searchQuery} onChange={e => setSearchQuery(e.target.value)}/></div>
-            </div>
-            <div className="flex gap-2"><input type="file" ref={jsonInputRef} className="hidden" accept=".json" onChange={handleImportJson} /><button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import JSON")}</button><button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm Nhân sự", "Add Personnel")}</button></div>
-        </div>
+  const renderFilters = () => (
+      <div className="flex flex-col gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0 mb-6">
+          <div className="flex justify-between items-start">
+              <div className="flex gap-4 items-center flex-wrap">
+                  {/* Search */}
+                  <div className="relative w-64">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t("Tìm kiếm nhân sự...", "Search personnel...")} value={searchQuery} onChange={e => setSearchQuery(e.target.value)}/>
+                  </div>
+                  
+                  {/* Unit Filter */}
+                  <div className="flex items-center gap-2">
+                      <Filter size={16} className="text-slate-400"/>
+                      <select 
+                          className="bg-slate-50 border border-slate-200 rounded-lg text-sm p-2 outline-none focus:ring-2 focus:ring-indigo-500 max-w-[200px]"
+                          value={selectedUnitFilter}
+                          onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                      >
+                          <option value="">{t("-- Tất cả Đơn vị --", "-- All Units --")}</option>
+                          {units.filter(u => u.unit_type === 'faculty').map(u => (
+                              <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
+                          ))}
+                      </select>
+                  </div>
 
+                  {/* Status Filter */}
+                  <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                      <button 
+                          onClick={() => setStatusFilter('working')} 
+                          className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${statusFilter === 'working' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'}`}
+                      >
+                          {t("Đang làm việc", "Working")}
+                      </button>
+                      <button 
+                          onClick={() => setStatusFilter('left')} 
+                          className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${statusFilter === 'left' ? 'bg-white shadow-sm text-red-600' : 'text-slate-500'}`}
+                      >
+                          {t("Đã nghỉ", "Left/Retired")}
+                      </button>
+                      <button 
+                          onClick={() => setStatusFilter('all')} 
+                          className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${statusFilter === 'all' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                      >
+                          {t("Tất cả", "All")}
+                      </button>
+                  </div>
+              </div>
+
+              {/* Actions - Only for Profiles Tab */}
+              {mainTab === 'profiles' && (
+                  <div className="flex gap-2">
+                      <input type="file" ref={jsonInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
+                      <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import JSON")}</button>
+                      <button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm Nhân sự", "Add Personnel")}</button>
+                  </div>
+              )}
+          </div>
+          {/* Info bar about current context */}
+          <div className="flex items-center gap-4 text-xs text-slate-500 border-t border-slate-100 pt-3">
+              <span className="flex items-center gap-1"><Clock size={12}/> Năm học hiện tại: <strong>{currentAcademicYear || 'N/A'}</strong></span>
+              <span className="flex items-center gap-1"><Building size={12}/> Hiển thị: <strong>{filteredFaculties.length}</strong> nhân sự</span>
+          </div>
+      </div>
+  );
+
+  const renderProfiles = () => (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredFaculties.map(f => (
                 <div key={f.id} className="group bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col gap-3 relative cursor-pointer" onClick={() => { setEditingId(f.id); setEditFormTab('info'); }}>
@@ -515,8 +635,13 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
                     <div className="pt-3 border-t border-slate-200 mt-auto flex justify-between items-center"><span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-100">{f.experience[language] || f.experience['vi'] || 0} {t("năm KN", "years exp")}</span>{f.educationList.length > 0 && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{f.educationList.length} {t("Bằng cấp", "Degrees")}</span>}</div>
                 </div>
             ))}
+            {filteredFaculties.length === 0 && (
+                <div className="col-span-full py-12 text-center text-slate-400 flex flex-col items-center">
+                    <User size={48} className="mb-3 opacity-20"/>
+                    <p>Không tìm thấy nhân sự nào phù hợp với bộ lọc.</p>
+                </div>
+            )}
         </div>
-      </>
   );
 
   const renderCategories = () => (
@@ -538,6 +663,10 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
           </div>
       </div>
       <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm mb-6 flex gap-2 w-fit"><button onClick={() => setMainTab('profiles')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 ${mainTab === 'profiles' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}><User size={16}/> {t("Hồ sơ", "Profiles")}</button><button onClick={() => setMainTab('stats')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 ${mainTab === 'stats' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}><BarChart3 size={16}/> {t("Thống kê", "Stats")}</button><button onClick={() => setMainTab('categories')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 ${mainTab === 'categories' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}><Settings size={16}/> {t("Danh mục", "Categories")}</button></div>
+      
+      {/* Shared Filter Toolbar for Profiles and Stats */}
+      {(mainTab === 'profiles' || mainTab === 'stats') && renderFilters()}
+
       <div className="flex-1 overflow-y-auto custom-scrollbar">
           {mainTab === 'profiles' && renderProfiles()}
           {mainTab === 'stats' && <FacultyStatisticsModule faculties={filteredFaculties} courses={courses} language={language} />}

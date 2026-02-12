@@ -1,76 +1,4 @@
 
-// --- Data Management Interfaces ---
-
-export interface ScientificRecord {
-  id: string;
-  lecturerName: string;
-  recordName: string;
-  academicYear: string;
-  requestSupport: boolean;
-  type: string;
-  link?: string;
-  unitId?: string;
-}
-
-export interface TrainingRecord {
-  id: string;
-  programName: string; // Tên chương trình/học phần
-  level: string; // Đại học, Sau đại học
-  status: string; // Đang tuyển sinh, Đang đào tạo
-  studentsCount: number;
-  academicYear: string;
-}
-
-export interface PersonnelRecord {
-  id: string;
-  fullName: string;
-  title: string; // Học hàm/Học vị
-  position: string; // Chức vụ
-  department: string; // Bộ môn/Phòng
-  startDate: string;
-  academicYear: string;
-}
-
-export interface AdmissionRecord {
-  id: string;
-  major: string; // Ngành
-  quota: number; // Chỉ tiêu
-  applications: number; // Số hồ sơ
-  admitted: number; // Trúng tuyển
-  score: number; // Điểm chuẩn
-  academicYear: string;
-}
-
-export interface ClassRecord {
-  id: string;
-  className: string;
-  advisor: string;
-  monitor: string; // Lớp trưởng
-  size: number;
-  academicYear: string;
-}
-
-export interface DepartmentRecord {
-  id: string;
-  activityName: string;
-  date: string;
-  attendees: number;
-  description: string;
-  academicYear: string;
-}
-
-export interface BusinessRecord {
-  id: string;
-  partnerName: string;
-  activityType: string; // MOU, Tài trợ, Thực tập
-  value?: string; // Giá trị hợp đồng/tài trợ
-  status: string;
-  academicYear: string;
-}
-
-// --- System Interfaces ---
-
-// UPDATED: Added 'unit_' prefix
 export interface Unit {
   unit_id: string;
   unit_name: string;
@@ -79,13 +7,14 @@ export interface Unit {
   unit_parentId?: string;
 }
 
-// NEW: Data structure for linking Faculty to Units
 export interface HumanResourceRecord {
   id: string;
   unitId: string;
   facultyId: string;
   role?: string; // Optional: Trưởng khoa, nhân viên, etc.
   assignedDate?: string;
+  startDate?: string; // Năm/Ngày bắt đầu
+  endDate?: string;   // Năm/Ngày kết thúc (nếu null -> đang làm việc)
 }
 
 export interface UserProfile {
@@ -93,7 +22,7 @@ export interface UserProfile {
   username: string;
   fullName: string;
   role: 'admin' | 'staff';
-  unitId?: string;
+  email?: string;
 }
 
 export interface AcademicYear {
@@ -101,216 +30,6 @@ export interface AcademicYear {
   code: string;
   isLocked: boolean;
 }
-
-// UPDATED: Added 'school_' prefix
-export interface SchoolInfo {
-  school_name: string;
-  school_code: string;
-}
-
-export interface GoogleDriveConfig {
-  isConnected: boolean;
-  clientId?: string; // Required for real OAuth
-  accessToken?: string; // Session token
-  accountName?: string;
-  folderId: string;
-  folderName: string;
-  dataFolderId?: string; // Sub-folder for file uploads
-  externalSourceFolderId?: string; // New: Read-only source folder
-  lastSync?: string;
-}
-
-export interface BackupVersion {
-  id: string;
-  fileName: string;
-  createdTime: string;
-  size: string;
-}
-
-export interface ExternalSource {
-  id: string;   // Folder ID of the external drive
-  name: string; // Display name
-  addedAt: string;
-}
-
-export interface SystemSettings {
-  currentAcademicYear: string;
-  virtualAssistantUrl: string;
-  extractionPrompt?: string;
-  analysisPrompt?: string;
-}
-
-export type ViewState = 'dashboard' | 'scientific_management' | 'organization' | 'settings' | 'faculty_profiles';
-
-// --- NEW FACULTY MODULE TYPES ---
-
-export type Language = 'vi' | 'en';
-
-export interface BilingualString {
-  vi: string;
-  en: string;
-}
-
-export interface FacultyListItem {
-  id: string;
-  content: BilingualString;
-}
-
-export interface FacultyEducation {
-  id: string;
-  year: string;
-  degree: BilingualString;
-  discipline: BilingualString;
-  institution: BilingualString;
-}
-
-export interface FacultyExperience {
-  id: string;
-  period: string;
-  institution: BilingualString;
-  rank: BilingualString;
-  title: BilingualString;
-  isFullTime: boolean;
-}
-
-export interface FacultyNonAcademicExperience {
-  id: string;
-  period: string;
-  company: BilingualString;
-  title: BilingualString;
-  description: BilingualString;
-  isFullTime: boolean;
-}
-
-export interface FacultyPublication {
-  id: string;
-  text: BilingualString;
-}
-
-export interface Faculty {
-  id: string;
-  name: BilingualString;
-  rank: BilingualString;
-  degree: BilingualString;
-  academicTitle: BilingualString;
-  position: BilingualString;
-  experience: BilingualString; // String to hold calculated years
-  dob?: string;
-  office?: string;
-  officeHours?: string;
-  tel?: string;
-  cell?: string;
-  email?: string;
-  educationList: FacultyEducation[];
-  academicExperienceList: FacultyExperience[];
-  nonAcademicExperienceList: FacultyNonAcademicExperience[];
-  publicationsList: FacultyPublication[];
-  certificationsList: FacultyListItem[];
-  honorsList: FacultyListItem[];
-  serviceActivitiesList: FacultyListItem[];
-  professionalDevelopmentList: FacultyListItem[];
-  membershipsList: FacultyListItem[];
-  isAbet?: boolean;
-  instructorDetails?: any;
-  careerStartYear?: number;
-  workload?: number; // Calculated field
-}
-
-export interface FacultyTitle {
-    id: string;
-    name: BilingualString;
-    abbreviation: BilingualString;
-}
-
-export interface FacultyTitles {
-    degrees: FacultyTitle[];
-    ranks: FacultyTitle[];
-    academicTitles: FacultyTitle[];
-    positions: FacultyTitle[];
-}
-
-// Simplified Course interface for Faculty Stats
-export interface Course {
-    id: string;
-    code: string;
-    name: string;
-    credits: number;
-    instructorIds: string[];
-    isAbet?: boolean;
-    isEssential?: boolean;
-}
-
-// --- DATA CONFIGURATION MODULE TYPES ---
-
-export type DataFieldType = 
-  // Primitive
-  | 'text' 
-  | 'textarea' 
-  | 'number_int' 
-  | 'number_float' 
-  | 'date'
-  // Choice
-  | 'select_single' 
-  | 'select_multiple'
-  // Logic & Reference
-  | 'boolean'
-  | 'reference'
-  | 'reference_multiple' // NEW: Multi-reference
-  // File
-  | 'file';
-
-export type ReferenceTarget = 'units' | 'academicYears' | 'faculties';
-
-export interface DataFieldOption {
-  id: string;
-  label: string;
-  value: string;
-}
-
-export interface DataFieldDefinition {
-  id: string;
-  key: string;       // JSON property key (e.g., 'researchTitle')
-  label: string;     // Display label (e.g., 'Tên đề tài')
-  type: DataFieldType;
-  required: boolean;
-  isFilterable?: boolean; // NEW: Allow filtering in UI
-  isSearchable?: boolean; // NEW: Allow searching in UI
-  description?: string;
-  // For Choice Types
-  options?: DataFieldOption[];
-  // For Reference Types
-  referenceTarget?: ReferenceTarget;
-}
-
-export type ChartType = 'line' | 'bar' | 'pie' | 'radar';
-
-export interface ChartConfig {
-  id: string;
-  title: string;
-  type: ChartType;
-  // Configuration specific to chart type
-  xAxisField?: string;      // Used for Line/Bar (Dimension)
-  yAxisField?: string;      // Used for Line/Bar (Metric)
-  categoryField?: string;   // Used for Pie (Category)
-  radarFields?: string[];   // Used for Radar (Metrics)
-  color?: string;
-}
-
-export interface DataConfigGroup {
-  id: string;
-  name: string;        // e.g., "Quản lý Sinh viên", "Nghiên cứu Khoa học"
-  description?: string;
-  fields: DataFieldDefinition[];
-  charts?: ChartConfig[]; // New: Store chart configurations
-}
-
-export interface DynamicRecord {
-  id: string;
-  academicYear?: string; // Always injected
-  [key: string]: any;
-}
-
-// --- REPORT INTERFACES ---
 
 export interface UniversityReport {
   unitName: string;
@@ -338,3 +57,225 @@ export interface UniversityReport {
     proposals: string[];
   };
 }
+
+export type ViewState = 'dashboard' | 'scientific_management' | 'faculty_profiles' | 'organization' | 'settings';
+
+export interface ScientificRecord {
+  id: string;
+  lecturerName: string;
+  recordName: string;
+  academicYear: string;
+  requestSupport: boolean;
+  type: string;
+  link?: string;
+}
+
+export interface FacultyListItem {
+  id: string;
+  content: { vi: string; en: string };
+}
+
+export interface Faculty {
+  id: string;
+  name: { vi: string; en: string };
+  rank: { vi: string; en: string };
+  degree: { vi: string; en: string };
+  academicTitle: { vi: string; en: string };
+  position: { vi: string; en: string };
+  experience: { vi: string; en: string };
+  careerStartYear: number;
+  workload: number;
+  email?: string;
+  tel?: string;
+  
+  educationList: {
+    id: string;
+    year: string;
+    degree: { vi: string; en: string };
+    institution: { vi: string; en: string };
+    discipline?: { vi: string; en: string };
+  }[];
+  academicExperienceList: {
+    id: string;
+    period: string;
+    institution: { vi: string; en: string };
+    title: { vi: string; en: string };
+    rank?: { vi: string; en: string };
+    isFullTime?: boolean;
+  }[];
+  nonAcademicExperienceList?: any[]; // Simplified
+  
+  publicationsList: {
+    id: string;
+    text: { vi: string; en: string };
+  }[];
+  
+  honorsList: FacultyListItem[];
+  certificationsList: FacultyListItem[];
+  membershipsList: FacultyListItem[];
+  serviceActivitiesList: FacultyListItem[];
+  professionalDevelopmentList: FacultyListItem[];
+}
+
+export interface SchoolInfo {
+  school_name: string;
+  school_code: string;
+}
+
+export interface TrainingRecord {
+  id: string;
+  programName: string;
+  level: string;
+  status: string;
+  studentsCount: number;
+  academicYear: string;
+}
+
+export interface PersonnelRecord {
+  id: string;
+  fullName: string;
+  title: string;
+  position: string;
+  department: string;
+  startDate: string;
+  academicYear: string;
+}
+
+export interface AdmissionRecord {
+  id: string;
+  major: string;
+  quota: number;
+  applications: number;
+  admitted: number;
+  score: number;
+  academicYear: string;
+}
+
+export interface ClassRecord {
+  id: string;
+  className: string;
+  advisor: string;
+  monitor: string;
+  size: number;
+  academicYear: string;
+}
+
+export interface DepartmentRecord {
+  id: string;
+  activityName: string;
+  date: string;
+  attendees: number;
+  description?: string;
+  academicYear: string;
+}
+
+export interface BusinessRecord {
+  id: string;
+  partnerName: string;
+  activityType: string;
+  value: string;
+  status: string;
+  academicYear: string;
+}
+
+export type DataFieldType = 'text' | 'textarea' | 'number_int' | 'number_float' | 'date' | 'boolean' | 'select_single' | 'select_multiple' | 'reference' | 'reference_multiple' | 'file';
+
+export interface DataFieldOption {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface DataFieldDefinition {
+  id: string;
+  key: string;
+  label: string;
+  type: DataFieldType;
+  required: boolean;
+  isFilterable: boolean;
+  isSearchable: boolean;
+  options?: DataFieldOption[];
+  referenceTarget?: 'units' | 'faculties' | 'academicYears';
+}
+
+export type ChartType = 'line' | 'bar' | 'pie' | 'radar';
+
+export interface ChartConfig {
+  id: string;
+  title: string;
+  type: ChartType;
+  xAxisField?: string;
+  yAxisField?: string;
+  categoryField?: string;
+  radarFields?: string[];
+}
+
+export interface DataConfigGroup {
+  id: string;
+  name: string;
+  description?: string;
+  fields: DataFieldDefinition[];
+  charts?: ChartConfig[];
+}
+
+export interface DynamicRecord {
+  id: string;
+  academicYear: string;
+  [key: string]: any;
+}
+
+export interface GoogleDriveConfig {
+  isConnected: boolean;
+  clientId?: string;
+  accessToken?: string;
+  accountName?: string;
+  folderId?: string;
+  folderName?: string;
+  dataFolderId?: string;
+  externalSourceFolderId?: string;
+  lastSync?: string;
+}
+
+export interface FacultyTitle {
+  id: string;
+  name: { vi: string; en: string };
+  abbreviation: { vi: string; en: string };
+}
+
+export interface FacultyTitles {
+  ranks: FacultyTitle[];
+  degrees: FacultyTitle[];
+  academicTitles: FacultyTitle[];
+  positions: FacultyTitle[];
+  [key: string]: FacultyTitle[];
+}
+
+export interface BackupVersion {
+  id: string;
+  fileName: string;
+  createdTime: string;
+  size: string;
+}
+
+export interface ExternalSource {
+  id: string;
+  name: string;
+  addedAt: string;
+}
+
+export interface SystemSettings {
+  currentAcademicYear: string;
+  virtualAssistantUrl?: string;
+  extractionPrompt: string;
+  analysisPrompt: string;
+  driveConfig?: GoogleDriveConfig;
+}
+
+export interface Course {
+  id: string;
+  name: string;
+  code: string;
+  credits: number;
+}
+
+export type Language = 'vi' | 'en';
