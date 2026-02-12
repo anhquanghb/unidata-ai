@@ -1,9 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ViewState, UniversityReport, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord, DataConfigGroup, DynamicRecord, GoogleDriveConfig } from './types';
+import { ViewState, Unit, SystemSettings, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, BackupVersion, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, Faculty, FacultyTitles, Course, HumanResourceRecord, DataConfigGroup, DynamicRecord, GoogleDriveConfig } from './types';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
-import IngestionModule from './components/IngestionModule';
-import AnalysisModule from './components/AnalysisModule';
 import DataStorageModule from './components/DataStorageModule';
 import OrganizationModule from './components/OrganizationModule';
 import SettingsModule from './components/SettingsModule';
@@ -17,52 +15,6 @@ declare global {
     google: any;
   }
 }
-
-// Mock initial data
-const INITIAL_REPORTS: UniversityReport[] = [
-  {
-    id: uuidv4(),
-    unitName: "Viện Công nghệ Thông tin",
-    academicYear: "2023-2024",
-    personnel: { professors: 2, associateProfessors: 5, phd: 20, masters: 15 },
-    publications: { isi: 15, scopus: 25, domestic: 40, otherInternational: 5 },
-    projects: { assigned: 5, ongoing: 12, completed: 4 },
-    qualitative: {
-      researchDirections: ["Trí tuệ nhân tạo", "Khoa học dữ liệu", "An toàn thông tin"],
-      difficulties: ["Thiếu phòng lab chuyên sâu"],
-      proposals: ["Đầu tư máy chủ GPU"]
-    },
-    extractionDate: new Date().toISOString()
-  },
-  {
-    id: uuidv4(),
-    unitName: "Khoa Điện tử Viễn thông",
-    academicYear: "2023-2024",
-    personnel: { professors: 1, associateProfessors: 8, phd: 18, masters: 10 },
-    publications: { isi: 10, scopus: 20, domestic: 30, otherInternational: 2 },
-    projects: { assigned: 3, ongoing: 8, completed: 2 },
-    qualitative: {
-      researchDirections: ["IoT", "Vi mạch bán dẫn", "5G/6G"],
-      difficulties: [],
-      proposals: []
-    },
-    extractionDate: new Date().toISOString()
-  },
-  {
-    id: uuidv4(),
-    unitName: "Viện Kinh tế và Quản lý",
-    academicYear: "2023-2024",
-    personnel: { professors: 3, associateProfessors: 10, phd: 35, masters: 20 },
-    publications: { isi: 8, scopus: 15, domestic: 60, otherInternational: 10 },
-    projects: { assigned: 10, ongoing: 15, completed: 8 },
-    qualitative: {
-      researchDirections: ["Kinh tế số", "Quản trị chuỗi cung ứng"],
-      difficulties: ["Khó tuyển sinh viên quốc tế"],
-      proposals: []
-    },
-    extractionDate: new Date().toISOString()
-  }
-];
 
 // Mock Scientific Records
 const INITIAL_SCIENTIFIC_RECORDS: ScientificRecord[] = [
@@ -259,23 +211,8 @@ const INITIAL_ACADEMIC_YEARS: AcademicYear[] = [
   { id: uuidv4(), code: "2022-2023", isLocked: true },
 ];
 
-const DEFAULT_EXTRACTION_PROMPT = `Phân tích văn bản báo cáo hành chính sau đây và trích xuất dữ liệu thống kê vào định dạng JSON.
-      
-Văn bản báo cáo:
-{{text}}`;
-
-const DEFAULT_ANALYSIS_PROMPT = `Bạn là một chuyên gia phân tích dữ liệu đại học (UniData Analyst). 
-Dưới đây là dữ liệu tổng hợp từ các báo cáo của các đơn vị trong trường:
-{{data}}
-
-Câu hỏi của người dùng: "{{query}}"
-
-Hãy phân tích dữ liệu trên để trả lời câu hỏi. Nếu là câu hỏi dự báo, hãy đưa ra lập luận dựa trên xu hướng dữ liệu hiện tại. Trả lời bằng tiếng Việt chuyên nghiệp, ngắn gọn, súc tích.`;
-
 const INITIAL_SETTINGS: SystemSettings = {
   currentAcademicYear: "2023-2024",
-  extractionPrompt: DEFAULT_EXTRACTION_PROMPT,
-  analysisPrompt: DEFAULT_ANALYSIS_PROMPT,
   virtualAssistantUrl: "https://gemini.google.com/app",
   // driveConfig has been removed from SystemSettings
 };
@@ -293,7 +230,6 @@ const INITIAL_SCHOOL_INFO: SchoolInfo = {
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
-  const [reports, setReports] = useState<UniversityReport[]>(INITIAL_REPORTS);
   const [scientificRecords, setScientificRecords] = useState<ScientificRecord[]>(INITIAL_SCIENTIFIC_RECORDS);
   
   // State for all other data modules
@@ -373,7 +309,8 @@ const App: React.FC = () => {
 
           const backupData = await response.json();
 
-          if (!backupData.version && !backupData.reports && !backupData.users) {
+          // Basic validation
+          if (!backupData.units && !backupData.faculties && !backupData.users) {
              throw new Error("File không đúng định dạng dữ liệu hệ thống UniData.");
           }
 
@@ -400,11 +337,6 @@ const App: React.FC = () => {
 
   const isCurrentYearLocked = currentAcademicYearObj ? currentAcademicYearObj.isLocked : false;
 
-  const filteredReports = useMemo(() => 
-    reports.filter(r => r.academicYear === settings.currentAcademicYear),
-    [reports, settings.currentAcademicYear]
-  );
-  
   const filteredScientificRecords = useMemo(() => 
     scientificRecords.filter(r => r.academicYear === settings.currentAcademicYear),
     [scientificRecords, settings.currentAcademicYear]
@@ -413,7 +345,6 @@ const App: React.FC = () => {
   // --- Current Data Snapshot for Syncing ---
   const currentDataSnapshot = useMemo(() => ({
       units,
-      reports,
       scientificRecords,
       trainingRecords,
       personnelRecords,
@@ -429,15 +360,10 @@ const App: React.FC = () => {
       settings,
       academicYears,
       schoolInfo
-  }), [units, reports, scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords, faculties, humanResources, dataConfigGroups, dynamicDataStore, users, settings, academicYears, schoolInfo]);
+  }), [units, scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords, faculties, humanResources, dataConfigGroups, dynamicDataStore, users, settings, academicYears, schoolInfo]);
 
 
   // --- HANDLERS ---
-
-  const handleDataExtracted = (newReport: UniversityReport) => {
-    setReports(prev => [newReport, ...prev]);
-    setCurrentView('scientific_management'); 
-  };
   
   const handleDataImport = (type: string, data: any[]) => {
       switch (type) {
@@ -533,7 +459,6 @@ const App: React.FC = () => {
 
   const handleImportData = (data: any) => {
     // Restore Core Data
-    if (data.reports) setReports(data.reports);
     if (data.units) setUnits(data.units);
     if (data.users) setUsers(data.users);
     if (data.academicYears) setAcademicYears(data.academicYears);
@@ -566,7 +491,6 @@ const App: React.FC = () => {
 
   const handleResetSystemData = () => {
       // Clear all business data
-      setReports([]);
       setScientificRecords([]);
       setTrainingRecords([]);
       setPersonnelRecords([]);
@@ -611,25 +535,9 @@ const App: React.FC = () => {
       case 'dashboard':
         return (
           <DashboardModule 
-            reports={filteredReports} 
+            scientificRecords={filteredScientificRecords}
+            faculties={faculties}
             currentAcademicYear={settings.currentAcademicYear}
-          />
-        );
-      case 'ingestion':
-        return (
-          <IngestionModule 
-            onDataImport={handleDataImport}
-            academicYears={academicYears}
-            currentAcademicYearCode={settings.currentAcademicYear}
-            isLocked={isCurrentYearLocked}
-            virtualAssistantUrl={settings.virtualAssistantUrl}
-          />
-        );
-      case 'analysis':
-        return (
-          <AnalysisModule 
-            reports={filteredReports} 
-            customPrompt={settings.analysisPrompt}
           />
         );
       case 'scientific_management':
@@ -679,7 +587,6 @@ const App: React.FC = () => {
         return (
           <SettingsModule
             // Core
-            reports={reports}
             units={units}
             settings={settings}
             driveSession={driveSession} // Passed separately
@@ -713,7 +620,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <DashboardModule reports={filteredReports} currentAcademicYear={settings.currentAcademicYear} />;
+        return <DashboardModule scientificRecords={filteredScientificRecords} faculties={faculties} currentAcademicYear={settings.currentAcademicYear} />;
     }
   };
 

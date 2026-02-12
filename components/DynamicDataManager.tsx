@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, ChartConfig, ChartType, GoogleDriveConfig } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DynamicDataManagerProps {
@@ -33,6 +33,9 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'detail'>('dashboard');
   
+  // -- Filter State --
+  const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('');
+
   // -- Dashboard State --
   const [isAddingChart, setIsAddingChart] = useState(false);
   const [newChartConfig, setNewChartConfig] = useState<Partial<ChartConfig>>({ type: 'bar' });
@@ -46,10 +49,40 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [fileToUpload, setFileToUpload] = useState<Record<string, File | null>>({});
 
-  // Filter data by current academic year
+  // --- HIERARCHY LOGIC ---
+  
+  // 1. Identify which field in this Group represents the "Unit" (Organization)
+  const unitFieldKey = useMemo(() => {
+      const field = group.fields.find(f => f.type === 'reference' && f.referenceTarget === 'units');
+      return field ? field.key : null;
+  }, [group]);
+
+  // 2. Helper to get all descendant IDs (including self)
+  const getUnitAndDescendants = (rootUnitId: string, allUnits: Unit[]): string[] => {
+      const children = allUnits.filter(u => u.parentId === rootUnitId);
+      let ids = [rootUnitId];
+      children.forEach(child => {
+          ids = [...ids, ...getUnitAndDescendants(child.id, allUnits)];
+      });
+      return ids;
+  };
+
+  // 3. Filter data
   const filteredData = useMemo(() => {
-      return data.filter(d => d.academicYear === currentAcademicYear);
-  }, [data, currentAcademicYear]);
+      // Base filter: Academic Year
+      let result = data.filter(d => d.academicYear === currentAcademicYear);
+
+      // Hierarchical Unit Filter
+      if (selectedUnitFilter && unitFieldKey) {
+          const validUnitIds = getUnitAndDescendants(selectedUnitFilter, units);
+          result = result.filter(record => {
+              const recordUnitId = record[unitFieldKey];
+              return validUnitIds.includes(recordUnitId);
+          });
+      }
+
+      return result;
+  }, [data, currentAcademicYear, selectedUnitFilter, unitFieldKey, units]);
 
   // --- DATA PROCESSING HELPERS ---
   const getLookupValue = (value: string, target?: string) => {
@@ -204,6 +237,21 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   const handleFileSelection = (key: string, file: File | null) => {
       setFileToUpload(prev => ({ ...prev, [key]: file }));
   };
+
+  // --- PREPARE UNIT OPTIONS FOR FILTER ---
+  const unitOptions = useMemo(() => {
+      const roots = units.filter(u => !u.parentId || u.type === 'faculty');
+      const options: { id: string, name: string, level: number }[] = [];
+      
+      roots.forEach(root => {
+          options.push({ id: root.id, name: root.name, level: 0 });
+          const children = units.filter(u => u.parentId === root.id);
+          children.forEach(child => {
+              options.push({ id: child.id, name: child.name, level: 1 });
+          });
+      });
+      return options;
+  }, [units]);
 
   // --- RENDERERS ---
   const renderDashboard = () => (
@@ -415,7 +463,9 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                           </tr>
                       ))}
                       {filteredData.length === 0 && (
-                          <tr><td colSpan={group.fields.length + 2} className="px-4 py-12 text-center text-slate-400 italic">Chưa có dữ liệu cho năm học này.</td></tr>
+                          <tr><td colSpan={group.fields.length + 2} className="px-4 py-12 text-center text-slate-400 italic">
+                              {selectedUnitFilter ? "Chưa có dữ liệu cho đơn vị này." : "Chưa có dữ liệu cho năm học này."}
+                          </td></tr>
                       )}
                   </tbody>
               </table>
@@ -506,24 +556,45 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   return (
     <div className="flex flex-col h-full">
         {/* Top Tab Bar */}
-        <div className="bg-white border-b border-slate-200 px-6 pt-4 flex items-center justify-between shadow-sm z-10">
-            <h2 className="text-lg font-black text-slate-800 uppercase tracking-wide mb-4 mr-8">{group.name}</h2>
-            <div className="flex space-x-6">
-                <button 
-                    onClick={() => setActiveTab('dashboard')}
-                    className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                    <LayoutDashboard size={18} />
-                    Bảng tổng quan
-                </button>
-                <button 
-                    onClick={() => setActiveTab('detail')}
-                    className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'detail' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                    <Table size={18} />
-                    Dữ liệu chi tiết
-                </button>
+        <div className="bg-white border-b border-slate-200 px-6 pt-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm z-10 gap-4">
+            <div className="flex items-center">
+                <h2 className="text-lg font-black text-slate-800 uppercase tracking-wide mr-8">{group.name}</h2>
+                <div className="flex space-x-6">
+                    <button 
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <LayoutDashboard size={18} />
+                        Bảng tổng quan
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('detail')}
+                        className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'detail' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Table size={18} />
+                        Dữ liệu chi tiết
+                    </button>
+                </div>
             </div>
+
+            {/* Hierarchical Unit Filter Dropdown */}
+            {unitFieldKey && (
+                <div className="flex items-center gap-2 mb-4 md:mb-0 pb-1">
+                    <Filter size={16} className="text-slate-400" />
+                    <select 
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none"
+                        value={selectedUnitFilter}
+                        onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                    >
+                        <option value="">-- Tất cả Đơn vị --</option>
+                        {unitOptions.map(opt => (
+                            <option key={opt.id} value={opt.id} className={opt.level === 0 ? "font-bold" : ""}>
+                                {opt.level > 0 ? '\u00A0\u00A0'.repeat(opt.level * 2) + '↳ ' : ''}{opt.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
         </div>
 
         {/* Content */}

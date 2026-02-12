@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, UniversityReport, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig } from '../types';
+import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
-import AIPromptModule from './SettingsModules/AIPromptModule';
 import GeneralConfigModule from './SettingsModules/GeneralConfigModule';
 import DataConfigModule from './SettingsModules/DataConfigModule';
 
@@ -18,7 +17,6 @@ interface SettingsModuleProps {
   settings: SystemSettings;
   driveSession: GoogleDriveConfig; // Separated Session State
   users: UserProfile[];
-  reports: UniversityReport[];
   units: Unit[];
   academicYears: AcademicYear[];
   schoolInfo: SchoolInfo;
@@ -61,7 +59,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   settings, 
   driveSession,
   users, 
-  reports, 
   units, 
   academicYears,
   schoolInfo,
@@ -90,8 +87,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onShowVersions,
   onResetSystemData
 }) => {
-  // Ordered: Backup -> Users -> Prompts -> DataConfig -> General
-  const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'prompts' | 'data_config' | 'general'>('backup');
+  // Ordered: Backup -> Users -> DataConfig -> General
+  const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'data_config' | 'general'>('backup');
 
   // Drive State
   // Prioritize Environment Variable
@@ -487,7 +484,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     const { driveConfig: _ignored, ...safeSettings } = (settings as any);
 
     const data = {
-      reports,
       units,
       users,
       settings: safeSettings, // Use cleaned settings
@@ -502,7 +498,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       businessRecords,
       dataConfigGroups,
       backupDate: new Date().toISOString(),
-      version: "1.4"
+      version: "1.5"
     };
 
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -554,7 +550,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     const { driveConfig: _ignored, ...safeSettings } = (settings as any);
 
     const data = {
-      reports,
       units,
       users,
       settings: safeSettings, // Use cleaned settings
@@ -569,7 +564,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       businessRecords,
       dataConfigGroups,
       backupDate: new Date().toISOString(),
-      version: "1.4"
+      version: "1.5"
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -617,14 +612,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Cài đặt Hệ thống</h2>
-        <p className="text-slate-600">Quản lý tham số hệ thống, thông tin trường, người dùng, AI và cấu hình dữ liệu.</p>
+        <p className="text-slate-600">Quản lý tham số hệ thống, thông tin trường, người dùng và cấu hình dữ liệu.</p>
       </div>
 
       <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit overflow-x-auto">
         {[
           { id: 'backup', label: 'Dữ liệu & Backup' },
           { id: 'users', label: 'Quản lý User' },
-          { id: 'prompts', label: 'AI Prompts' },
           { id: 'data_config', label: 'Cấu hình Dữ liệu' },
           { id: 'general', label: 'Cấu hình Chung' },
         ].map(tab => (
@@ -663,14 +657,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             onAddUser={onAddUser}
             onRemoveUser={onRemoveUser}
           />
-        )}
-
-        {/* TAB: PROMPTS */}
-        {activeTab === 'prompts' && (
-           <AIPromptModule 
-              settings={settings}
-              onUpdateSettings={onUpdateSettings}
-           />
         )}
 
          {/* TAB: DATA CONFIG */}

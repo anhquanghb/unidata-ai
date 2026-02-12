@@ -1,39 +1,3 @@
-export interface PersonnelStats {
-  professors: number;
-  associateProfessors: number;
-  phd: number;
-  masters: number;
-}
-
-export interface PublicationStats {
-  isi: number;
-  scopus: number;
-  domestic: number;
-  otherInternational: number;
-}
-
-export interface ProjectStats {
-  assigned: number;
-  ongoing: number;
-  completed: number;
-}
-
-export interface QualitativeData {
-  researchDirections: string[];
-  difficulties: string[];
-  proposals: string[];
-}
-
-export interface UniversityReport {
-  id: string;
-  unitName: string; // Tên Khoa/Viện
-  academicYear: string;
-  personnel: PersonnelStats;
-  publications: PublicationStats;
-  projects: ProjectStats;
-  qualitative: QualitativeData;
-  extractionDate: string;
-}
 
 // --- Data Management Interfaces ---
 
@@ -169,13 +133,12 @@ export interface ExternalSource {
 
 export interface SystemSettings {
   currentAcademicYear: string;
-  extractionPrompt: string;
-  analysisPrompt: string;
   virtualAssistantUrl: string;
-  // driveConfig removed to prevent persistence
+  extractionPrompt?: string;
+  analysisPrompt?: string;
 }
 
-export type ViewState = 'dashboard' | 'ingestion' | 'analysis' | 'scientific_management' | 'organization' | 'settings' | 'faculty_profiles';
+export type ViewState = 'dashboard' | 'scientific_management' | 'organization' | 'settings' | 'faculty_profiles';
 
 // --- NEW FACULTY MODULE TYPES ---
 
@@ -340,4 +303,33 @@ export interface DynamicRecord {
   id: string;
   academicYear?: string; // Always injected
   [key: string]: any;
+}
+
+// --- REPORT INTERFACES ---
+
+export interface UniversityReport {
+  unitName: string;
+  academicYear: string;
+  personnel: {
+    professors: number;
+    associateProfessors: number;
+    phd: number;
+    masters: number;
+  };
+  publications: {
+    isi: number;
+    scopus: number;
+    domestic: number;
+    otherInternational: number;
+  };
+  projects: {
+    assigned: number;
+    ongoing: number;
+    completed: number;
+  };
+  qualitative: {
+    researchDirections: string[];
+    difficulties: string[];
+    proposals: string[];
+  };
 }
