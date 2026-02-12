@@ -54,6 +54,8 @@ interface SettingsModuleProps {
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const DEFAULT_FOLDER_NAME = 'UniData_Backups'; // HARDCODED FOLDER NAME
+const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION';
+const TOKEN_EXPIRY_MS = 3500 * 1000; // ~58 minutes safety buffer
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
@@ -171,6 +173,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                         isConnected: false,
                         accessToken: undefined
                     });
+                    localStorage.removeItem(STORAGE_KEY);
                 } else {
                     alert("Lỗi đăng nhập Google Drive: " + resp.error);
                 }
@@ -197,7 +200,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
                     // 1. Search for Root Backup Folder (UniData_Backups) OWNED BY ME
                     try {
-                        // Added 'me' in owners to query
+                        // STRICT QUERY: Must be owned by 'me'
                         const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
                         const folderResp = await window.gapi.client.drive.files.list({
                             q: q,
@@ -269,6 +272,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     // Update Global Session State
                     onUpdateDriveSession(newSession);
 
+                    // Persist session to LocalStorage
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                        config: newSession,
+                        timestamp: Date.now()
+                    }));
+
                     if (promptType.includes('select_account')) {
                         if (targetFolderId) {
                             // Silent success or toast could be better, but user requested feedback logic
@@ -286,6 +295,37 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     // Request token
     tokenClient.requestAccessToken({ prompt: promptType });
   };
+
+  // --- SILENT HYDRATION ON LOAD ---
+  useEffect(() => {
+    if (!isGisLoaded || !isGapiLoaded) return;
+    
+    const savedSession = localStorage.getItem(STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        const now = Date.now();
+        const isExpired = (now - parsed.timestamp) >= TOKEN_EXPIRY_MS;
+
+        if (!isExpired && parsed.config?.accessToken) {
+          // TOKEN VALID: Load immediately
+          console.log("Restoring valid Drive session...");
+          window.gapi.client.setToken({ access_token: parsed.config.accessToken });
+          onUpdateDriveSession(parsed.config); 
+          
+          // Trigger background scan to update UI status (found/not found)
+          authenticateDrive(parsed.config.clientId || effectiveClientId, ''); 
+        } else if (parsed.config?.clientId) {
+          // TOKEN EXPIRED: Try silent refresh
+          console.log("Session expired, attempting silent refresh...");
+          authenticateDrive(parsed.config.clientId, '');
+        }
+      } catch (e) {
+        console.error("Session restoration error:", e);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  }, [isGisLoaded, isGapiLoaded]);
 
   // --- MANUAL CREATE FOLDER HANDLER ---
   const handleCreateDefaultFolders = async () => {
@@ -324,12 +364,21 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               backupCount: 0
           });
 
-          onUpdateDriveSession({
+          const updatedSession = {
               ...driveSession,
               folderId: newFolderId,
               dataFolderId: newDataFolderId,
               folderName: DEFAULT_FOLDER_NAME
-          });
+          };
+
+          onUpdateDriveSession(updatedSession);
+          
+          // Update Persistence
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              config: updatedSession,
+              timestamp: Date.now()
+          }));
+
           alert(`Đã khởi tạo thành công:\n- Thư mục gốc: ${DEFAULT_FOLDER_NAME}\n- Thư mục con: Data`);
 
       } catch (e: any) {
@@ -369,8 +418,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             window.gapi.client.setToken(null);
         }
 
-        // 3. Clear Local Storage to prevent sticky sessions and config persistence
-        localStorage.clear();
+        // 3. Clear Local Storage
+        localStorage.clear(); // Clears STORAGE_KEY and everything else
         sessionStorage.clear();
 
         // 4. Reset local state immediately
@@ -399,11 +448,20 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   const handleSaveDriveConfigOnly = () => {
       // Just saves Client ID and External Source ID to session state (runtime)
-      onUpdateDriveSession({
+      const updated = {
           ...driveSession,
           clientId: manualClientId,
           externalSourceFolderId: externalSourceFolderId 
-      });
+      };
+      onUpdateDriveSession(updated);
+      
+      // Update storage if connected
+      if (driveSession.isConnected) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              config: updated,
+              timestamp: Date.now()
+          }));
+      }
       alert("Đã cập nhật cấu hình phiên làm việc!");
   };
 
