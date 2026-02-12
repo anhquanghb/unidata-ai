@@ -43,12 +43,12 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   const [personSearchQuery, setPersonSearchQuery] = useState('');
 
   // Filter Data
-  const level1Units = units.filter(u => u.type === 'faculty');
-  const level2Units = units.filter(u => u.type === 'department' && (!selectedFacultyId || u.parentId === selectedFacultyId));
+  const level1Units = units.filter(u => u.unit_type === 'faculty');
+  const level2Units = units.filter(u => u.unit_type === 'department' && (!selectedFacultyId || u.unit_parentId === selectedFacultyId));
   
   // HR Data Filtering
   const hrLevel2Options = useMemo(() => {
-      return units.filter(u => u.type === 'department' && u.parentId === hrSelectedLevel1Id);
+      return units.filter(u => u.unit_type === 'department' && u.unit_parentId === hrSelectedLevel1Id);
   }, [units, hrSelectedLevel1Id]);
 
   const activeHrUnitId = hrSelectedLevel2Id || hrSelectedLevel1Id;
@@ -77,11 +77,11 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     }
 
     const newUnit: Unit = {
-      id: uuidv4(),
-      name: newUnitName,
-      code: newUnitCode,
-      type: addLevel,
-      parentId: parentId
+      unit_id: uuidv4(),
+      unit_name: newUnitName,
+      unit_code: newUnitCode,
+      unit_type: addLevel,
+      unit_parentId: parentId
     };
     
     onAddUnit(newUnit);
@@ -91,9 +91,9 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   const startEditing = (unit: Unit) => {
     if (isLocked) return;
-    setEditingId(unit.id);
-    setEditName(unit.name);
-    setEditCode(unit.code);
+    setEditingId(unit.unit_id);
+    setEditName(unit.unit_name);
+    setEditCode(unit.unit_code);
   };
 
   const saveEditing = (originalUnit: Unit) => {
@@ -103,8 +103,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     }
     onUpdateUnit({
         ...originalUnit,
-        name: editName,
-        code: editCode
+        unit_name: editName,
+        unit_code: editCode
     });
     setEditingId(null);
   };
@@ -145,7 +145,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   // Helper to render a list item with inline editing
   const renderUnitItem = (unit: Unit, isSelected: boolean, onClick: () => void) => {
-    const isEditing = editingId === unit.id;
+    const isEditing = editingId === unit.unit_id;
 
     if (isEditing) {
         return (
@@ -187,12 +187,12 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         title={isLocked ? 'Dữ liệu năm học đang bị khóa (Chỉ xem)' : 'Nhấp đúp để sửa'}
       >
         <div>
-          <span className={`font-medium block ${isSelected ? 'text-blue-800' : 'text-slate-800'}`}>{unit.name}</span>
-          <span className="text-xs text-slate-500 uppercase font-mono">{unit.code}</span>
+          <span className={`font-medium block ${isSelected ? 'text-blue-800' : 'text-slate-800'}`}>{unit.unit_name}</span>
+          <span className="text-xs text-slate-500 uppercase font-mono">{unit.unit_code}</span>
         </div>
         {!isLocked && (
             <button 
-            onClick={(e) => { e.stopPropagation(); onRemoveUnit(unit.id); }}
+            onClick={(e) => { e.stopPropagation(); onRemoveUnit(unit.unit_id); }}
             className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
             title="Xóa đơn vị"
             >
@@ -255,8 +255,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto space-y-2">
                     {level1Units.length === 0 && <p className="text-slate-400 text-sm italic">Chưa có dữ liệu</p>}
-                    {level1Units.map(unit => renderUnitItem(unit, selectedFacultyId === unit.id, () => {
-                        setSelectedFacultyId(unit.id);
+                    {level1Units.map(unit => renderUnitItem(unit, selectedFacultyId === unit.unit_id, () => {
+                        setSelectedFacultyId(unit.unit_id);
                     }))}
                 </div>
                 </div>
@@ -334,7 +334,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                 </button>
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                    {addLevel === 'department' && selectedFacultyId ? `Đang thêm vào: ${level1Units.find(f => f.id === selectedFacultyId)?.name}` : 
+                    {addLevel === 'department' && selectedFacultyId ? `Đang thêm vào: ${level1Units.find(f => f.unit_id === selectedFacultyId)?.unit_name}` : 
                     addLevel === 'department' ? `Vui lòng chọn Khoa ở cột 1 trước` : 
                     `Tạo đơn vị Khoa/Viện mới`}
                 </p>
@@ -359,7 +359,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                       >
                           <option value="">-- Chọn đơn vị --</option>
                           {level1Units.map(u => (
-                              <option key={u.id} value={u.id}>{u.name}</option>
+                              <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
                           ))}
                       </select>
                   </div>
@@ -373,7 +373,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                       >
                           <option value="">{hrLevel2Options.length === 0 ? '-- Không có cấp bộ môn --' : '-- Chọn bộ môn (Tùy chọn) --'}</option>
                           {hrLevel2Options.map(u => (
-                              <option key={u.id} value={u.id}>{u.name}</option>
+                              <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
                           ))}
                       </select>
                   </div>
@@ -391,7 +391,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                           {/* Toolbar */}
                           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                               <h3 className="font-bold text-slate-800">
-                                  Danh sách nhân sự: <span className="text-indigo-600">{units.find(u => u.id === activeHrUnitId)?.name}</span>
+                                  Danh sách nhân sự: <span className="text-indigo-600">{units.find(u => u.unit_id === activeHrUnitId)?.unit_name}</span>
                               </h3>
                               <button 
                                   onClick={() => setIsAddingPerson(true)}

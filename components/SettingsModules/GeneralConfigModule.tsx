@@ -83,8 +83,8 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [editingYearId, setEditingYearId] = useState<string | null>(null);
   const [editYearCode, setEditYearCode] = useState('');
   const [editingSchool, setEditingSchool] = useState(false);
-  const [editSchoolName, setEditSchoolName] = useState(schoolInfo.name);
-  const [editSchoolCode, setEditSchoolCode] = useState(schoolInfo.code);
+  const [editSchoolName, setEditSchoolName] = useState(schoolInfo.school_name);
+  const [editSchoolCode, setEditSchoolCode] = useState(schoolInfo.school_code);
 
   // --- DRIVE SHARING STATE ---
   const [rootPermissions, setRootPermissions] = useState<DrivePermission[]>([]);
@@ -114,7 +114,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   };
 
   const handleSaveSchoolInfo = () => {
-      onUpdateSchoolInfo({ name: editSchoolName, code: editSchoolCode });
+      onUpdateSchoolInfo({ school_name: editSchoolName, school_code: editSchoolCode });
       setEditingSchool(false);
   }
 
@@ -250,7 +250,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    {editingSchool ? (
                        <input className="w-full p-2 border border-slate-300 rounded text-sm" value={editSchoolName} onChange={(e) => setEditSchoolName(e.target.value)} />
                    ) : (
-                       <div className="text-sm font-bold text-slate-800">{schoolInfo.name}</div>
+                       <div className="text-sm font-bold text-slate-800">{schoolInfo.school_name}</div>
                    )}
                </div>
                <div>
@@ -258,7 +258,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                     {editingSchool ? (
                        <input className="w-full p-2 border border-slate-300 rounded text-sm font-mono uppercase" value={editSchoolCode} onChange={(e) => setEditSchoolCode(e.target.value)} />
                    ) : (
-                       <div className="text-sm font-mono font-bold text-slate-600">{schoolInfo.code}</div>
+                       <div className="text-sm font-mono font-bold text-slate-600">{schoolInfo.school_code}</div>
                    )}
                </div>
            </div>

@@ -32,6 +32,25 @@ interface DiffNode {
     data?: any; // The actual data to merge
 }
 
+// Helper to migrate data locally for diffing (v1 -> v2)
+const migrateDataLocal = (data: any) => {
+    let migrated = { ...data };
+    if (migrated.units && Array.isArray(migrated.units)) {
+        migrated.units = migrated.units.map((u: any) => {
+            if (u.unit_id) return u;
+            return {
+                ...u,
+                unit_id: u.id,
+                unit_name: u.name,
+                unit_code: u.code,
+                unit_type: u.type,
+                unit_parentId: u.parentId
+            };
+        });
+    }
+    return migrated;
+};
+
 const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onConfirm, onImportData, onClose, currentData }) => {
   const [activeTab, setActiveTab] = useState<'my_drive' | 'external' | 'empty'>('my_drive');
   const [isLoading, setIsLoading] = useState(false);
@@ -223,7 +242,9 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
       if (!selectedExternalFileId) return;
       setIsLoading(true);
       try {
-          const incoming = await fetchFileContent(selectedExternalFileId);
+          const rawIncoming = await fetchFileContent(selectedExternalFileId);
+          // Normalize data structure for compatibility
+          const incoming = migrateDataLocal(rawIncoming);
           setIncomingDataCache(incoming);
           
           // Build Diff Tree
@@ -252,12 +273,12 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
               isSelected: true,
               data: incomingUnits,
               children: incomingUnits.map(u => ({
-                  id: u.id,
-                  label: u.name,
+                  id: u.unit_id,
+                  label: u.unit_name,
                   type: 'unit',
                   incomingCount: 1,
-                  currentCount: currentUnits.some(cu => cu.id === u.id || cu.code === u.code) ? 1 : 0,
-                  isNew: !currentUnits.some(cu => cu.id === u.id || cu.code === u.code),
+                  currentCount: currentUnits.some(cu => cu.unit_id === u.unit_id || cu.unit_code === u.unit_code) ? 1 : 0,
+                  isNew: !currentUnits.some(cu => cu.unit_id === u.unit_id || cu.unit_code === u.unit_code),
                   isSelected: true,
                   data: u
               }))
@@ -361,7 +382,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                       const selectedUnits = node.children?.filter(c => c.isSelected).map(c => c.data) || [];
                       // Merge Units: Add if new, Replace if exists (based on ID)
                       selectedUnits.forEach((u: Unit) => {
-                          const idx = finalData.units.findIndex((cu: Unit) => cu.id === u.id);
+                          const idx = finalData.units.findIndex((cu: Unit) => cu.unit_id === u.unit_id);
                           if (idx >= 0) finalData.units[idx] = u;
                           else finalData.units.push(u);
                       });

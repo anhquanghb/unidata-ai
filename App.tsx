@@ -16,6 +16,9 @@ declare global {
   }
 }
 
+// SYSTEM VERSION CONSTANT
+const SYSTEM_VERSION = "2.0.0";
+
 // Mock Scientific Records
 const INITIAL_SCIENTIFIC_RECORDS: ScientificRecord[] = [
   {
@@ -138,14 +141,14 @@ const FACULTY_EE_ID = uuidv4();
 
 const INITIAL_UNITS: Unit[] = [
   // Khoa Môi trường và Khoa học tự nhiên
-  { id: FACULTY_ENV_ID, name: "Khoa Môi trường và Khoa học tự nhiên", code: "FENS", type: "faculty" },
-  { id: uuidv4(), name: "Bộ môn Khoa học môi trường", code: "BM-KHMT", type: "department", parentId: FACULTY_ENV_ID },
-  { id: uuidv4(), name: "Bộ môn Hóa học", code: "BM-HH", type: "department", parentId: FACULTY_ENV_ID },
+  { unit_id: FACULTY_ENV_ID, unit_name: "Khoa Môi trường và Khoa học tự nhiên", unit_code: "FENS", unit_type: "faculty" },
+  { unit_id: uuidv4(), unit_name: "Bộ môn Khoa học môi trường", unit_code: "BM-KHMT", unit_type: "department", unit_parentId: FACULTY_ENV_ID },
+  { unit_id: uuidv4(), unit_name: "Bộ môn Hóa học", unit_code: "BM-HH", unit_type: "department", unit_parentId: FACULTY_ENV_ID },
 
   // Khoa Điện - Điện tử
-  { id: FACULTY_EE_ID, name: "Khoa Điện - Điện tử", code: "FEEE", type: "faculty" },
-  { id: uuidv4(), name: "Bộ môn Tự động hóa", code: "BM-TDH", type: "department", parentId: FACULTY_EE_ID },
-  { id: uuidv4(), name: "Bộ môn Hệ thống điện", code: "BM-HTD", type: "department", parentId: FACULTY_EE_ID },
+  { unit_id: FACULTY_EE_ID, unit_name: "Khoa Điện - Điện tử", unit_code: "FEEE", unit_type: "faculty" },
+  { unit_id: uuidv4(), unit_name: "Bộ môn Tự động hóa", unit_code: "BM-TDH", unit_type: "department", unit_parentId: FACULTY_EE_ID },
+  { unit_id: uuidv4(), unit_name: "Bộ môn Hệ thống điện", unit_code: "BM-HTD", unit_type: "department", unit_parentId: FACULTY_EE_ID },
 ];
 
 // Initial Human Resources Data
@@ -214,7 +217,6 @@ const INITIAL_ACADEMIC_YEARS: AcademicYear[] = [
 const INITIAL_SETTINGS: SystemSettings = {
   currentAcademicYear: "2023-2024",
   virtualAssistantUrl: "https://gemini.google.com/app",
-  // driveConfig has been removed from SystemSettings
 };
 
 const INITIAL_DRIVE_SESSION: GoogleDriveConfig = {
@@ -224,8 +226,8 @@ const INITIAL_DRIVE_SESSION: GoogleDriveConfig = {
 };
 
 const INITIAL_SCHOOL_INFO: SchoolInfo = {
-  name: "Trường Công nghệ và Kỹ thuật",
-  code: "SET"
+  school_name: "Trường Công nghệ và Kỹ thuật",
+  school_code: "SET"
 };
 
 const App: React.FC = () => {
@@ -359,7 +361,8 @@ const App: React.FC = () => {
       users,
       settings,
       academicYears,
-      schoolInfo
+      schoolInfo,
+      version: SYSTEM_VERSION
   }), [units, scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords, faculties, humanResources, dataConfigGroups, dynamicDataStore, users, settings, academicYears, schoolInfo]);
 
 
@@ -406,21 +409,21 @@ const App: React.FC = () => {
   };
 
   const handleUpdateUnit = (updatedUnit: Unit) => {
-    setUnits(units.map(u => u.id === updatedUnit.id ? updatedUnit : u));
+    setUnits(units.map(u => u.unit_id === updatedUnit.unit_id ? updatedUnit : u));
   };
 
   const handleRemoveUnit = (id: string) => {
     const deleteIds = new Set([id]);
     const findChildren = (parentId: string) => {
       units.forEach(u => {
-        if (u.parentId === parentId) {
-          deleteIds.add(u.id);
-          findChildren(u.id);
+        if (u.unit_parentId === parentId) {
+          deleteIds.add(u.unit_id);
+          findChildren(u.unit_id);
         }
       });
     };
     findChildren(id);
-    setUnits(units.filter(u => !deleteIds.has(u.id)));
+    setUnits(units.filter(u => !deleteIds.has(u.unit_id)));
   };
 
   const handleAddUser = (user: UserProfile) => {
@@ -457,7 +460,50 @@ const App: React.FC = () => {
     ));
   };
 
-  const handleImportData = (data: any) => {
+  // --- MIGRATION LOGIC (v1.x -> v2.0) ---
+  const migrateData = (data: any) => {
+      let migrated = { ...data };
+      let updated = false;
+
+      // 1. Migrate Units (prefix unit_)
+      if (migrated.units && Array.isArray(migrated.units)) {
+          migrated.units = migrated.units.map((u: any) => {
+              // Check if already migrated
+              if (u.unit_id) return u;
+              
+              updated = true;
+              return {
+                  unit_id: u.id,
+                  unit_name: u.name,
+                  unit_code: u.code,
+                  unit_type: u.type,
+                  unit_parentId: u.parentId
+              };
+          });
+      }
+
+      // 2. Migrate SchoolInfo (prefix school_)
+      if (migrated.schoolInfo) {
+          if (!migrated.schoolInfo.school_name && migrated.schoolInfo.name) {
+              updated = true;
+              migrated.schoolInfo = {
+                  school_name: migrated.schoolInfo.name,
+                  school_code: migrated.schoolInfo.code
+              };
+          }
+      }
+
+      if (updated) {
+          console.log("Data migrated to version " + SYSTEM_VERSION);
+          alert(`Hệ thống phát hiện dữ liệu phiên bản cũ. \nĐã tự động nâng cấp cấu trúc dữ liệu lên phiên bản ${SYSTEM_VERSION}.`);
+      }
+
+      return migrated;
+  };
+
+  const handleImportData = (rawData: any) => {
+    const data = migrateData(rawData);
+
     // Restore Core Data
     if (data.units) setUnits(data.units);
     if (data.users) setUsers(data.users);
@@ -629,7 +675,7 @@ const App: React.FC = () => {
       <Sidebar 
         currentView={currentView} 
         onViewChange={setCurrentView} 
-        schoolName={schoolInfo.name}
+        schoolName={schoolInfo.school_name}
         isCollapsed={isSidebarCollapsed}
         toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />

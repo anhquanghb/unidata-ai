@@ -70,12 +70,13 @@ export interface BusinessRecord {
 
 // --- System Interfaces ---
 
+// UPDATED: Added 'unit_' prefix
 export interface Unit {
-  id: string;
-  name: string;
-  code: string;
-  type: 'school' | 'faculty' | 'department';
-  parentId?: string;
+  unit_id: string;
+  unit_name: string;
+  unit_code: string;
+  unit_type: 'school' | 'faculty' | 'department';
+  unit_parentId?: string;
 }
 
 // NEW: Data structure for linking Faculty to Units
@@ -101,9 +102,10 @@ export interface AcademicYear {
   isLocked: boolean;
 }
 
+// UPDATED: Added 'school_' prefix
 export interface SchoolInfo {
-  name: string;
-  code: string;
+  school_name: string;
+  school_code: string;
 }
 
 export interface GoogleDriveConfig {

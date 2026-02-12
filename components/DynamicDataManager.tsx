@@ -59,10 +59,10 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 
   // 2. Helper to get all descendant IDs (including self)
   const getUnitAndDescendants = (rootUnitId: string, allUnits: Unit[]): string[] => {
-      const children = allUnits.filter(u => u.parentId === rootUnitId);
+      const children = allUnits.filter(u => u.unit_parentId === rootUnitId);
       let ids = [rootUnitId];
       children.forEach(child => {
-          ids = [...ids, ...getUnitAndDescendants(child.id, allUnits)];
+          ids = [...ids, ...getUnitAndDescendants(child.unit_id, allUnits)];
       });
       return ids;
   };
@@ -87,7 +87,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   // --- DATA PROCESSING HELPERS ---
   const getLookupValue = (value: string, target?: string) => {
       if (!value) return '';
-      if (target === 'units') return units.find(u => u.id === value)?.name || value;
+      if (target === 'units') return units.find(u => u.unit_id === value)?.unit_name || value;
       if (target === 'faculties') return faculties.find(f => f.id === value)?.name.vi || value;
       if (target === 'academicYears') return academicYears.find(y => y.id === value)?.code || value;
       return value;
@@ -240,14 +240,14 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 
   // --- PREPARE UNIT OPTIONS FOR FILTER ---
   const unitOptions = useMemo(() => {
-      const roots = units.filter(u => !u.parentId || u.type === 'faculty');
+      const roots = units.filter(u => !u.unit_parentId || u.unit_type === 'faculty');
       const options: { id: string, name: string, level: number }[] = [];
       
       roots.forEach(root => {
-          options.push({ id: root.id, name: root.name, level: 0 });
-          const children = units.filter(u => u.parentId === root.id);
+          options.push({ id: root.unit_id, name: root.unit_name, level: 0 });
+          const children = units.filter(u => u.unit_parentId === root.unit_id);
           children.forEach(child => {
-              options.push({ id: child.id, name: child.name, level: 1 });
+              options.push({ id: child.unit_id, name: child.unit_name, level: 1 });
           });
       });
       return options;
@@ -494,7 +494,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                                   ) : f.type === 'reference' ? (
                                       <select className="w-full p-2 border border-slate-300 rounded text-sm" value={tempRecord[f.key] || ''} onChange={e => setTempRecord({...tempRecord, [f.key]: e.target.value})}>
                                           <option value="">-- Chọn tham chiếu --</option>
-                                          {f.referenceTarget === 'units' && units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                          {f.referenceTarget === 'units' && units.map(u => <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>)}
                                           {f.referenceTarget === 'faculties' && faculties.map(fac => <option key={fac.id} value={fac.id}>{fac.name.vi}</option>)}
                                           {f.referenceTarget === 'academicYears' && academicYears.map(y => <option key={y.id} value={y.code}>{y.code}</option>)}
                                       </select>

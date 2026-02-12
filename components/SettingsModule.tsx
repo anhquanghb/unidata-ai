@@ -498,7 +498,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       businessRecords,
       dataConfigGroups,
       backupDate: new Date().toISOString(),
-      version: "1.5"
+      version: "2.0.0"
     };
 
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -564,7 +564,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       businessRecords,
       dataConfigGroups,
       backupDate: new Date().toISOString(),
-      version: "1.5"
+      version: "2.0.0"
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -593,7 +593,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         const json = JSON.parse(e.target?.result as string);
         if (window.confirm(`Bạn có chắc chắn muốn nhập dữ liệu từ file này? \nDữ liệu hiện tại sẽ bị thay thế.`)) {
             onImportData(json);
-            alert("Nhập dữ liệu thành công!");
+            // alert("Nhập dữ liệu thành công!"); // Let the parent handle success message to avoid duplicate alerts if migration happens
         }
       } catch (error) {
         alert("Lỗi: File không hợp lệ hoặc bị lỗi định dạng JSON.");
