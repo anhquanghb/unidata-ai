@@ -352,7 +352,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const handleDisconnectDrive = () => {
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
-        // 1. Revoke Consent
+        // 1. Revoke Consent (Token revocation)
         if (driveSession.accessToken && window.google) {
             try {
                 window.google.accounts.oauth2.revoke(driveSession.accessToken, () => {
@@ -368,17 +368,20 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             window.gapi.client.setToken(null);
         }
 
-        // 3. Clear Local Storage to prevent sticky sessions
+        // 3. Clear Local Storage to prevent sticky sessions and config persistence
         localStorage.clear();
         sessionStorage.clear();
 
         // 4. Clear all application data and disconnect via App prop
+        // This triggers setDriveSession(INITIAL_DRIVE_SESSION) in parent
         onResetSystemData();
 
-        // 5. Reset local state
+        // 5. Reset local state immediately
         setDriveFolderId('');
         setExternalSourceFolderId('');
         setScanStatus({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
+        
+        alert("Đã ngắt kết nối và xóa sạch phiên làm việc.");
     }
   };
 
@@ -407,11 +410,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
          return;
     }
 
+    // SANITIZE SETTINGS: Remove driveConfig or any sensitive runtime keys
+    // We create a clean settings object that does NOT include drive state
+    // Note: The `driveConfig` key might persist in the JSON if we don't explicitly exclude it
+    // even if it's not in the Interface, due to JS object nature.
+    const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+
     const data = {
       reports,
       units,
       users,
-      settings, 
+      settings: safeSettings, // Use cleaned settings
       academicYears,
       schoolInfo,
       scientificRecords,
@@ -471,11 +480,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleExport = () => {
+    // SANITIZE SETTINGS: Remove driveConfig
+    const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+
     const data = {
       reports,
       units,
       users,
-      settings,
+      settings: safeSettings, // Use cleaned settings
       academicYears,
       schoolInfo,
       scientificRecords,
