@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X } from 'lucide-react';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
