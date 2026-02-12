@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BackupVersion, GoogleDriveConfig, ExternalSource, Unit } from '../types';
-import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database, X, Share2, User, Send, CheckCircle, RefreshCw, ArrowRight, Merge, ChevronDown, ChevronRight, CheckSquare, Square } from 'lucide-react';
+import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database, X, Share2, User, Send, CheckCircle, RefreshCw, ArrowRight, Merge, ChevronDown, ChevronRight, CheckSquare, Square, Info } from 'lucide-react';
 
 interface VersionSelectorModalProps {
   isOpen: boolean;
@@ -71,6 +71,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
   // --- GOOGLE DRIVE API HELPERS ---
   const listFiles = async (folderId: string): Promise<BackupVersion[]> => {
       try {
+          // Query specifically for JSON files in the target folder
           const response = await window.gapi.client.drive.files.list({
               q: `'${folderId}' in parents and mimeType = 'application/json' and trashed = false`,
               fields: 'files(id, name, createdTime, size)',
@@ -79,7 +80,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
           });
           const files = response.result.files || [];
           return files
-            .filter((f: any) => f.name !== 'external.json') // Filter out config file
+            .filter((f: any) => f.name !== 'external.json') // STRICTLY EXCLUDE config file from data list
             .map((f: any) => ({
               id: f.id,
               fileName: f.name,
@@ -151,6 +152,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
   const loadExternalConfig = async () => {
       if (!driveConfig.folderId) return;
       try {
+          // Look for external.json specifically in the user's UniData_Backups folder
           const response = await window.gapi.client.drive.files.list({
               q: `name = 'external.json' and '${driveConfig.folderId}' in parents and trashed = false`,
               fields: 'files(id)',
@@ -230,11 +232,6 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
           // 1. Group by Units (Faculties) from Incoming
           const incomingUnits: Unit[] = incoming.units || [];
           const currentUnits: Unit[] = currentData?.units || [];
-
-          // Helper to count records for a specific unit (naive check by unitName or just generic modules)
-          // Since records usually don't map strictly by ID across different systems, we group by "Module Types" inside Units if possible
-          // But usually raw records in JSON are just flat lists. 
-          // We will attempt to group them by 'unit' fields if available, or just list global modules.
 
           // GLOBAL MODULES (Scientific, Training, etc.)
           const modules = [
@@ -370,10 +367,6 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                       });
                   } else if (node.type === 'module' && node.id !== 'org_struct' && !node.id.startsWith('dyn_')) {
                       // Standard Modules (Scientific, etc.)
-                      // Strategy: Append All (Simple) or Replace?
-                      // For "Sync", usually we append new records.
-                      // Here we simply CONCAT and let ID uniqueness handle it? No, duplicate IDs might exist if synced before.
-                      // Safe approach: Filter out incoming records that already exist in current by ID, then push.
                       const incomingRecords = node.data;
                       const currentRecords = finalData[node.id] || [];
                       const newRecords = incomingRecords.filter((ir: any) => !currentRecords.some((cr: any) => cr.id === ir.id));
@@ -555,8 +548,14 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                 {/* TAB: MY DRIVE */}
                 {activeTab === 'my_drive' && (
                     <div className="h-full flex flex-col">
-                        {/* ... Existing My Drive content ... */}
-                        <h4 className="font-bold text-slate-800 text-lg mb-2 flex-shrink-0">Sao lưu từ UniData_Backups</h4>
+                        <h4 className="font-bold text-slate-800 text-lg mb-2 flex-shrink-0 flex items-center gap-2">
+                            <Cloud size={20} className="text-blue-600"/>
+                            Dữ liệu của tôi
+                        </h4>
+                        <p className="text-xs text-slate-500 mb-4 bg-slate-100 p-2 rounded">
+                            Danh sách các bản sao lưu nằm trực tiếp trong thư mục <strong>{driveConfig.folderName}</strong> của bạn.
+                        </p>
+
                         {!driveConfig.isConnected ? (
                             <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                                 <p className="text-slate-500">Chưa kết nối Google Drive.</p>
@@ -621,19 +620,34 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                             // STEP 1: Select Source & File
                             <div className="space-y-6 flex-1 flex flex-col min-h-0">
                                 <div className="flex justify-between items-center shrink-0">
-                                    <h4 className="font-bold text-slate-800 text-lg">Nguồn dữ liệu bên ngoài</h4>
+                                    <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        <HardDrive size={20} className="text-purple-600"/>
+                                        Nguồn mở rộng
+                                    </h4>
                                     <button onClick={() => setIsAddingSource(!isAddingSource)} className="text-xs bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg font-bold border border-purple-100 hover:bg-purple-100 flex items-center gap-1">
                                         {isAddingSource ? 'Hủy thêm' : <><Plus size={14}/> Thêm nguồn mới</>}
                                     </button>
                                 </div>
 
+                                <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-xs text-purple-800 flex items-start gap-2">
+                                    <Info size={16} className="mt-0.5 shrink-0"/>
+                                    <p>Đây là danh sách các thư mục được chia sẻ, được định nghĩa trong file <code>external.json</code> nằm trong thư mục gốc <strong>{driveConfig.folderName}</strong> của bạn.</p>
+                                </div>
+
                                 {isAddingSource && (
-                                    <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 shrink-0">
+                                    <div className="p-4 bg-white rounded-xl border border-purple-200 shadow-sm shrink-0 animate-in fade-in slide-in-from-top-2">
+                                        <h5 className="text-sm font-bold text-slate-700 mb-3">Thêm cấu hình nguồn mới vào external.json</h5>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                            <input className="px-3 py-2 rounded border border-purple-200 text-sm" placeholder="Tên gợi nhớ" value={newSourceName} onChange={e => setNewSourceName(e.target.value)} />
-                                            <input className="px-3 py-2 rounded border border-purple-200 text-sm font-mono" placeholder="Folder ID" value={newSourceId} onChange={e => setNewSourceId(e.target.value)} />
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 mb-1">Tên gợi nhớ</label>
+                                                <input className="w-full px-3 py-2 rounded border border-slate-300 text-sm focus:border-purple-500 outline-none" placeholder="VD: Dữ liệu Khoa CNTT" value={newSourceName} onChange={e => setNewSourceName(e.target.value)} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 mb-1">Folder ID (Được chia sẻ)</label>
+                                                <input className="w-full px-3 py-2 rounded border border-slate-300 text-sm font-mono focus:border-purple-500 outline-none" placeholder="1A2B3C..." value={newSourceId} onChange={e => setNewSourceId(e.target.value)} />
+                                            </div>
                                         </div>
-                                        <div className="flex justify-end"><button onClick={handleAddExternalSource} className="px-4 py-2 bg-purple-600 text-white rounded text-xs font-bold"><Save size={14}/> Lưu</button></div>
+                                        <div className="flex justify-end"><button onClick={handleAddExternalSource} className="px-4 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 shadow-sm flex items-center gap-1"><Save size={14}/> Lưu vào Config</button></div>
                                     </div>
                                 )}
 
@@ -641,6 +655,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                                     <div className="border border-slate-200 rounded-xl flex flex-col overflow-hidden bg-slate-50">
                                         <div className="p-3 bg-white border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">Danh sách Nguồn</div>
                                         <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                            {externalSources.length === 0 && <p className="text-xs text-slate-400 p-2 italic text-center">Chưa có nguồn nào.</p>}
                                             {externalSources.map(src => (
                                                 <div key={src.id} className={`p-2 rounded cursor-pointer text-sm flex justify-between items-center group ${selectedExternalSourceId === src.id ? 'bg-purple-100 text-purple-900 font-bold' : 'hover:bg-white text-slate-600'}`} onClick={() => handleScanExternal(src.id)}>
                                                     <span className="truncate">{src.name}</span>
@@ -651,18 +666,26 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                                     </div>
                                     <div className="md:col-span-2 border border-slate-200 rounded-xl flex flex-col overflow-hidden bg-white">
                                         <div className="p-3 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase flex justify-between">
-                                            <span>Tệp tin</span>{selectedExternalSourceId && <span className="text-purple-600">{externalBackups.length} file</span>}
+                                            <span>Tệp tin trong nguồn đã chọn</span>{selectedExternalSourceId && <span className="text-purple-600">{externalBackups.length} file</span>}
                                         </div>
                                         <div className="flex-1 overflow-y-auto p-4">
-                                            {externalBackups.map((file) => (
-                                                <label key={file.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all mb-2 ${selectedExternalFileId === file.id ? 'bg-purple-50 border-purple-300 ring-1 ring-purple-300' : 'hover:bg-slate-50 border-slate-200'}`}>
-                                                    <input type="radio" name="ext_file" className="w-4 h-4 text-purple-600" checked={selectedExternalFileId === file.id} onChange={() => setSelectedExternalFileId(file.id)} />
-                                                    <div className="ml-3">
-                                                        <div className="text-sm font-bold text-slate-700">{file.fileName}</div>
-                                                        <div className="text-xs text-slate-400 mt-0.5">{new Date(file.createdTime).toLocaleString('vi-VN')} - {file.size}</div>
-                                                    </div>
-                                                </label>
-                                            ))}
+                                            {!selectedExternalSourceId ? (
+                                                <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+                                                    Chọn một nguồn bên trái để xem file
+                                                </div>
+                                            ) : externalBackups.length === 0 ? (
+                                                <p className="text-sm text-slate-500 text-center italic mt-10">Thư mục trống hoặc không có quyền truy cập.</p>
+                                            ) : (
+                                                externalBackups.map((file) => (
+                                                    <label key={file.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all mb-2 ${selectedExternalFileId === file.id ? 'bg-purple-50 border-purple-300 ring-1 ring-purple-300' : 'hover:bg-slate-50 border-slate-200'}`}>
+                                                        <input type="radio" name="ext_file" className="w-4 h-4 text-purple-600" checked={selectedExternalFileId === file.id} onChange={() => setSelectedExternalFileId(file.id)} />
+                                                        <div className="ml-3">
+                                                            <div className="text-sm font-bold text-slate-700">{file.fileName}</div>
+                                                            <div className="text-xs text-slate-400 mt-0.5">{new Date(file.createdTime).toLocaleString('vi-VN')} - {file.size}</div>
+                                                        </div>
+                                                    </label>
+                                                ))
+                                            )}
                                         </div>
                                     </div>
                                 </div>
