@@ -628,6 +628,9 @@ const App: React.FC = () => {
             faculties={faculties}
             humanResources={humanResources}
             onUpdateHumanResources={setHumanResources}
+            // Props for Export logic
+            dataConfigGroups={dataConfigGroups}
+            dynamicDataStore={dynamicDataStore}
           />
         );
       case 'settings':

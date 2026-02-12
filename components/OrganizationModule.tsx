@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Unit, Faculty, HumanResourceRecord } from '../types';
+import { Unit, Faculty, HumanResourceRecord, DataConfigGroup, DynamicRecord } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Building, Users, Plus, Trash2, Search, GraduationCap } from 'lucide-react';
+import { Building, Users, Plus, Trash2, Search, GraduationCap, FileJson } from 'lucide-react';
 
 interface OrganizationModuleProps {
   units: Unit[];
@@ -12,6 +12,9 @@ interface OrganizationModuleProps {
   faculties?: Faculty[];
   humanResources?: HumanResourceRecord[];
   onUpdateHumanResources?: (records: HumanResourceRecord[]) => void;
+  // Props for Data Export
+  dataConfigGroups?: DataConfigGroup[];
+  dynamicDataStore?: Record<string, DynamicRecord[]>;
 }
 
 const OrganizationModule: React.FC<OrganizationModuleProps> = ({ 
@@ -22,7 +25,9 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     isLocked,
     faculties = [],
     humanResources = [],
-    onUpdateHumanResources
+    onUpdateHumanResources,
+    dataConfigGroups = [],
+    dynamicDataStore = {}
 }) => {
   // View State
   const [activeTab, setActiveTab] = useState<'structure' | 'hr'>('structure');
@@ -61,6 +66,80 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
           return { ...hr, faculty };
       }).filter(item => item.faculty); // Ensure faculty exists
   }, [humanResources, faculties, activeHrUnitId]);
+
+  // --- EXPORT LOGIC ---
+  const handleExportUnitData = (unit: Unit) => {
+      // 1. Identify relevant units hierarchy
+      let exportUnits: Unit[] = [];
+      
+      if (unit.unit_type === 'faculty') {
+          // If exporting Faculty: Include Self AND Child Departments
+          const children = units.filter(u => u.unit_parentId === unit.unit_id);
+          exportUnits = [unit, ...children];
+      } else {
+          // If exporting Department: Include Self AND Parent Faculty
+          const parent = units.find(u => u.unit_id === unit.unit_parentId);
+          exportUnits = [unit];
+          if(parent) exportUnits.push(parent);
+      }
+
+      // 2. Identify relevant IDs
+      const relevantUnitIds = exportUnits.map(u => u.unit_id);
+
+      // 3. Filter Dynamic Data (Information Module)
+      const exportDynamicData: Record<string, DynamicRecord[]> = {};
+
+      dataConfigGroups.forEach(group => {
+          // Find if this group has a field referencing 'units'
+          const unitField = group.fields.find(f => 
+              (f.type === 'reference' || f.type === 'reference_multiple') && 
+              f.referenceTarget === 'units'
+          );
+
+          if (unitField) {
+              const allRecords = dynamicDataStore[group.id] || [];
+              const filtered = allRecords.filter(rec => {
+                  const val = rec[unitField.key];
+                  if (Array.isArray(val)) {
+                      // Multi-reference: record belongs if ANY unit is relevant
+                      return val.some((v: string) => relevantUnitIds.includes(v));
+                  } else {
+                      // Single-reference
+                      return relevantUnitIds.includes(val);
+                  }
+              });
+              
+              if (filtered.length > 0) {
+                  exportDynamicData[group.id] = filtered;
+              }
+          }
+      });
+
+      // 4. Construct Payload
+      const exportPayload = {
+          metadata: {
+              exportDate: new Date().toISOString(),
+              rootUnit: unit.unit_name,
+              type: unit.unit_type
+          },
+          dataConfigGroups: dataConfigGroups, // Export ALL configurations
+          units: exportUnits, // Filtered Org Structure
+          dynamicDataStore: exportDynamicData // Filtered Data
+      };
+
+      // 5. Trigger Download
+      const fileName = `Export_${unit.unit_code}_${new Date().toISOString().slice(0, 10)}.json`;
+      const jsonString = JSON.stringify(exportPayload, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
 
   // --- HANDLERS: STRUCTURE ---
   const handleAdd = () => {
@@ -186,19 +265,28 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         }`}
         title={isLocked ? 'Dữ liệu năm học đang bị khóa (Chỉ xem)' : 'Nhấp đúp để sửa'}
       >
-        <div>
-          <span className={`font-medium block ${isSelected ? 'text-blue-800' : 'text-slate-800'}`}>{unit.unit_name}</span>
+        <div className="flex-1 min-w-0 pr-2">
+          <span className={`font-medium block truncate ${isSelected ? 'text-blue-800' : 'text-slate-800'}`}>{unit.unit_name}</span>
           <span className="text-xs text-slate-500 uppercase font-mono">{unit.unit_code}</span>
         </div>
-        {!isLocked && (
-            <button 
-            onClick={(e) => { e.stopPropagation(); onRemoveUnit(unit.unit_id); }}
-            className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
-            title="Xóa đơn vị"
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+            <button
+                onClick={(e) => { e.stopPropagation(); handleExportUnitData(unit); }}
+                className="text-slate-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded"
+                title="Xuất dữ liệu đơn vị này (JSON)"
             >
-            <Trash2 size={16} />
+                <FileJson size={16} />
             </button>
-        )}
+            {!isLocked && (
+                <button 
+                onClick={(e) => { e.stopPropagation(); onRemoveUnit(unit.unit_id); }}
+                className="text-slate-400 hover:text-red-500 p-1 hover:bg-red-50 rounded"
+                title="Xóa đơn vị"
+                >
+                <Trash2 size={16} />
+                </button>
+            )}
+        </div>
       </div>
     );
   };
