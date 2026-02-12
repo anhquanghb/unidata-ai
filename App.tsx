@@ -406,6 +406,27 @@ const App: React.FC = () => {
     [scientificRecords, settings.currentAcademicYear]
   );
 
+  // --- Current Data Snapshot for Syncing ---
+  const currentDataSnapshot = useMemo(() => ({
+      units,
+      reports,
+      scientificRecords,
+      trainingRecords,
+      personnelRecords,
+      admissionRecords,
+      classRecords,
+      departmentRecords,
+      businessRecords,
+      faculties,
+      humanResources,
+      dataConfigGroups,
+      dynamicDataStore,
+      users,
+      settings,
+      academicYears,
+      schoolInfo
+  }), [units, reports, scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords, faculties, humanResources, dataConfigGroups, dynamicDataStore, users, settings, academicYears, schoolInfo]);
+
 
   // --- HANDLERS ---
 
@@ -671,8 +692,10 @@ const App: React.FC = () => {
       <VersionSelectorModal 
         isOpen={isVersionModalOpen}
         onConfirm={handleVersionConfirm}
+        onImportData={handleImportData}
         onClose={() => setIsVersionModalOpen(false)}
         driveConfig={settings.driveConfig}
+        currentData={currentDataSnapshot}
       />
     </div>
   );
