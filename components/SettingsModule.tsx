@@ -51,6 +51,7 @@ interface SettingsModuleProps {
 // Updated SCOPES to include readonly access for restoring backups
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+const DEFAULT_FOLDER_NAME = 'UniData_Backups'; // HARDCODED FOLDER NAME
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
@@ -96,13 +97,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // The actual Client ID to use
   const effectiveClientId = envClientId || manualClientId;
 
-  const [driveFolderId, setDriveFolderId] = useState(settings.driveConfig?.folderId || '');
-  const [driveFolderName, setDriveFolderName] = useState(settings.driveConfig?.folderName || 'UniData_Backups');
-  // State for the Read-Only Source Folder
-  const [externalSourceFolderId, setExternalSourceFolderId] = useState(settings.driveConfig?.externalSourceFolderId || '');
+  // Local state for Drive (RUNTIME ONLY, NOT SAVED TO SETTINGS/DISK)
+  const [driveFolderId, setDriveFolderId] = useState('');
+  const [externalSourceFolderId, setExternalSourceFolderId] = useState('');
 
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,14 +175,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     const userEmail = userInfo.result.user.emailAddress;
                     const userName = userInfo.result.user.displayName;
 
-                    // --- FOLDER LOGIC ---
-                    // ALWAYS SCAN for the folder. Do not use saved ID to ensure we are using the correct user's folder.
+                    // --- SCAN ONLY LOGIC ---
                     let targetFolderId = '';
-                    let targetFolderName = driveFolderName || 'UniData_Backups'; // Default name
+                    let dataFolderId = '';
 
-                    // 1. Search for Root Backup Folder
+                    // 1. Search for Root Backup Folder (UniData_Backups)
                     try {
-                        const q = `mimeType='application/vnd.google-apps.folder' and name='${targetFolderName}' and trashed=false`;
+                        const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false`;
                         const folderResp = await window.gapi.client.drive.files.list({
                             q: q,
                             fields: 'files(id, name)',
@@ -191,68 +191,37 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                         if (folderResp.result.files && folderResp.result.files.length > 0) {
                             targetFolderId = folderResp.result.files[0].id;
                             console.log("Found existing folder:", targetFolderId);
-                        } else {
-                            // Create if not found
-                            const fileMetadata = {
-                                name: targetFolderName,
-                                mimeType: 'application/vnd.google-apps.folder'
-                            };
-                            const createResp = await window.gapi.client.drive.files.create({
-                                resource: fileMetadata,
-                                fields: 'id'
+
+                            // 2. If Found, Search for 'Data' Sub-folder
+                            const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
+                            const dataFolderResp = await window.gapi.client.drive.files.list({
+                                q: qData,
+                                fields: 'files(id, name)',
+                                spaces: 'drive',
                             });
-                            targetFolderId = createResp.result.id;
-                            console.log("Created new folder:", targetFolderId);
+
+                            if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
+                                dataFolderId = dataFolderResp.result.files[0].id;
+                            }
                         }
+                        // If not found, targetFolderId remains empty string
                     } catch (err) {
-                        console.error("Folder error:", err);
-                        if (promptType !== '') alert("Cảnh báo: Không thể quản lý thư mục backup.");
-                    }
-
-                    // 2. Search/Create 'Data' Sub-folder (New Feature)
-                    let dataFolderId = '';
-                    if (targetFolderId) {
-                         try {
-                             const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
-                             const dataFolderResp = await window.gapi.client.drive.files.list({
-                                 q: qData,
-                                 fields: 'files(id, name)',
-                                 spaces: 'drive',
-                             });
-
-                             if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
-                                 dataFolderId = dataFolderResp.result.files[0].id;
-                             } else {
-                                 // Create 'Data' subfolder
-                                 const dataFolderMetadata = {
-                                     name: 'Data',
-                                     mimeType: 'application/vnd.google-apps.folder',
-                                     parents: [targetFolderId]
-                                 };
-                                 const createDataResp = await window.gapi.client.drive.files.create({
-                                     resource: dataFolderMetadata,
-                                     fields: 'id'
-                                 });
-                                 dataFolderId = createDataResp.result.id;
-                             }
-                         } catch (err) {
-                             console.error("Data Sub-folder error:", err);
-                         }
+                        console.error("Folder scan error:", err);
+                        alert("Lỗi khi quét thư mục trên Drive.");
                     }
 
                     // Update local state UI
                     setDriveFolderId(targetFolderId);
-                    // Do not auto-set externalSourceFolderId from settings; let user set it manually if needed for this session
 
                     const newConfig = {
                        isConnected: true,
                        clientId: clientId,
                        accessToken: resp.access_token,
                        accountName: `${userName} (${userEmail})`,
-                       folderId: targetFolderId,
-                       folderName: targetFolderName,
+                       folderId: targetFolderId, // Can be empty if not found
+                       folderName: DEFAULT_FOLDER_NAME,
                        dataFolderId: dataFolderId, 
-                       externalSourceFolderId: externalSourceFolderId // Persist UI input if user typed it before connecting
+                       externalSourceFolderId: externalSourceFolderId
                     };
 
                     // Update Global Settings (Runtime only)
@@ -261,10 +230,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        driveConfig: newConfig
                     });
 
-                    // REMOVED LOCALSTORAGE SAVING HERE
-
                     if (promptType === 'consent') {
-                        alert(`Kết nối thành công!\nTài khoản: ${userEmail}\nThư mục Upload: ${targetFolderName}/Data`);
+                        if (targetFolderId) {
+                            alert(`Kết nối thành công!\nĐã tìm thấy thư mục: ${DEFAULT_FOLDER_NAME}`);
+                        } else {
+                            // No alert here, UI will show "Create Folder" button
+                        }
                     }
 
                 } catch (err: any) {
@@ -277,6 +248,55 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
     // Request token
     tokenClient.requestAccessToken({ prompt: promptType });
+  };
+
+  // --- MANUAL CREATE FOLDER HANDLER ---
+  const handleCreateDefaultFolders = async () => {
+      if (!settings.driveConfig.isConnected) return;
+      setIsCreatingFolder(true);
+      try {
+          // 1. Create Root Folder
+          const fileMetadata = {
+              name: DEFAULT_FOLDER_NAME,
+              mimeType: 'application/vnd.google-apps.folder'
+          };
+          const createResp = await window.gapi.client.drive.files.create({
+              resource: fileMetadata,
+              fields: 'id'
+          });
+          const newFolderId = createResp.result.id;
+
+          // 2. Create Data Subfolder
+          const dataFolderMetadata = {
+              name: 'Data',
+              mimeType: 'application/vnd.google-apps.folder',
+              parents: [newFolderId]
+          };
+          const createDataResp = await window.gapi.client.drive.files.create({
+              resource: dataFolderMetadata,
+              fields: 'id'
+          });
+          const newDataFolderId = createDataResp.result.id;
+
+          // 3. Update State
+          setDriveFolderId(newFolderId);
+          onUpdateSettings({
+              ...settings,
+              driveConfig: {
+                  ...settings.driveConfig,
+                  folderId: newFolderId,
+                  dataFolderId: newDataFolderId,
+                  folderName: DEFAULT_FOLDER_NAME
+              }
+          });
+          alert(`Đã khởi tạo thành công thư mục: ${DEFAULT_FOLDER_NAME}`);
+
+      } catch (e: any) {
+          console.error("Create folder error", e);
+          alert("Lỗi khi tạo thư mục: " + e.message);
+      } finally {
+          setIsCreatingFolder(false);
+      }
   };
 
   // --- USER HANDLER ---
@@ -303,18 +323,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         // 2. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
-        setDriveFolderName('UniData_Backups');
     }
   };
 
   const handleSaveDriveConfigOnly = () => {
+      // Just saves Client ID and External Source ID mostly, since Folder ID is runtime determined
       onUpdateSettings({
           ...settings,
           driveConfig: {
               ...settings.driveConfig,
               clientId: manualClientId,
-              folderId: driveFolderId,
-              folderName: driveFolderName,
               externalSourceFolderId: externalSourceFolderId 
           }
       });
@@ -328,7 +346,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           driveConfig: {
               isConnected: false,
               folderId: '',
-              folderName: 'UniData_Backups',
+              folderName: DEFAULT_FOLDER_NAME,
               accessToken: undefined,
               accountName: undefined,
               dataFolderId: undefined,
@@ -340,7 +358,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
     if (!settings.driveConfig.isConnected || !settings.driveConfig.folderId) {
-        alert("Chưa kết nối Google Drive.");
+        alert("Chưa kết nối Google Drive hoặc chưa có thư mục lưu trữ.");
         return;
     }
 
@@ -569,10 +587,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              // Drive Props
              manualClientId={manualClientId}
              setManualClientId={setManualClientId}
-             driveFolderId={driveFolderId}
+             driveFolderId={driveFolderId} // Runtime ID
              setDriveFolderId={setDriveFolderId}
-             driveFolderName={driveFolderName}
-             setDriveFolderName={setDriveFolderName}
+             
+             // New Props for Creating Folder
+             onCreateDefaultFolders={handleCreateDefaultFolders}
+             isCreatingFolder={isCreatingFolder}
              
              // External Read-Only Source Prop
              externalSourceFolderId={externalSourceFolderId}

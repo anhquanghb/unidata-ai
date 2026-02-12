@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SystemSettings, SchoolInfo, AcademicYear } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight } from 'lucide-react';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -18,8 +18,11 @@ interface GeneralConfigModuleProps {
   setManualClientId: (val: string) => void;
   driveFolderId: string;
   setDriveFolderId: (val: string) => void;
-  driveFolderName: string;
-  setDriveFolderName: (val: string) => void;
+  
+  // New props for Folder Creation
+  onCreateDefaultFolders: () => void;
+  isCreatingFolder: boolean;
+
   // New prop for external source
   externalSourceFolderId?: string;
   setExternalSourceFolderId?: (val: string) => void;
@@ -31,10 +34,6 @@ interface GeneralConfigModuleProps {
   onSaveDriveConfigOnly: () => void;
   onSetCurrentYear: (code: string) => void;
 }
-
-// Global declarations from parent settings module
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
-const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION';
 
 interface DrivePermission {
   id: string;
@@ -64,8 +63,8 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   onToggleLockAcademicYear,
   manualClientId, setManualClientId,
   driveFolderId, setDriveFolderId,
-  driveFolderName, setDriveFolderName,
-  externalSourceFolderId, setExternalSourceFolderId, // Destructure new props
+  onCreateDefaultFolders, isCreatingFolder, // New props
+  externalSourceFolderId, setExternalSourceFolderId, 
   envClientId, effectiveClientId,
   onConnectDrive, onDisconnectDrive, onSaveDriveConfigOnly,
   onSetCurrentYear
@@ -329,6 +328,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                   </div>
               ) : (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      {/* Connection Header */}
                       <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center">
                               <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
@@ -342,202 +342,231 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                           <button onClick={onDisconnectDrive} className="px-3 py-1 bg-white border border-red-200 rounded text-xs text-red-600 hover:bg-red-50 font-medium">Đăng xuất</button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-green-200">
-                          <div>
-                              <label className="block text-xs font-semibold text-green-700 mb-1">Tên Thư mục Lưu trữ (Backup)</label>
-                              <input 
-                                  className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                  value={driveFolderName}
-                                  onChange={(e) => setDriveFolderName(e.target.value)}
-                              />
-                          </div>
-                          <div>
-                              <label className="block text-xs font-semibold text-green-700 mb-1">Folder ID (Backup)</label>
-                              <input 
-                                  className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                                  value={driveFolderId}
-                                  onChange={(e) => setDriveFolderId(e.target.value)}
-                                  placeholder="Tự động tạo"
-                                  disabled
-                              />
-                          </div>
-                          <div className="col-span-2">
-                             <div className="flex items-center gap-2 text-xs text-green-700 bg-green-100 p-2 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
-                                <span>Thư mục upload file: <strong>{driveFolderName}/Data</strong> (ID: {settings.driveConfig.dataFolderId ? settings.driveConfig.dataFolderId.substring(0, 8) + '...' : 'Chưa tạo'})</span>
-                             </div>
-                          </div>
-                          
-                          {/* -- ADVANCED SHARING SECTION -- */}
-                          <div className="col-span-2 border-t border-green-200 pt-4 mt-2">
-                              <h4 className="font-bold text-green-800 text-sm mb-3 flex items-center gap-2">
-                                  <Users size={16}/> Quản lý Chia sẻ & Phân quyền (Reader Only)
-                              </h4>
-                              
-                              {/* 1. Root Folder Permissions */}
-                              <div className="bg-white border border-green-200 rounded-lg p-3 mb-4">
-                                  <div className="flex justify-between items-center mb-2">
-                                      <p className="text-xs font-bold text-green-700 uppercase">Thư mục gốc ({driveFolderName})</p>
-                                      <button onClick={() => fetchPermissions(driveFolderId, setRootPermissions)} className="text-green-600 hover:text-green-800 p-1"><RefreshCw size={12}/></button>
-                                  </div>
-                                  
-                                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
-                                      {rootPermissions.map(perm => (
-                                          <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded">
-                                              <div className="flex items-center gap-2">
-                                                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
-                                                      {perm.photoLink ? <img src={perm.photoLink} alt="" /> : <Users size={12}/>}
-                                                  </div>
-                                                  <div>
-                                                      <div className="font-medium">{perm.displayName || perm.emailAddress}</div>
-                                                      <div className="text-slate-400 text-[10px]">{perm.role}</div>
-                                                  </div>
-                                              </div>
-                                              {perm.role !== 'owner' && (
-                                                  <button onClick={() => removePermission(driveFolderId, perm.id, () => fetchPermissions(driveFolderId, setRootPermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>
-                                              )}
-                                          </div>
-                                      ))}
-                                  </div>
-
-                                  <div className="flex gap-2">
-                                      <input 
-                                          className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-green-500"
-                                          placeholder="Email chia sẻ (Quyền đọc)..."
-                                          value={shareEmailRoot}
-                                          onChange={e => setShareEmailRoot(e.target.value)}
-                                      />
+                      {/* Folder Status Logic */}
+                      {!driveFolderId ? (
+                          // CASE 1: Folder Not Found
+                          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in">
+                              <div className="flex items-start gap-3">
+                                  <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20}/>
+                                  <div>
+                                      <h4 className="text-sm font-bold text-amber-800 mb-1">Thư mục hệ thống chưa tồn tại!</h4>
+                                      <p className="text-xs text-amber-700 mb-3">
+                                          Hệ thống không tìm thấy thư mục <strong>UniData_Backups</strong> trên Google Drive của bạn. Bạn cần khởi tạo cấu trúc thư mục để lưu trữ dữ liệu.
+                                      </p>
                                       <button 
-                                          onClick={() => {
-                                              addPermission(driveFolderId, shareEmailRoot, () => {
-                                                  setShareEmailRoot('');
-                                                  fetchPermissions(driveFolderId, setRootPermissions);
-                                              });
-                                          }}
-                                          disabled={isSharing || !shareEmailRoot}
-                                          className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                                          onClick={onCreateDefaultFolders}
+                                          disabled={isCreatingFolder}
+                                          className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700 flex items-center gap-2"
                                       >
-                                          {isSharing ? <Loader2 size={12} className="animate-spin"/> : <UserPlus size={12}/>} Share
+                                          {isCreatingFolder ? <Loader2 size={14} className="animate-spin"/> : <PlusCircle size={14}/>}
+                                          Khởi tạo Cấu trúc Thư mục
                                       </button>
                                   </div>
                               </div>
-
-                              {/* 2. File/Subfolder Permissions */}
-                              <div className="bg-white border border-green-200 rounded-lg overflow-hidden flex flex-col md:flex-row h-64">
-                                  {/* Left: Content List */}
-                                  <div className="w-full md:w-1/2 border-r border-green-200 flex flex-col">
-                                      <div className="p-2 border-b border-green-100 bg-green-50 flex justify-between items-center">
-                                          <span className="text-xs font-bold text-green-700">File & Thư mục con</span>
-                                          <button onClick={fetchFolderContent} className="text-green-600 hover:text-green-800 text-xs flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-green-100 shadow-sm"><RefreshCw size={10}/> Quét</button>
-                                      </div>
-                                      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                          {isLoadingContent ? (
-                                              <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
-                                          ) : folderContents.length === 0 ? (
-                                              <p className="text-xs text-slate-400 text-center p-4">Trống hoặc chưa quét</p>
-                                          ) : (
-                                              folderContents.map(file => (
-                                                  <div 
-                                                      key={file.id} 
-                                                      onClick={() => { setSelectedFile(file); fetchPermissions(file.id, setSelectedFilePermissions); }}
-                                                      className={`flex items-center gap-2 p-2 rounded cursor-pointer text-xs ${selectedFile?.id === file.id ? 'bg-green-100 text-green-900 font-bold' : 'hover:bg-slate-50 text-slate-700'}`}
-                                                  >
-                                                      {file.mimeType.includes('folder') ? <Folder size={14} className="text-blue-500"/> : <File size={14} className="text-slate-400"/>}
-                                                      <span className="truncate flex-1">{file.name}</span>
-                                                      <ChevronRight size={12} className="text-slate-300"/>
-                                                  </div>
-                                              ))
-                                          )}
-                                      </div>
+                          </div>
+                      ) : (
+                          // CASE 2: Folder Found - Show Info & Permissions
+                          <div className="space-y-4 mt-4 pt-4 border-t border-green-200">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-semibold text-green-700 mb-1">Tên Thư mục (Mặc định)</label>
+                                      <input 
+                                          className="w-full border border-green-300 bg-green-50/50 rounded px-3 py-2 text-sm text-green-800 font-bold disabled:cursor-not-allowed"
+                                          value="UniData_Backups"
+                                          disabled
+                                      />
                                   </div>
-
-                                  {/* Right: Specific Permissions */}
-                                  <div className="w-full md:w-1/2 flex flex-col">
-                                      <div className="p-2 border-b border-green-100 bg-green-50">
-                                          <span className="text-xs font-bold text-green-700 truncate block h-4">
-                                              {selectedFile ? `Quyền: ${selectedFile.name}` : 'Chọn file để xem quyền'}
-                                          </span>
-                                      </div>
-                                      <div className="flex-1 p-2 overflow-y-auto">
-                                          {!selectedFile ? (
-                                              <div className="h-full flex items-center justify-center text-slate-300">
-                                                  <Lock size={24}/>
-                                              </div>
-                                          ) : isLoadingPermissions ? (
-                                              <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
-                                          ) : (
-                                              <div className="space-y-2">
-                                                  {selectedFilePermissions.length === 0 && <p className="text-xs text-slate-400">Chưa có ai khác.</p>}
-                                                  {selectedFilePermissions.map(perm => (
-                                                      <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
-                                                          <div className="flex items-center gap-1.5 overflow-hidden">
-                                                              <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500">
-                                                                  {perm.displayName?.[0] || 'U'}
-                                                              </div>
-                                                              <span className="truncate max-w-[80px]" title={perm.emailAddress}>{perm.emailAddress}</span>
-                                                          </div>
-                                                          {perm.role !== 'owner' && (
-                                                              <button onClick={() => removePermission(selectedFile.id, perm.id, () => fetchPermissions(selectedFile.id, setSelectedFilePermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={10}/></button>
-                                                          )}
-                                                      </div>
-                                                  ))}
-                                              </div>
-                                          )}
+                                  <div>
+                                      <label className="block text-xs font-semibold text-green-700 mb-1">Folder ID</label>
+                                      <input 
+                                          className="w-full border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none font-mono"
+                                          value={driveFolderId}
+                                          disabled
+                                          readOnly
+                                      />
+                                  </div>
+                                  <div className="col-span-2">
+                                     <div className="flex items-center gap-2 text-xs text-green-700 bg-green-100 p-2 rounded">
+                                        <Folder size={14}/>
+                                        <span>Thư mục con: <strong>UniData_Backups/Data</strong> (Dùng để upload file đính kèm)</span>
+                                     </div>
+                                  </div>
+                              </div>
+                              
+                              {/* -- ADVANCED SHARING SECTION -- */}
+                              <div className="border-t border-green-200 pt-4 mt-2">
+                                  <h4 className="font-bold text-green-800 text-sm mb-3 flex items-center gap-2">
+                                      <Users size={16}/> Quản lý Chia sẻ & Phân quyền (Reader Only)
+                                  </h4>
+                                  
+                                  {/* 1. Root Folder Permissions */}
+                                  <div className="bg-white border border-green-200 rounded-lg p-3 mb-4">
+                                      <div className="flex justify-between items-center mb-2">
+                                          <p className="text-xs font-bold text-green-700 uppercase">Thư mục gốc (UniData_Backups)</p>
+                                          <button onClick={() => fetchPermissions(driveFolderId, setRootPermissions)} className="text-green-600 hover:text-green-800 p-1"><RefreshCw size={12}/></button>
                                       </div>
                                       
-                                      {selectedFile && (
-                                          <div className="p-2 border-t border-green-100 bg-white">
-                                              <div className="flex gap-1">
-                                                  <input 
-                                                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-[10px] outline-none focus:border-green-500"
-                                                      placeholder="Email..."
-                                                      value={shareEmailFile}
-                                                      onChange={e => setShareEmailFile(e.target.value)}
-                                                  />
-                                                  <button 
-                                                      onClick={() => {
-                                                          addPermission(selectedFile.id, shareEmailFile, () => {
-                                                              setShareEmailFile('');
-                                                              fetchPermissions(selectedFile.id, setSelectedFilePermissions);
-                                                          });
-                                                      }}
-                                                      disabled={isSharing || !shareEmailFile}
-                                                      className="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-700 disabled:opacity-50"
-                                                  >
-                                                      Share
-                                                  </button>
+                                      <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                                          {rootPermissions.map(perm => (
+                                              <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded">
+                                                  <div className="flex items-center gap-2">
+                                                      <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                                          {perm.photoLink ? <img src={perm.photoLink} alt="" /> : <Users size={12}/>}
+                                                      </div>
+                                                      <div>
+                                                          <div className="font-medium">{perm.displayName || perm.emailAddress}</div>
+                                                          <div className="text-slate-400 text-[10px]">{perm.role}</div>
+                                                      </div>
+                                                  </div>
+                                                  {perm.role !== 'owner' && (
+                                                      <button onClick={() => removePermission(driveFolderId, perm.id, () => fetchPermissions(driveFolderId, setRootPermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>
+                                                  )}
                                               </div>
+                                          ))}
+                                      </div>
+
+                                      <div className="flex gap-2">
+                                          <input 
+                                              className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-green-500"
+                                              placeholder="Email chia sẻ (Quyền đọc)..."
+                                              value={shareEmailRoot}
+                                              onChange={e => setShareEmailRoot(e.target.value)}
+                                          />
+                                          <button 
+                                              onClick={() => {
+                                                  addPermission(driveFolderId, shareEmailRoot, () => {
+                                                      setShareEmailRoot('');
+                                                      fetchPermissions(driveFolderId, setRootPermissions);
+                                                  });
+                                              }}
+                                              disabled={isSharing || !shareEmailRoot}
+                                              className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                                          >
+                                              {isSharing ? <Loader2 size={12} className="animate-spin"/> : <UserPlus size={12}/>} Share
+                                          </button>
+                                      </div>
+                                  </div>
+
+                                  {/* 2. File/Subfolder Permissions */}
+                                  <div className="bg-white border border-green-200 rounded-lg overflow-hidden flex flex-col md:flex-row h-64">
+                                      {/* Left: Content List */}
+                                      <div className="w-full md:w-1/2 border-r border-green-200 flex flex-col">
+                                          <div className="p-2 border-b border-green-100 bg-green-50 flex justify-between items-center">
+                                              <span className="text-xs font-bold text-green-700">File & Thư mục con</span>
+                                              <button onClick={fetchFolderContent} className="text-green-600 hover:text-green-800 text-xs flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-green-100 shadow-sm"><RefreshCw size={10}/> Quét</button>
                                           </div>
-                                      )}
+                                          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                              {isLoadingContent ? (
+                                                  <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
+                                              ) : folderContents.length === 0 ? (
+                                                  <p className="text-xs text-slate-400 text-center p-4">Trống hoặc chưa quét</p>
+                                              ) : (
+                                                  folderContents.map(file => (
+                                                      <div 
+                                                          key={file.id} 
+                                                          onClick={() => { setSelectedFile(file); fetchPermissions(file.id, setSelectedFilePermissions); }}
+                                                          className={`flex items-center gap-2 p-2 rounded cursor-pointer text-xs ${selectedFile?.id === file.id ? 'bg-green-100 text-green-900 font-bold' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                      >
+                                                          {file.mimeType.includes('folder') ? <Folder size={14} className="text-blue-500"/> : <File size={14} className="text-slate-400"/>}
+                                                          <span className="truncate flex-1">{file.name}</span>
+                                                          <ChevronRight size={12} className="text-slate-300"/>
+                                                      </div>
+                                                  ))
+                                              )}
+                                          </div>
+                                      </div>
+
+                                      {/* Right: Specific Permissions */}
+                                      <div className="w-full md:w-1/2 flex flex-col">
+                                          <div className="p-2 border-b border-green-100 bg-green-50">
+                                              <span className="text-xs font-bold text-green-700 truncate block h-4">
+                                                  {selectedFile ? `Quyền: ${selectedFile.name}` : 'Chọn file để xem quyền'}
+                                              </span>
+                                          </div>
+                                          <div className="flex-1 p-2 overflow-y-auto">
+                                              {!selectedFile ? (
+                                                  <div className="h-full flex items-center justify-center text-slate-300">
+                                                      <Lock size={24}/>
+                                                  </div>
+                                              ) : isLoadingPermissions ? (
+                                                  <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
+                                              ) : (
+                                                  <div className="space-y-2">
+                                                      {selectedFilePermissions.length === 0 && <p className="text-xs text-slate-400">Chưa có ai khác.</p>}
+                                                      {selectedFilePermissions.map(perm => (
+                                                          <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                  <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500">
+                                                                      {perm.displayName?.[0] || 'U'}
+                                                                  </div>
+                                                                  <span className="truncate max-w-[80px]" title={perm.emailAddress}>{perm.emailAddress}</span>
+                                                              </div>
+                                                              {perm.role !== 'owner' && (
+                                                                  <button onClick={() => removePermission(selectedFile.id, perm.id, () => fetchPermissions(selectedFile.id, setSelectedFilePermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={10}/></button>
+                                                              )}
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              )}
+                                          </div>
+                                          
+                                          {selectedFile && (
+                                              <div className="p-2 border-t border-green-100 bg-white">
+                                                  <div className="flex gap-1">
+                                                      <input 
+                                                          className="flex-1 border border-slate-300 rounded px-2 py-1 text-[10px] outline-none focus:border-green-500"
+                                                          placeholder="Email..."
+                                                          value={shareEmailFile}
+                                                          onChange={e => setShareEmailFile(e.target.value)}
+                                                      />
+                                                      <button 
+                                                          onClick={() => {
+                                                              addPermission(selectedFile.id, shareEmailFile, () => {
+                                                                  setShareEmailFile('');
+                                                                  fetchPermissions(selectedFile.id, setSelectedFilePermissions);
+                                                              });
+                                                          }}
+                                                          disabled={isSharing || !shareEmailFile}
+                                                          className="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-700 disabled:opacity-50"
+                                                      >
+                                                          Share
+                                                      </button>
+                                                  </div>
+                                              </div>
+                                          )}
+                                      </div>
                                   </div>
                               </div>
                           </div>
+                      )}
 
-                          <div className="col-span-2 border-t border-green-200 pt-3 mt-1">
-                              <label className="block text-xs font-semibold text-green-700 mb-1">Thư mục Nguồn Dữ liệu (Chỉ đọc)</label>
-                              <div className="flex gap-2">
-                                <input 
-                                    className="flex-1 border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                                    value={externalSourceFolderId || ''}
-                                    onChange={(e) => setExternalSourceFolderId && setExternalSourceFolderId(e.target.value)}
-                                    placeholder="Nhập Drive Folder ID (Dùng để đọc dữ liệu chia sẻ)"
-                                />
-                              </div>
-                              <p className="text-[10px] text-green-600 mt-1">
-                                  * Nhập ID của thư mục Drive mà bạn được chia sẻ quyền xem. Hệ thống sẽ đọc dữ liệu từ thư mục này.
-                              </p>
-                          </div>
-                      </div>
-                      <div className="flex justify-between items-center mt-4">
+                      {/* Connection Actions Footer */}
+                      <div className="flex justify-between items-center mt-4 pt-4 border-t border-green-100">
                           <button 
                               onClick={onConnectDrive}
                               disabled={!effectiveClientId}
-                              className={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white ${!effectiveClientId ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                              className="text-xs text-green-700 underline hover:text-green-900"
                           >
-                              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                               {settings.driveConfig?.isConnected ? "Xác thực lại / Quét lại thư mục" : "Kiểm tra kết nối"}
                           </button>
-                          <button onClick={onSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Cập nhật cấu hình</button>
+                          <button onClick={onSaveDriveConfigOnly} className="px-3 py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 shadow-sm">
+                              Lưu ID & Folder mở rộng
+                          </button>
+                      </div>
+
+                      <div className="mt-4 pt-2 border-t border-green-200">
+                          <label className="block text-xs font-semibold text-green-700 mb-1">Thư mục Nguồn Dữ liệu (Chỉ đọc - Tùy chọn)</label>
+                          <div className="flex gap-2">
+                            <input 
+                                className="flex-1 border border-green-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                                value={externalSourceFolderId || ''}
+                                onChange={(e) => setExternalSourceFolderId && setExternalSourceFolderId(e.target.value)}
+                                placeholder="Nhập Drive Folder ID (Dùng để đọc dữ liệu chia sẻ)"
+                            />
+                          </div>
+                          <p className="text-[10px] text-green-600 mt-1">
+                              * Nhập ID của thư mục Drive mà bạn được chia sẻ quyền xem (nếu có).
+                          </p>
                       </div>
                   </div>
               )}
