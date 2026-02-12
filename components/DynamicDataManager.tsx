@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, ChartConfig, ChartType, GoogleDriveConfig, HumanResourceRecord } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building, User } from 'lucide-react';
+import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building, User, Search } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DynamicDataManagerProps {
@@ -38,6 +38,8 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   // -- Filter State --
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('');
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState<string>('');
+  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string>>({}); // New: Generic dynamic filters
+  const [searchText, setSearchText] = useState<string>(''); // New: Search text
 
   // -- Dashboard State --
   const [isAddingChart, setIsAddingChart] = useState(false);
@@ -56,12 +58,12 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   
   // 1. Identify key fields
   const unitFieldKey = useMemo(() => {
-      const field = group.fields.find(f => f.type === 'reference' && f.referenceTarget === 'units');
+      const field = group.fields.find(f => (f.type === 'reference' || f.type === 'reference_multiple') && f.referenceTarget === 'units');
       return field ? field.key : null;
   }, [group]);
 
   const facultyFieldKey = useMemo(() => {
-      const field = group.fields.find(f => f.type === 'reference' && f.referenceTarget === 'faculties');
+      const field = group.fields.find(f => (f.type === 'reference' || f.type === 'reference_multiple') && f.referenceTarget === 'faculties');
       return field ? field.key : null;
   }, [group]);
 
@@ -75,7 +77,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       return ids;
   };
 
-  // 3. Filter Data
+  // 3. Filter Data (Optimized)
   const filteredData = useMemo(() => {
       // Base filter: Academic Year
       let result = data.filter(d => d.academicYear === currentAcademicYear);
@@ -84,46 +86,93 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       if (selectedUnitFilter && unitFieldKey) {
           const validUnitIds = getUnitAndDescendants(selectedUnitFilter, units);
           result = result.filter(record => {
-              const recordUnitId = record[unitFieldKey];
-              return validUnitIds.includes(recordUnitId);
+              const recordVal = record[unitFieldKey];
+              if (Array.isArray(recordVal)) {
+                  // Multi-reference: Check if ANY of the record's units match the valid IDs
+                  return recordVal.some(id => validUnitIds.includes(id));
+              } else {
+                  return validUnitIds.includes(recordVal);
+              }
           });
       }
 
       // Faculty Filter
       if (selectedFacultyFilter && facultyFieldKey) {
-          result = result.filter(record => record[facultyFieldKey] === selectedFacultyFilter);
+          result = result.filter(record => {
+              const recordVal = record[facultyFieldKey];
+              if (Array.isArray(recordVal)) {
+                  return recordVal.includes(selectedFacultyFilter);
+              }
+              return recordVal === selectedFacultyFilter;
+          });
+      }
+
+      // Dynamic Filters (from isFilterable fields)
+      Object.keys(dynamicFilters).forEach(filterKey => {
+          const filterValue = dynamicFilters[filterKey];
+          if (filterValue) {
+              result = result.filter(record => {
+                  const val = record[filterKey];
+                  // Handle arrays (multiselect/multi-ref) vs primitives
+                  if (Array.isArray(val)) {
+                      return val.includes(filterValue);
+                  }
+                  return String(val) === filterValue;
+              });
+          }
+      });
+
+      // Search Logic (from isSearchable fields)
+      if (searchText) {
+          const searchLower = searchText.toLowerCase();
+          const searchableFields = group.fields.filter(f => f.isSearchable).map(f => f.key);
+          
+          if (searchableFields.length > 0) {
+              result = result.filter(record => {
+                  return searchableFields.some(key => {
+                      const val = record[key];
+                      if (!val) return false;
+                      // Handle Lookups display value if needed? 
+                      // For now, simple text search on the raw value or resolved primitive
+                      // To make search truly powerful, we should resolve references (e.g. searching 'Science' finds records with Faculty of Science)
+                      // Simple implementation: String(val)
+                      // Improved: Try to find label if it's a reference
+                      let stringVal = String(val);
+                      // TODO: Basic resolution for better search experience could be added here
+                      return stringVal.toLowerCase().includes(searchLower);
+                  });
+              });
+          }
       }
 
       return result;
-  }, [data, currentAcademicYear, selectedUnitFilter, selectedFacultyFilter, unitFieldKey, facultyFieldKey, units]);
+  }, [data, currentAcademicYear, selectedUnitFilter, selectedFacultyFilter, unitFieldKey, facultyFieldKey, units, dynamicFilters, searchText]);
 
   // 4. Dynamic Options for Faculty Dropdown
   const availableFaculties = useMemo(() => {
       if (!selectedUnitFilter) {
-          // If no unit selected, show all faculties sorted by name
           return [...faculties].sort((a, b) => a.name.vi.localeCompare(b.name.vi));
       }
-
-      // If unit selected, find all faculties belonging to this unit (or its children)
       const validUnitIds = getUnitAndDescendants(selectedUnitFilter, units);
-      
-      // Find IDs from humanResources
       const facultyIdsInUnits = new Set(
           humanResources
             .filter(hr => validUnitIds.includes(hr.unitId))
             .map(hr => hr.facultyId)
       );
-
       return faculties
           .filter(f => facultyIdsInUnits.has(f.id))
           .sort((a, b) => a.name.vi.localeCompare(b.name.vi));
-
   }, [faculties, humanResources, selectedUnitFilter, units]);
 
 
   // --- DATA PROCESSING HELPERS ---
-  const getLookupValue = (value: string, target?: string) => {
+  const getLookupValue = (value: string | string[], target?: string) => {
       if (!value) return '';
+      // Handle array for multi-select
+      if (Array.isArray(value)) {
+          return value.map(v => getLookupValue(v, target)).join(', ');
+      }
+
       if (target === 'units') return units.find(u => u.unit_id === value)?.unit_name || value;
       if (target === 'faculties') return faculties.find(f => f.id === value)?.name.vi || value;
       if (target === 'academicYears') return academicYears.find(y => y.id === value)?.code || value;
@@ -132,43 +181,49 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 
   const processChartData = (config: ChartConfig) => {
       if (config.type === 'pie') {
-          // Count occurences of categoryField
+          // Count occurences
           const counts: Record<string, number> = {};
           filteredData.forEach(item => {
-              const rawKey = item[config.categoryField || ''] || 'Undefined';
-              // Try to resolve lookup label if possible
-              const fieldDef = group.fields.find(f => f.key === config.categoryField);
-              let label = rawKey;
-              if (fieldDef?.type === 'select_single') {
-                  label = fieldDef.options?.find(o => o.value === rawKey)?.label || rawKey;
-              } else if (fieldDef?.type === 'reference') {
-                  label = getLookupValue(rawKey, fieldDef.referenceTarget);
-              }
-              counts[label] = (counts[label] || 0) + 1;
+              const rawKey = item[config.categoryField || ''];
+              // If multi-select, we might count each selection individually? For now assume single categorization or primary
+              const valArr = Array.isArray(rawKey) ? rawKey : [rawKey || 'Undefined'];
+              
+              valArr.forEach(val => {
+                  const fieldDef = group.fields.find(f => f.key === config.categoryField);
+                  let label = val;
+                  if (fieldDef?.type === 'select_single' || fieldDef?.type === 'select_multiple') {
+                      label = fieldDef.options?.find(o => o.value === val)?.label || val;
+                  } else if (fieldDef?.type === 'reference' || fieldDef?.type === 'reference_multiple') {
+                      label = getLookupValue(val, fieldDef.referenceTarget);
+                  }
+                  counts[label] = (counts[label] || 0) + 1;
+              });
           });
           return Object.keys(counts).map(key => ({ name: key, value: counts[key] }));
       } else if (config.type === 'radar') {
-          // Average of multiple metrics
           if (!config.radarFields || config.radarFields.length === 0) return [];
           return config.radarFields.map(fieldKey => {
               const fieldDef = group.fields.find(f => f.key === fieldKey);
               const total = filteredData.reduce((acc, item) => acc + (Number(item[fieldKey]) || 0), 0);
               const avg = filteredData.length ? (total / filteredData.length) : 0;
-              return { subject: fieldDef?.label || fieldKey, value: avg, fullMark: 100 }; // fullMark dummy
+              return { subject: fieldDef?.label || fieldKey, value: avg, fullMark: 100 };
           });
       } else {
-          // Line or Bar: Group by X, Sum Y
           const groups: Record<string, number> = {};
           filteredData.forEach(item => {
               const rawX = item[config.xAxisField || ''] || 'Undefined';
-              // Resolve X label
-              const fieldDefX = group.fields.find(f => f.key === config.xAxisField);
-              let labelX = rawX;
-              if (fieldDefX?.type === 'reference') labelX = getLookupValue(rawX, fieldDefX.referenceTarget);
-              if (fieldDefX?.type === 'select_single') labelX = fieldDefX.options?.find(o => o.value === rawX)?.label || rawX;
+              const xArr = Array.isArray(rawX) ? rawX : [rawX];
 
-              const valY = Number(item[config.yAxisField || '']) || 0;
-              groups[labelX] = (groups[labelX] || 0) + valY;
+              xArr.forEach(xVal => {
+                  // Resolve X label
+                  const fieldDefX = group.fields.find(f => f.key === config.xAxisField);
+                  let labelX = xVal;
+                  if (fieldDefX?.type?.startsWith('reference')) labelX = getLookupValue(xVal, fieldDefX.referenceTarget);
+                  if (fieldDefX?.type?.startsWith('select')) labelX = fieldDefX.options?.find(o => o.value === xVal)?.label || xVal;
+
+                  const valY = Number(item[config.yAxisField || '']) || 0;
+                  groups[labelX] = (groups[labelX] || 0) + valY;
+              });
           });
           return Object.keys(groups).map(key => ({ name: key, value: groups[key] }));
       }
@@ -213,7 +268,6 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
       form.append('file', file);
 
-      // Get token from GAPI global
       const tokenObj = window.gapi?.client?.getToken();
       if (!tokenObj) throw new Error("Phiên Google Drive đã hết hạn.");
 
@@ -232,7 +286,6 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   };
 
   const handleSaveRecord = async () => {
-      // Handle File Uploads first
       const updatedRecord = { ...tempRecord };
       const fileFields = group.fields.filter(f => f.type === 'file');
 
@@ -246,12 +299,12 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
               } catch (e: any) {
                   alert(`Lỗi khi tải file ${field.label}: ${e.message}`);
                   setUploadingField(null);
-                  return; // Stop save process
+                  return;
               }
           }
       }
       setUploadingField(null);
-      setFileToUpload({}); // Clear file queue
+      setFileToUpload({});
 
       if (editingRecordId) {
           const updatedData = data.map(d => d.id === editingRecordId ? { ...d, ...updatedRecord } : d);
@@ -273,6 +326,18 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 
   const handleFileSelection = (key: string, file: File | null) => {
       setFileToUpload(prev => ({ ...prev, [key]: file }));
+  };
+
+  // Helper for multi-select input handling
+  const handleMultiSelectChange = (key: string, value: string) => {
+      const currentValues: string[] = Array.isArray(tempRecord[key]) ? tempRecord[key] : [];
+      if (currentValues.includes(value)) {
+          // Remove if exists
+          setTempRecord({ ...tempRecord, [key]: currentValues.filter(v => v !== value) });
+      } else {
+          // Add if not exists
+          setTempRecord({ ...tempRecord, [key]: [...currentValues, value] });
+      }
   };
 
   // --- PREPARE UNIT OPTIONS FOR FILTER ---
@@ -330,7 +395,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                               <label className="block text-xs font-bold text-slate-500 mb-1">Trường Phân loại (Category Field)</label>
                               <select className="w-full p-2 border border-slate-300 rounded text-sm" value={newChartConfig.categoryField || ''} onChange={e => setNewChartConfig({...newChartConfig, categoryField: e.target.value})}>
                                   <option value="">-- Chọn trường --</option>
-                                  {group.fields.filter(f => ['select_single', 'text', 'reference'].includes(f.type)).map(f => (
+                                  {group.fields.filter(f => ['select_single', 'select_multiple', 'text', 'reference', 'reference_multiple'].includes(f.type)).map(f => (
                                       <option key={f.key} value={f.key}>{f.label}</option>
                                   ))}
                               </select>
@@ -478,14 +543,16 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                               <td className="px-4 py-3 text-center text-slate-400 text-xs">{idx + 1}</td>
                               {group.fields.map(f => (
                                   <td key={f.id} className="px-4 py-3 truncate max-w-[200px]">
-                                      {f.type === 'reference' 
-                                          ? <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-600 text-xs border border-slate-200">{getLookupValue(row[f.key], f.referenceTarget)}</span>
+                                      {(f.type === 'reference' || f.type === 'reference_multiple')
+                                          ? <span className="text-slate-600 text-xs">{getLookupValue(row[f.key], f.referenceTarget)}</span>
                                           : f.type === 'file'
                                             ? (row[f.key] 
                                                 ? <a href={row[f.key]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><ExternalLink size={12}/> Xem file</a>
                                                 : <span className="text-slate-300 italic">Trống</span>
                                               )
-                                          : row[f.key]
+                                          : Array.isArray(row[f.key]) 
+                                            ? row[f.key].join(', ')
+                                            : row[f.key]
                                       }
                                   </td>
                               ))}
@@ -501,7 +568,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                       ))}
                       {filteredData.length === 0 && (
                           <tr><td colSpan={group.fields.length + 2} className="px-4 py-12 text-center text-slate-400 italic">
-                              {selectedUnitFilter || selectedFacultyFilter ? "Chưa có dữ liệu cho bộ lọc này." : "Chưa có dữ liệu cho năm học này."}
+                              {selectedUnitFilter || selectedFacultyFilter || searchText || Object.keys(dynamicFilters).length > 0 ? "Không tìm thấy dữ liệu phù hợp." : "Chưa có dữ liệu cho năm học này."}
                           </td></tr>
                       )}
                   </tbody>
@@ -518,7 +585,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                       </div>
                       <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
                           {group.fields.map(f => (
-                              <div key={f.id} className={f.type === 'textarea' || f.type === 'file' ? 'col-span-2' : ''}>
+                              <div key={f.id} className={f.type === 'textarea' || f.type === 'file' || f.type === 'select_multiple' || f.type === 'reference_multiple' ? 'col-span-2' : ''}>
                                   <label className="block text-xs font-bold text-slate-500 mb-1">{f.label} {f.required && <span className="text-red-500">*</span>}</label>
                                   
                                   {f.type === 'textarea' ? (
@@ -528,6 +595,14 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                                           <option value="">-- Chọn --</option>
                                           {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                       </select>
+                                  ) : f.type === 'select_multiple' ? (
+                                      // Native Multi-Select workaround for demo
+                                      <select multiple className="w-full p-2 border border-slate-300 rounded text-sm h-24" 
+                                          value={Array.isArray(tempRecord[f.key]) ? tempRecord[f.key] : []} 
+                                          onChange={e => setTempRecord({...tempRecord, [f.key]: Array.from(e.target.selectedOptions, option => option.value)})}
+                                      >
+                                          {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                      </select>
                                   ) : f.type === 'reference' ? (
                                       <select className="w-full p-2 border border-slate-300 rounded text-sm" value={tempRecord[f.key] || ''} onChange={e => setTempRecord({...tempRecord, [f.key]: e.target.value})}>
                                           <option value="">-- Chọn tham chiếu --</option>
@@ -535,6 +610,27 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                                           {f.referenceTarget === 'faculties' && faculties.sort((a,b) => a.name.vi.localeCompare(b.name.vi)).map(fac => <option key={fac.id} value={fac.id}>{fac.name.vi}</option>)}
                                           {f.referenceTarget === 'academicYears' && academicYears.map(y => <option key={y.id} value={y.code}>{y.code}</option>)}
                                       </select>
+                                  ) : f.type === 'reference_multiple' ? (
+                                      // Custom Multi-Select with checkboxes or just a multi-select box
+                                      <div className="border border-slate-300 rounded p-2 max-h-40 overflow-y-auto">
+                                          {(f.referenceTarget === 'units' ? units : f.referenceTarget === 'faculties' ? faculties.sort((a,b) => a.name.vi.localeCompare(b.name.vi)) : academicYears).map((item: any) => {
+                                              const val = item.unit_id || item.id || item.code;
+                                              const label = item.unit_name || item.name?.vi || item.code;
+                                              const isChecked = (Array.isArray(tempRecord[f.key]) ? tempRecord[f.key] : []).includes(val);
+                                              
+                                              return (
+                                                  <label key={val} className="flex items-center gap-2 p-1 hover:bg-slate-50 cursor-pointer">
+                                                      <input 
+                                                          type="checkbox" 
+                                                          className="w-4 h-4 text-blue-600 rounded"
+                                                          checked={isChecked}
+                                                          onChange={() => handleMultiSelectChange(f.key, val)}
+                                                      />
+                                                      <span className="text-sm">{label}</span>
+                                                  </label>
+                                              )
+                                          })}
+                                      </div>
                                   ) : f.type === 'file' ? (
                                       <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
                                           {uploadingField === f.key ? (
@@ -615,20 +711,33 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
             </div>
 
             {/* FILTERS TOOLBAR */}
-            <div className="flex items-center gap-2 mb-4 md:mb-0 pb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-4 md:mb-0 pb-1">
                 <Filter size={16} className="text-slate-400" />
                 
-                {/* 1. Unit Filter */}
+                {/* 1. Search Bar (if any field is searchable) */}
+                {group.fields.some(f => f.isSearchable) && (
+                    <div className="relative">
+                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input 
+                            className="pl-7 pr-2 py-1.5 border border-slate-300 rounded-lg text-xs w-40 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            placeholder="Tìm kiếm..."
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                        />
+                    </div>
+                )}
+
+                {/* 2. Unit Filter (Standard) */}
                 {unitFieldKey && (
                     <select 
-                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[200px]"
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 outline-none max-w-[150px]"
                         value={selectedUnitFilter}
                         onChange={(e) => {
                             setSelectedUnitFilter(e.target.value);
                             setSelectedFacultyFilter(''); // Reset faculty filter when unit changes
                         }}
                     >
-                        <option value="">-- Tất cả Đơn vị --</option>
+                        <option value="">-- Đơn vị --</option>
                         {unitOptions.map(opt => (
                             <option key={opt.id} value={opt.id} className={opt.level === 0 ? "font-bold" : ""}>
                                 {opt.level > 0 ? '\u00A0\u00A0'.repeat(opt.level * 2) + '↳ ' : ''}{opt.name}
@@ -637,19 +746,34 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                     </select>
                 )}
 
-                {/* 2. Faculty Filter (Context-Aware) */}
+                {/* 3. Faculty Filter (Standard) */}
                 {facultyFieldKey && (
                     <select 
-                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[200px]"
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 outline-none max-w-[150px]"
                         value={selectedFacultyFilter}
                         onChange={(e) => setSelectedFacultyFilter(e.target.value)}
                     >
-                        <option value="">-- Tất cả Nhân sự --</option>
+                        <option value="">-- Nhân sự --</option>
                         {availableFaculties.map(fac => (
                             <option key={fac.id} value={fac.id}>{fac.name.vi}</option>
                         ))}
                     </select>
                 )}
+
+                {/* 4. Dynamic Filters */}
+                {group.fields.filter(f => f.isFilterable && f.key !== unitFieldKey && f.key !== facultyFieldKey).map(f => (
+                    <select 
+                        key={f.key}
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 outline-none max-w-[120px]"
+                        value={dynamicFilters[f.key] || ''}
+                        onChange={(e) => setDynamicFilters({...dynamicFilters, [f.key]: e.target.value})}
+                    >
+                        <option value="">{f.label}</option>
+                        {f.options?.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                ))}
             </div>
         </div>
 

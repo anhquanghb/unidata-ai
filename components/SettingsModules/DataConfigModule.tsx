@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DataConfigGroup, DataFieldDefinition, DataFieldType, DataFieldOption } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter } from 'lucide-react';
 
 interface DataConfigModuleProps {
   groups: DataConfigGroup[];
@@ -16,8 +16,9 @@ const FIELD_TYPES: { type: DataFieldType; label: string; icon: React.ReactNode }
   { type: 'date', label: 'Ngày tháng (Date)', icon: <Calendar size={14} /> },
   { type: 'boolean', label: 'Đúng/Sai (Boolean)', icon: <CheckSquare size={14} /> },
   { type: 'select_single', label: 'Chọn một (Enum)', icon: <List size={14} /> },
-  { type: 'select_multiple', label: 'Chọn nhiều', icon: <List size={14} /> },
-  { type: 'reference', label: 'Tham chiếu (Lookup)', icon: <Link size={14} /> },
+  { type: 'select_multiple', label: 'Chọn nhiều (Enum)', icon: <List size={14} /> },
+  { type: 'reference', label: 'Tham chiếu Đơn (Lookup)', icon: <Link size={14} /> },
+  { type: 'reference_multiple', label: 'Tham chiếu Nhiều (Multi-Lookup)', icon: <Layers size={14} /> },
   { type: 'file', label: 'Tập tin (File Upload)', icon: <FileText size={14} /> },
 ];
 
@@ -33,11 +34,13 @@ interface DataConfigGroup {
 interface DataFieldDefinition {
   key: string;       // CamelCase, duy nhất (VD: topicName)
   label: string;     // Tên hiển thị (VD: Tên đề tài)
-  type: 'text' | 'textarea' | 'number_int' | 'number_float' | 'date' | 'boolean' | 'select_single' | 'select_multiple' | 'reference' | 'file';
+  type: 'text' | 'textarea' | 'number_int' | 'number_float' | 'date' | 'boolean' | 'select_single' | 'select_multiple' | 'reference' | 'reference_multiple' | 'file';
   required: boolean;
+  isFilterable?: boolean; // Cho phép lọc
+  isSearchable?: boolean; // Cho phép tìm kiếm
   // Chỉ dùng khi type là select_single/select_multiple
   options?: { label: string; value: string; }[]; 
-  // Chỉ dùng khi type là reference
+  // Chỉ dùng khi type là reference/reference_multiple
   referenceTarget?: 'units' | 'academicYears' | 'faculties'; 
 }
 
@@ -60,6 +63,8 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
       label: '',
       type: 'text',
       required: false,
+      isFilterable: false,
+      isSearchable: false,
       options: [],
       referenceTarget: 'units'
   });
@@ -109,6 +114,8 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
           label: '',
           type: 'text',
           required: false,
+          isFilterable: false,
+          isSearchable: false,
           options: [],
           referenceTarget: 'units'
       });
@@ -215,9 +222,11 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                   ...f,
                   id: uuidv4(),
                   required: !!f.required,
+                  isFilterable: !!f.isFilterable,
+                  isSearchable: !!f.isSearchable,
                   type: f.type || 'text',
                   options: f.options ? f.options.map((o: any) => ({...o, id: uuidv4()})) : [],
-                  referenceTarget: f.referenceTarget || (f.type === 'reference' ? 'units' : undefined)
+                  referenceTarget: f.referenceTarget || (f.type === 'reference' || f.type === 'reference_multiple' ? 'units' : undefined)
               }))
           };
 
@@ -322,11 +331,21 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     ))}
                                 </select>
                             </div>
-                            <div className="flex items-center pt-6">
-                                <label className="flex items-center cursor-pointer">
-                                    <input type="checkbox" className="w-4 h-4 text-blue-600" checked={tempField.required} onChange={(e) => setTempField({...tempField, required: e.target.checked})} />
-                                    <span className="ml-2 text-sm text-slate-700 font-medium">Bắt buộc nhập (Required)</span>
-                                </label>
+                            <div className="pt-6">
+                                <div className="space-y-3">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="checkbox" className="w-4 h-4 text-blue-600" checked={tempField.required} onChange={(e) => setTempField({...tempField, required: e.target.checked})} />
+                                        <span className="ml-2 text-sm text-slate-700 font-medium">Bắt buộc nhập (Required)</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="checkbox" className="w-4 h-4 text-indigo-600" checked={tempField.isFilterable} onChange={(e) => setTempField({...tempField, isFilterable: e.target.checked})} />
+                                        <span className="ml-2 text-sm text-slate-700 font-medium flex items-center gap-1"><Filter size={14} className="text-slate-400"/> Cho phép lọc (Filter)</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="checkbox" className="w-4 h-4 text-indigo-600" checked={tempField.isSearchable} onChange={(e) => setTempField({...tempField, isSearchable: e.target.checked})} />
+                                        <span className="ml-2 text-sm text-slate-700 font-medium flex items-center gap-1"><Search size={14} className="text-slate-400"/> Cho phép tìm kiếm (Search)</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -351,7 +370,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                             </div>
                         )}
 
-                        {tempField.type === 'reference' && (
+                        {(tempField.type === 'reference' || tempField.type === 'reference_multiple') && (
                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
                                 <label className="block text-xs font-bold text-blue-800 mb-2">Đối tượng Tham chiếu (Target Entity)</label>
                                 <select className="w-full p-2 border border-blue-200 rounded text-sm bg-white" value={tempField.referenceTarget} onChange={(e) => setTempField({...tempField, referenceTarget: e.target.value as any})}>
@@ -360,6 +379,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     <option value="academicYears">Năm học (Academic Years)</option>
                                 </select>
                                 <p className="text-xs text-blue-600 mt-2">Dữ liệu sẽ được lấy động từ danh sách hệ thống tương ứng.</p>
+                                {tempField.type === 'reference_multiple' && <p className="text-xs text-indigo-600 font-bold mt-1">+ Cho phép chọn nhiều mục (Multiple Selection)</p>}
                              </div>
                         )}
                         
@@ -399,6 +419,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                         <th className="px-4 py-3">Mã (Key)</th>
                                         <th className="px-4 py-3">Loại (Type)</th>
                                         <th className="px-4 py-3 text-center">Bắt buộc</th>
+                                        <th className="px-4 py-3 text-right">Thuộc tính</th>
                                         <th className="px-4 py-3 text-right">Thao tác</th>
                                     </tr>
                                 </thead>
@@ -417,6 +438,20 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                                 {field.required ? <span className="text-red-500 font-bold text-xs">Yes</span> : <span className="text-slate-300 text-xs">-</span>}
                                             </td>
                                             <td className="px-4 py-3 text-right">
+                                                <div className="flex justify-end gap-1">
+                                                    {field.isFilterable && (
+                                                        <span title="Cho phép lọc">
+                                                            <Filter size={14} className="text-indigo-500" />
+                                                        </span>
+                                                    )}
+                                                    {field.isSearchable && (
+                                                        <span title="Cho phép tìm kiếm">
+                                                            <Search size={14} className="text-blue-500" />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
                                                 <button onClick={() => handleEditField(field)} className="text-blue-600 hover:text-blue-800 p-1 mr-1"><Edit2 size={14}/></button>
                                                 <button onClick={() => handleDeleteField(field.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button>
                                             </td>
@@ -424,7 +459,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     ))}
                                     {selectedGroup.fields.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                                            <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                                                 <Settings size={32} className="mx-auto mb-2 opacity-20"/>
                                                 <p>Chưa có trường dữ liệu nào. Hãy nhấn "Thêm Trường" để bắt đầu.</p>
                                             </td>

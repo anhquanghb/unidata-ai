@@ -255,6 +255,7 @@ export type DataFieldType =
   // Logic & Reference
   | 'boolean'
   | 'reference'
+  | 'reference_multiple' // NEW: Multi-reference
   // File
   | 'file';
 
@@ -272,6 +273,8 @@ export interface DataFieldDefinition {
   label: string;     // Display label (e.g., 'Tên đề tài')
   type: DataFieldType;
   required: boolean;
+  isFilterable?: boolean; // NEW: Allow filtering in UI
+  isSearchable?: boolean; // NEW: Allow searching in UI
   description?: string;
   // For Choice Types
   options?: DataFieldOption[];
