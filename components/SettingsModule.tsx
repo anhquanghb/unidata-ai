@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig, Faculty, FacultyTitles, HumanResourceRecord } from '../types';
+import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig, Faculty, FacultyTitles, HumanResourceRecord, DynamicRecord } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
 import UserManagementModule from './SettingsModules/UserManagementModule';
 import GeneralConfigModule from './SettingsModules/GeneralConfigModule';
@@ -26,7 +26,7 @@ interface SettingsModuleProps {
   facultyTitles: FacultyTitles;
   humanResources: HumanResourceRecord[];
 
-  // Data Records
+  // Data Records (Legacy/Static)
   scientificRecords: ScientificRecord[];
   trainingRecords: TrainingRecord[];
   personnelRecords: PersonnelRecord[];
@@ -35,8 +35,9 @@ interface SettingsModuleProps {
   departmentRecords: DepartmentRecord[];
   businessRecords: BusinessRecord[];
   
-  // Data Config
+  // Dynamic Data (Information Management Module)
   dataConfigGroups?: DataConfigGroup[];
+  dynamicDataStore?: Record<string, DynamicRecord[]>; // ADDED THIS
   onUpdateDataConfigGroups?: (groups: DataConfigGroup[]) => void;
 
   onUpdateSettings: (settings: SystemSettings) => void;
@@ -79,8 +80,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   classRecords,
   departmentRecords,
   businessRecords,
-  // Data Config
+  // Dynamic Data
   dataConfigGroups = [],
+  dynamicDataStore = {}, // Default empty
   onUpdateDataConfigGroups,
   // Handlers
   onUpdateSettings,
@@ -510,7 +512,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
+      // Dynamic Data Config & STORE
       dataConfigGroups,
+      dynamicDataStore,
       backupDate: new Date().toISOString(),
       version: "2.0.0"
     };
@@ -581,7 +585,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
+      // Dynamic Data
       dataConfigGroups,
+      dynamicDataStore,
       backupDate: new Date().toISOString(),
       version: "2.0.0"
     };

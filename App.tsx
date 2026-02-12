@@ -652,8 +652,9 @@ const App: React.FC = () => {
             classRecords={classRecords}
             departmentRecords={departmentRecords}
             businessRecords={businessRecords}
-            // Data Config
+            // Data Config & Dynamic Data
             dataConfigGroups={dataConfigGroups}
+            dynamicDataStore={dynamicDataStore} // ADDED
             onUpdateDataConfigGroups={setDataConfigGroups}
             // Handlers
             onUpdateSettings={setSettings}
