@@ -105,6 +105,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [driveFolderId, setDriveFolderId] = useState(driveSession.folderId || '');
   const [externalSourceFolderId, setExternalSourceFolderId] = useState(driveSession.externalSourceFolderId || '');
 
+  // UI States for Scanning
+  const [scanStatus, setScanStatus] = useState<{
+      foundFolder: boolean;
+      foundDataFolder: boolean;
+      foundConfig: boolean;
+      backupCount: number;
+  }>({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
+
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -158,7 +166,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             if (resp.error) {
                 if (promptType === '' && (resp.error === 'immediate_failed' || resp.error === 'access_denied')) {
                     console.log("Silent refresh failed or access denied. Clearing session.");
-                    // Update session state to disconnected
                     onUpdateDriveSession({
                         ...driveSession,
                         isConnected: false,
@@ -182,9 +189,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     const userEmail = userInfo.result.user.emailAddress;
                     const userName = userInfo.result.user.displayName;
 
-                    // --- SCAN ONLY LOGIC ---
+                    // --- STRICT SCAN LOGIC ---
                     let targetFolderId = '';
                     let dataFolderId = '';
+                    let foundConfig = false;
+                    let backupCount = 0;
 
                     // 1. Search for Root Backup Folder (UniData_Backups)
                     try {
@@ -210,8 +219,26 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                             if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
                                 dataFolderId = dataFolderResp.result.files[0].id;
                             }
+
+                            // 3. Search for Configuration File (external.txt)
+                            const qConfig = `name = 'external.txt' and '${targetFolderId}' in parents and trashed=false`;
+                            const configResp = await window.gapi.client.drive.files.list({
+                                q: qConfig,
+                                fields: 'files(id, name)',
+                            });
+                            if (configResp.result.files && configResp.result.files.length > 0) {
+                                foundConfig = true;
+                            }
+
+                            // 4. Count Backups (JSON files)
+                            const qBackups = `mimeType = 'application/json' and '${targetFolderId}' in parents and trashed=false and name != 'external.txt'`;
+                            const backupResp = await window.gapi.client.drive.files.list({
+                                q: qBackups,
+                                pageSize: 100, // Limit check
+                                fields: 'files(id)',
+                            });
+                            backupCount = backupResp.result.files ? backupResp.result.files.length : 0;
                         }
-                        // If not found, targetFolderId remains empty string
                     } catch (err) {
                         console.error("Folder scan error:", err);
                         alert("Lỗi khi quét thư mục trên Drive.");
@@ -219,16 +246,23 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
                     // Update local state UI
                     setDriveFolderId(targetFolderId);
+                    setScanStatus({
+                        foundFolder: !!targetFolderId,
+                        foundDataFolder: !!dataFolderId,
+                        foundConfig: foundConfig,
+                        backupCount: backupCount
+                    });
 
                     const newSession: GoogleDriveConfig = {
                        isConnected: true,
                        clientId: clientId,
                        accessToken: resp.access_token,
                        accountName: `${userName} (${userEmail})`,
-                       folderId: targetFolderId, // Can be empty if not found
+                       folderId: targetFolderId, 
                        folderName: DEFAULT_FOLDER_NAME,
                        dataFolderId: dataFolderId, 
-                       externalSourceFolderId: externalSourceFolderId
+                       externalSourceFolderId: externalSourceFolderId,
+                       lastSync: new Date().toISOString()
                     };
 
                     // Update Global Session State
@@ -236,9 +270,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
                     if (promptType.includes('select_account')) {
                         if (targetFolderId) {
-                            alert(`Kết nối thành công!\nĐã tìm thấy thư mục: ${DEFAULT_FOLDER_NAME}`);
-                        } else {
-                            // No alert here, UI will show "Create Folder" button
+                            // Silent success or toast could be better, but user requested feedback logic
                         }
                     }
 
@@ -284,13 +316,20 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
           // 3. Update State
           setDriveFolderId(newFolderId);
+          setScanStatus({
+              foundFolder: true,
+              foundDataFolder: true,
+              foundConfig: false,
+              backupCount: 0
+          });
+
           onUpdateDriveSession({
               ...driveSession,
               folderId: newFolderId,
               dataFolderId: newDataFolderId,
               folderName: DEFAULT_FOLDER_NAME
           });
-          alert(`Đã khởi tạo thành công thư mục: ${DEFAULT_FOLDER_NAME}`);
+          alert(`Đã khởi tạo thành công:\n- Thư mục gốc: ${DEFAULT_FOLDER_NAME}\n- Thư mục con: Data`);
 
       } catch (e: any) {
           console.error("Create folder error", e);
@@ -339,9 +378,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         // 5. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
-        
-        // Optional: Reload page to force fresh environment, but state reset should be enough
-        // window.location.reload(); 
+        setScanStatus({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
     }
   };
 
@@ -370,18 +407,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
          return;
     }
 
-    // Prepare COMPLETE system data
-    // Note: driveSession is NOT included in the saved 'settings' object here
-    // because it is separate state in App.tsx now.
     const data = {
-      // Core
       reports,
       units,
       users,
       settings, 
       academicYears,
       schoolInfo,
-      // Records
       scientificRecords,
       trainingRecords,
       personnelRecords,
@@ -389,9 +421,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
-      // Data Config
       dataConfigGroups,
-      // Metadata
       backupDate: new Date().toISOString(),
       version: "1.4"
     };
@@ -418,7 +448,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         });
         
         if (response.status === 401) {
-            // Token expired during upload
             console.log("401 Unauthorized during upload. Refreshing...");
             authenticateDrive(effectiveClientId, ''); // Try silent refresh
             alert("Phiên đăng nhập hết hạn. Hệ thống đang thử kết nối lại. Vui lòng thử lại sau giây lát.");
@@ -429,6 +458,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         
         if (json.id) {
             alert(`Đã lưu bản mới lên Google Drive thành công!\nTên file: ${fileName}`);
+            // Re-scan to update count
+            authenticateDrive(effectiveClientId, '');
         } else {
             console.error("Drive Upload Error:", json);
             alert("Lỗi: Không thể lưu file lên Google Drive.");
@@ -440,16 +471,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleExport = () => {
-    // Prepare COMPLETE system data
     const data = {
-      // Core
       reports,
       units,
       users,
       settings,
       academicYears,
       schoolInfo,
-      // Records
       scientificRecords,
       trainingRecords,
       personnelRecords,
@@ -457,9 +485,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       classRecords,
       departmentRecords,
       businessRecords,
-      // Data Config
       dataConfigGroups,
-      // Metadata
       backupDate: new Date().toISOString(),
       version: "1.4"
     };
@@ -596,6 +622,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              // New Props for Creating Folder
              onCreateDefaultFolders={handleCreateDefaultFolders}
              isCreatingFolder={isCreatingFolder}
+             scanStatus={scanStatus}
              
              // External Read-Only Source Prop
              externalSourceFolderId={externalSourceFolderId}
