@@ -533,7 +533,15 @@ const App: React.FC = () => {
     if (data.units) setUnits(data.units);
     if (data.users) setUsers(data.users);
     if (data.academicYears) setAcademicYears(data.academicYears);
-    if (data.settings) setSettings(data.settings);
+    
+    // IMPORTANT: Restore settings but preserve current session driveConfig
+    if (data.settings) {
+        setSettings(prev => ({
+            ...data.settings,
+            driveConfig: prev.driveConfig // Keep current session drive config
+        }));
+    }
+    
     if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
 
     // Restore Record Data

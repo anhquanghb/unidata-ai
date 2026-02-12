@@ -56,7 +56,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   settings, 
   users, 
   reports, 
-  units,
+  units, 
   academicYears,
   schoolInfo,
   // Records
@@ -134,7 +134,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   }, []);
 
   // --- AUTHENTICATION CORE FUNCTION ---
-  const authenticateDrive = (clientId: string, promptType: string, savedConfig?: any) => {
+  const authenticateDrive = (clientId: string, promptType: string) => {
     if (!window.google || !window.gapi) {
         console.warn("Google libraries not loaded yet.");
         return;
@@ -175,41 +175,42 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     const userName = userInfo.result.user.displayName;
 
                     // --- FOLDER LOGIC ---
-                    // If we have saved config, prefer using that ID/Name to avoid duplicate lookups/creates
-                    let targetFolderId = savedConfig?.folderId || driveFolderId;
-                    let targetFolderName = savedConfig?.folderName || driveFolderName;
+                    // ALWAYS SCAN for the folder. Do not use saved ID to ensure we are using the correct user's folder.
+                    let targetFolderId = '';
+                    let targetFolderName = driveFolderName || 'UniData_Backups'; // Default name
 
-                    if (!targetFolderId) {
-                         // Search or Create Root Backup Folder
-                         try {
-                             const q = `mimeType='application/vnd.google-apps.folder' and name='${targetFolderName}' and trashed=false`;
-                             const folderResp = await window.gapi.client.drive.files.list({
-                                 q: q,
-                                 fields: 'files(id, name)',
-                                 spaces: 'drive',
-                             });
-                             
-                             if (folderResp.result.files && folderResp.result.files.length > 0) {
-                                 targetFolderId = folderResp.result.files[0].id;
-                             } else {
-                                 const fileMetadata = {
-                                     name: targetFolderName,
-                                     mimeType: 'application/vnd.google-apps.folder'
-                                 };
-                                 const createResp = await window.gapi.client.drive.files.create({
-                                     resource: fileMetadata,
-                                     fields: 'id'
-                                 });
-                                 targetFolderId = createResp.result.id;
-                             }
-                         } catch (err) {
-                             console.error("Folder error:", err);
-                             if (promptType !== '') alert("Cảnh báo: Không thể quản lý thư mục backup.");
-                         }
+                    // 1. Search for Root Backup Folder
+                    try {
+                        const q = `mimeType='application/vnd.google-apps.folder' and name='${targetFolderName}' and trashed=false`;
+                        const folderResp = await window.gapi.client.drive.files.list({
+                            q: q,
+                            fields: 'files(id, name)',
+                            spaces: 'drive',
+                        });
+                        
+                        if (folderResp.result.files && folderResp.result.files.length > 0) {
+                            targetFolderId = folderResp.result.files[0].id;
+                            console.log("Found existing folder:", targetFolderId);
+                        } else {
+                            // Create if not found
+                            const fileMetadata = {
+                                name: targetFolderName,
+                                mimeType: 'application/vnd.google-apps.folder'
+                            };
+                            const createResp = await window.gapi.client.drive.files.create({
+                                resource: fileMetadata,
+                                fields: 'id'
+                            });
+                            targetFolderId = createResp.result.id;
+                            console.log("Created new folder:", targetFolderId);
+                        }
+                    } catch (err) {
+                        console.error("Folder error:", err);
+                        if (promptType !== '') alert("Cảnh báo: Không thể quản lý thư mục backup.");
                     }
 
-                    // --- DATA SUB-FOLDER LOGIC (New Feature) ---
-                    let dataFolderId = savedConfig?.dataFolderId;
+                    // 2. Search/Create 'Data' Sub-folder (New Feature)
+                    let dataFolderId = '';
                     if (targetFolderId) {
                          try {
                              const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
@@ -239,12 +240,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                          }
                     }
 
-                    // Update local state
+                    // Update local state UI
                     setDriveFolderId(targetFolderId);
-                    setDriveFolderName(targetFolderName);
-                    // Use existing external ID if available, don't overwrite with empty unless intentional
-                    const finalExternalId = savedConfig?.externalSourceFolderId || externalSourceFolderId;
-                    setExternalSourceFolderId(finalExternalId);
+                    // Do not auto-set externalSourceFolderId from settings; let user set it manually if needed for this session
 
                     const newConfig = {
                        isConnected: true,
@@ -253,18 +251,18 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        accountName: `${userName} (${userEmail})`,
                        folderId: targetFolderId,
                        folderName: targetFolderName,
-                       dataFolderId: dataFolderId, // Store subfolder ID
-                       externalSourceFolderId: finalExternalId // Store read-only source ID
+                       dataFolderId: dataFolderId, 
+                       externalSourceFolderId: externalSourceFolderId // Persist UI input if user typed it before connecting
                     };
 
-                    // Update Global Settings
+                    // Update Global Settings (Runtime only)
                     onUpdateSettings({
                        ...settings,
                        driveConfig: newConfig
                     });
 
-                    // NO LONGER SAVING TO LOCALSTORAGE TO AVOID USER CONFUSION
-                    
+                    // REMOVED LOCALSTORAGE SAVING HERE
+
                     if (promptType === 'consent') {
                         alert(`Kết nối thành công!\nTài khoản: ${userEmail}\nThư mục Upload: ${targetFolderName}/Data`);
                     }
@@ -278,8 +276,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     });
 
     // Request token
-    // prompt: '' -> Silent refresh
-    // prompt: 'consent' -> Force account selection
     tokenClient.requestAccessToken({ prompt: promptType });
   };
 
@@ -289,8 +285,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         alert("Vui lòng nhập Google Client ID.");
         return;
     }
-    // "Lần đầu: Gọi requestAccessToken({ prompt: 'consent' })"
-    // "Xác thực lại: Gọi requestAccessToken({ prompt: 'consent' })"
     authenticateDrive(effectiveClientId, 'consent');
   };
 
@@ -309,6 +303,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         // 2. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
+        setDriveFolderName('UniData_Backups');
     }
   };
 
@@ -320,10 +315,26 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               clientId: manualClientId,
               folderId: driveFolderId,
               folderName: driveFolderName,
-              externalSourceFolderId: externalSourceFolderId // Persist the new field
+              externalSourceFolderId: externalSourceFolderId 
           }
       });
-      alert("Đã lưu cấu hình! Vui lòng nhấn nút 'Kiểm tra kết nối' để hoàn tất.");
+      alert("Đã lưu cấu hình (Phiên hiện tại)!");
+  };
+
+  // --- HELPER: SANITIZE SETTINGS FOR EXPORT ---
+  const getSanitizedSettings = () => {
+      return {
+          ...settings,
+          driveConfig: {
+              isConnected: false,
+              folderId: '',
+              folderName: 'UniData_Backups',
+              accessToken: undefined,
+              accountName: undefined,
+              dataFolderId: undefined,
+              externalSourceFolderId: undefined
+          }
+      };
   };
 
   // --- SAVE TO DRIVE HANDLER ---
@@ -341,13 +352,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
          return;
     }
 
-    // Prepare COMPLETE system data
+    // Prepare COMPLETE system data, but SANITIZE Drive Config
     const data = {
       // Core
       reports,
       units,
       users,
-      settings,
+      settings: getSanitizedSettings(), // CLEANED SETTINGS
       academicYears,
       schoolInfo,
       // Records
@@ -362,7 +373,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
-      version: "1.2"
+      version: "1.3"
     };
 
     const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -409,13 +420,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleExport = () => {
-    // Prepare COMPLETE system data
+    // Prepare COMPLETE system data, but SANITIZE Drive Config
     const data = {
       // Core
       reports,
       units,
       users,
-      settings,
+      settings: getSanitizedSettings(), // CLEANED SETTINGS
       academicYears,
       schoolInfo,
       // Records
@@ -430,7 +441,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       dataConfigGroups,
       // Metadata
       backupDate: new Date().toISOString(),
-      version: "1.2"
+      version: "1.3"
     };
     
     const jsonString = JSON.stringify(data, null, 2);
