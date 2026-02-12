@@ -555,6 +555,30 @@ const App: React.FC = () => {
     if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
   };
 
+  const handleResetSystemData = () => {
+      // Clear all business data
+      setReports([]);
+      setScientificRecords([]);
+      setTrainingRecords([]);
+      setPersonnelRecords([]);
+      setAdmissionRecords([]);
+      setClassRecords([]);
+      setDepartmentRecords([]);
+      setBusinessRecords([]);
+      setFaculties([]);
+      setHumanResources([]);
+      setDynamicDataStore({});
+      
+      // Reset Organization/System data to defaults or empty
+      setUnits([]); 
+      setUsers([]);
+      setAcademicYears(INITIAL_ACADEMIC_YEARS); // Keep default years to avoid UI crash
+      
+      // Reset Settings (Disconnect Drive)
+      setSettings(INITIAL_SETTINGS); 
+      setSchoolInfo(INITIAL_SCHOOL_INFO);
+  };
+
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {
     setSchoolInfo(info);
   }
@@ -668,6 +692,7 @@ const App: React.FC = () => {
             onImportData={handleImportData}
             onUpdateSchoolInfo={handleUpdateSchoolInfo}
             onShowVersions={() => setIsVersionModalOpen(true)}
+            onResetSystemData={handleResetSystemData}
           />
         );
       default:

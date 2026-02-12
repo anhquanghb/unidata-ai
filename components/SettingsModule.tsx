@@ -45,6 +45,7 @@ interface SettingsModuleProps {
   onImportData: (data: any) => void;
   onUpdateSchoolInfo: (info: SchoolInfo) => void;
   onShowVersions?: () => void;
+  onResetSystemData: () => void; // New prop for clearing data
 }
 
 // Updated SCOPES to include readonly access for restoring backups
@@ -81,7 +82,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onToggleLockAcademicYear,
   onImportData,
   onUpdateSchoolInfo,
-  onShowVersions
+  onShowVersions,
+  onResetSystemData
 }) => {
   // Ordered: Backup -> Users -> Prompts -> DataConfig -> General
   const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'prompts' | 'data_config' | 'general'>('backup');
@@ -349,7 +351,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleDisconnectDrive = () => {
-    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối? Token truy cập sẽ bị xóa.");
+    const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
         if (settings.driveConfig.accessToken && window.google) {
             window.google.accounts.oauth2.revoke(settings.driveConfig.accessToken, () => {
@@ -357,20 +359,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             });
         }
         
+        // 1. Clear session storage
         localStorage.removeItem(STORAGE_KEY);
 
-        onUpdateSettings({
-            ...settings,
-            driveConfig: {
-                ...settings.driveConfig,
-                isConnected: false,
-                accessToken: undefined,
-                accountName: undefined,
-                folderId: '',
-            }
-        });
+        // 2. Clear all application data and disconnect via App prop
+        onResetSystemData();
+
+        // 3. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
+        
+        // alert("Đã ngắt kết nối và xóa dữ liệu cục bộ."); // Handled in App.tsx
     }
   };
 
