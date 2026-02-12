@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SystemSettings, SchoolInfo, AcademicYear } from '../../types';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -35,6 +36,22 @@ interface GeneralConfigModuleProps {
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION';
 
+interface DrivePermission {
+  id: string;
+  type: string;
+  emailAddress?: string;
+  role: string;
+  displayName?: string;
+  photoLink?: string;
+}
+
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  permissions?: DrivePermission[];
+}
+
 const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   settings,
   schoolInfo,
@@ -61,6 +78,18 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [editingSchool, setEditingSchool] = useState(false);
   const [editSchoolName, setEditSchoolName] = useState(schoolInfo.name);
   const [editSchoolCode, setEditSchoolCode] = useState(schoolInfo.code);
+
+  // --- DRIVE SHARING STATE ---
+  const [rootPermissions, setRootPermissions] = useState<DrivePermission[]>([]);
+  const [folderContents, setFolderContents] = useState<DriveFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
+  const [selectedFilePermissions, setSelectedFilePermissions] = useState<DrivePermission[]>([]);
+  
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [shareEmailRoot, setShareEmailRoot] = useState('');
+  const [shareEmailFile, setShareEmailFile] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
 
   const handleSaveGeneral = () => {
       onUpdateSettings({ ...settings, virtualAssistantUrl });
@@ -97,6 +126,90 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const cancelEditingYear = () => {
     setEditingYearId(null);
   };
+
+  // --- DRIVE API HELPERS ---
+
+  const fetchPermissions = async (fileId: string, setState: React.Dispatch<React.SetStateAction<DrivePermission[]>>) => {
+      if (!fileId || !settings.driveConfig.isConnected) return;
+      try {
+          setIsLoadingPermissions(true);
+          const response = await window.gapi.client.drive.permissions.list({
+              fileId: fileId,
+              fields: 'permissions(id, type, emailAddress, role, displayName, photoLink)',
+          });
+          setState(response.result.permissions || []);
+      } catch (e) {
+          console.error("Error fetching permissions:", e);
+      } finally {
+          setIsLoadingPermissions(false);
+      }
+  };
+
+  const fetchFolderContent = async () => {
+      if (!driveFolderId || !settings.driveConfig.isConnected) return;
+      try {
+          setIsLoadingContent(true);
+          const response = await window.gapi.client.drive.files.list({
+              q: `'${driveFolderId}' in parents and trashed = false`,
+              fields: 'files(id, name, mimeType)',
+              pageSize: 50
+          });
+          setFolderContents(response.result.files || []);
+          setSelectedFile(null); // Reset selection
+          setSelectedFilePermissions([]);
+      } catch (e) {
+          console.error("Error fetching folder content:", e);
+      } finally {
+          setIsLoadingContent(false);
+      }
+  };
+
+  const addPermission = async (fileId: string, email: string, callback: () => void) => {
+      if (!email.includes('@')) {
+          alert("Email không hợp lệ");
+          return;
+      }
+      try {
+          setIsSharing(true);
+          await window.gapi.client.drive.permissions.create({
+              fileId: fileId,
+              resource: {
+                  role: 'reader',
+                  type: 'user',
+                  emailAddress: email
+              },
+              emailMessage: `UniData System: Bạn đã được cấp quyền ĐỌC cho ${fileId === driveFolderId ? 'thư mục hệ thống' : 'tệp tin'}.`
+          });
+          alert(`Đã chia sẻ thành công với ${email}`);
+          callback(); // Reload permissions
+      } catch (e: any) {
+          console.error("Share error:", e);
+          alert("Lỗi khi chia sẻ: " + (e.result?.error?.message || e.message));
+      } finally {
+          setIsSharing(false);
+      }
+  };
+
+  const removePermission = async (fileId: string, permissionId: string, callback: () => void) => {
+      if (!confirm("Bạn có chắc muốn xóa quyền truy cập của người này?")) return;
+      try {
+          await window.gapi.client.drive.permissions.delete({
+              fileId: fileId,
+              permissionId: permissionId
+          });
+          callback();
+      } catch (e: any) {
+          console.error("Revoke error:", e);
+          alert("Lỗi khi xóa quyền: " + (e.result?.error?.message || e.message));
+      }
+  };
+
+  // Load root permissions when config/id changes
+  useEffect(() => {
+      if (settings.driveConfig.isConnected && driveFolderId) {
+          fetchPermissions(driveFolderId, setRootPermissions);
+      }
+  }, [settings.driveConfig.isConnected, driveFolderId]);
 
   return (
     <div className="space-y-8">
@@ -254,6 +367,152 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                 <span>Thư mục upload file: <strong>{driveFolderName}/Data</strong> (ID: {settings.driveConfig.dataFolderId ? settings.driveConfig.dataFolderId.substring(0, 8) + '...' : 'Chưa tạo'})</span>
                              </div>
                           </div>
+                          
+                          {/* -- ADVANCED SHARING SECTION -- */}
+                          <div className="col-span-2 border-t border-green-200 pt-4 mt-2">
+                              <h4 className="font-bold text-green-800 text-sm mb-3 flex items-center gap-2">
+                                  <Users size={16}/> Quản lý Chia sẻ & Phân quyền (Reader Only)
+                              </h4>
+                              
+                              {/* 1. Root Folder Permissions */}
+                              <div className="bg-white border border-green-200 rounded-lg p-3 mb-4">
+                                  <div className="flex justify-between items-center mb-2">
+                                      <p className="text-xs font-bold text-green-700 uppercase">Thư mục gốc ({driveFolderName})</p>
+                                      <button onClick={() => fetchPermissions(driveFolderId, setRootPermissions)} className="text-green-600 hover:text-green-800 p-1"><RefreshCw size={12}/></button>
+                                  </div>
+                                  
+                                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                                      {rootPermissions.map(perm => (
+                                          <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded">
+                                              <div className="flex items-center gap-2">
+                                                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                                      {perm.photoLink ? <img src={perm.photoLink} alt="" /> : <Users size={12}/>}
+                                                  </div>
+                                                  <div>
+                                                      <div className="font-medium">{perm.displayName || perm.emailAddress}</div>
+                                                      <div className="text-slate-400 text-[10px]">{perm.role}</div>
+                                                  </div>
+                                              </div>
+                                              {perm.role !== 'owner' && (
+                                                  <button onClick={() => removePermission(driveFolderId, perm.id, () => fetchPermissions(driveFolderId, setRootPermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>
+                                              )}
+                                          </div>
+                                      ))}
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                      <input 
+                                          className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-green-500"
+                                          placeholder="Email chia sẻ (Quyền đọc)..."
+                                          value={shareEmailRoot}
+                                          onChange={e => setShareEmailRoot(e.target.value)}
+                                      />
+                                      <button 
+                                          onClick={() => {
+                                              addPermission(driveFolderId, shareEmailRoot, () => {
+                                                  setShareEmailRoot('');
+                                                  fetchPermissions(driveFolderId, setRootPermissions);
+                                              });
+                                          }}
+                                          disabled={isSharing || !shareEmailRoot}
+                                          className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                          {isSharing ? <Loader2 size={12} className="animate-spin"/> : <UserPlus size={12}/>} Share
+                                      </button>
+                                  </div>
+                              </div>
+
+                              {/* 2. File/Subfolder Permissions */}
+                              <div className="bg-white border border-green-200 rounded-lg overflow-hidden flex flex-col md:flex-row h-64">
+                                  {/* Left: Content List */}
+                                  <div className="w-full md:w-1/2 border-r border-green-200 flex flex-col">
+                                      <div className="p-2 border-b border-green-100 bg-green-50 flex justify-between items-center">
+                                          <span className="text-xs font-bold text-green-700">File & Thư mục con</span>
+                                          <button onClick={fetchFolderContent} className="text-green-600 hover:text-green-800 text-xs flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-green-100 shadow-sm"><RefreshCw size={10}/> Quét</button>
+                                      </div>
+                                      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                          {isLoadingContent ? (
+                                              <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
+                                          ) : folderContents.length === 0 ? (
+                                              <p className="text-xs text-slate-400 text-center p-4">Trống hoặc chưa quét</p>
+                                          ) : (
+                                              folderContents.map(file => (
+                                                  <div 
+                                                      key={file.id} 
+                                                      onClick={() => { setSelectedFile(file); fetchPermissions(file.id, setSelectedFilePermissions); }}
+                                                      className={`flex items-center gap-2 p-2 rounded cursor-pointer text-xs ${selectedFile?.id === file.id ? 'bg-green-100 text-green-900 font-bold' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                  >
+                                                      {file.mimeType.includes('folder') ? <Folder size={14} className="text-blue-500"/> : <File size={14} className="text-slate-400"/>}
+                                                      <span className="truncate flex-1">{file.name}</span>
+                                                      <ChevronRight size={12} className="text-slate-300"/>
+                                                  </div>
+                                              ))
+                                          )}
+                                      </div>
+                                  </div>
+
+                                  {/* Right: Specific Permissions */}
+                                  <div className="w-full md:w-1/2 flex flex-col">
+                                      <div className="p-2 border-b border-green-100 bg-green-50">
+                                          <span className="text-xs font-bold text-green-700 truncate block h-4">
+                                              {selectedFile ? `Quyền: ${selectedFile.name}` : 'Chọn file để xem quyền'}
+                                          </span>
+                                      </div>
+                                      <div className="flex-1 p-2 overflow-y-auto">
+                                          {!selectedFile ? (
+                                              <div className="h-full flex items-center justify-center text-slate-300">
+                                                  <Lock size={24}/>
+                                              </div>
+                                          ) : isLoadingPermissions ? (
+                                              <div className="flex justify-center p-4"><Loader2 size={16} className="animate-spin text-green-500"/></div>
+                                          ) : (
+                                              <div className="space-y-2">
+                                                  {selectedFilePermissions.length === 0 && <p className="text-xs text-slate-400">Chưa có ai khác.</p>}
+                                                  {selectedFilePermissions.map(perm => (
+                                                      <div key={perm.id} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                          <div className="flex items-center gap-1.5 overflow-hidden">
+                                                              <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500">
+                                                                  {perm.displayName?.[0] || 'U'}
+                                                              </div>
+                                                              <span className="truncate max-w-[80px]" title={perm.emailAddress}>{perm.emailAddress}</span>
+                                                          </div>
+                                                          {perm.role !== 'owner' && (
+                                                              <button onClick={() => removePermission(selectedFile.id, perm.id, () => fetchPermissions(selectedFile.id, setSelectedFilePermissions))} className="text-red-400 hover:text-red-600"><Trash2 size={10}/></button>
+                                                          )}
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          )}
+                                      </div>
+                                      
+                                      {selectedFile && (
+                                          <div className="p-2 border-t border-green-100 bg-white">
+                                              <div className="flex gap-1">
+                                                  <input 
+                                                      className="flex-1 border border-slate-300 rounded px-2 py-1 text-[10px] outline-none focus:border-green-500"
+                                                      placeholder="Email..."
+                                                      value={shareEmailFile}
+                                                      onChange={e => setShareEmailFile(e.target.value)}
+                                                  />
+                                                  <button 
+                                                      onClick={() => {
+                                                          addPermission(selectedFile.id, shareEmailFile, () => {
+                                                              setShareEmailFile('');
+                                                              fetchPermissions(selectedFile.id, setSelectedFilePermissions);
+                                                          });
+                                                      }}
+                                                      disabled={isSharing || !shareEmailFile}
+                                                      className="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-700 disabled:opacity-50"
+                                                  >
+                                                      Share
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+
                           <div className="col-span-2 border-t border-green-200 pt-3 mt-1">
                               <label className="block text-xs font-semibold text-green-700 mb-1">Thư mục Nguồn Dữ liệu (Chỉ đọc)</label>
                               <div className="flex gap-2">
