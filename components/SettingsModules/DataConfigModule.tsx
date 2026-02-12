@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DataConfigGroup, DataFieldDefinition, DataFieldType, DataFieldOption } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface DataConfigModuleProps {
   groups: DataConfigGroup[];
@@ -140,6 +140,31 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
           });
           onUpdateGroups(updatedGroups);
       }
+  };
+
+  const handleMoveField = (fieldId: string, direction: 'up' | 'down') => {
+      if (!selectedGroup) return;
+      
+      const fieldIndex = selectedGroup.fields.findIndex(f => f.id === fieldId);
+      if (fieldIndex === -1) return;
+
+      // Boundary checks
+      if (direction === 'up' && fieldIndex === 0) return;
+      if (direction === 'down' && fieldIndex === selectedGroup.fields.length - 1) return;
+
+      const newFields = [...selectedGroup.fields];
+      const swapIndex = direction === 'up' ? fieldIndex - 1 : fieldIndex + 1;
+
+      // Swap elements
+      [newFields[fieldIndex], newFields[swapIndex]] = [newFields[swapIndex], newFields[fieldIndex]];
+
+      const updatedGroups = groups.map(g => {
+          if (g.id === selectedGroup.id) {
+              return { ...g, fields: newFields };
+          }
+          return g;
+      });
+      onUpdateGroups(updatedGroups);
   };
 
   const handleSaveField = () => {
@@ -424,7 +449,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {selectedGroup.fields.map(field => (
+                                    {selectedGroup.fields.map((field, index) => (
                                         <tr key={field.id} className="hover:bg-slate-50 group">
                                             <td className="px-4 py-3 font-medium text-slate-800">{field.label}</td>
                                             <td className="px-4 py-3 font-mono text-xs text-slate-500">{field.key}</td>
@@ -452,6 +477,22 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-right">
+                                                <button 
+                                                    onClick={() => handleMoveField(field.id, 'up')} 
+                                                    disabled={index === 0}
+                                                    className={`p-1 mr-1 rounded ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
+                                                    title="Di chuyển lên"
+                                                >
+                                                    <ArrowUp size={14}/>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleMoveField(field.id, 'down')} 
+                                                    disabled={index === selectedGroup.fields.length - 1}
+                                                    className={`p-1 mr-2 rounded ${index === selectedGroup.fields.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
+                                                    title="Di chuyển xuống"
+                                                >
+                                                    <ArrowDown size={14}/>
+                                                </button>
                                                 <button onClick={() => handleEditField(field)} className="text-blue-600 hover:text-blue-800 p-1 mr-1"><Edit2 size={14}/></button>
                                                 <button onClick={() => handleDeleteField(field.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button>
                                             </td>
