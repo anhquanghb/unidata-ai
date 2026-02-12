@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, GoogleDriveConfig } from '../types';
+import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, GoogleDriveConfig, HumanResourceRecord } from '../types';
 import DynamicDataManager from './DynamicDataManager';
 import { Database, FolderOpen } from 'lucide-react';
 
@@ -16,6 +16,7 @@ interface DataStorageModuleProps {
   // Context Lookups
   units: Unit[];
   faculties: Faculty[];
+  humanResources: HumanResourceRecord[]; // Added prop
   academicYears: AcademicYear[];
   
   // Drive Config for File Upload
@@ -31,6 +32,7 @@ const DataStorageModule: React.FC<DataStorageModuleProps> = ({
     onUpdateDataConfigGroups,
     units,
     faculties,
+    humanResources,
     academicYears,
     driveConfig
 }) => {
@@ -93,6 +95,7 @@ const DataStorageModule: React.FC<DataStorageModuleProps> = ({
                   // Lookups
                   units={units}
                   faculties={faculties}
+                  humanResources={humanResources}
                   academicYears={academicYears}
                   // Drive Config
                   driveConfig={driveConfig}

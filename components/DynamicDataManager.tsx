@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, ChartConfig, ChartType, GoogleDriveConfig } from '../types';
+import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, ChartConfig, ChartType, GoogleDriveConfig, HumanResourceRecord } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building } from 'lucide-react';
+import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building, User } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DynamicDataManagerProps {
@@ -13,6 +13,7 @@ interface DynamicDataManagerProps {
   onUpdateGroupConfig: (group: DataConfigGroup) => void;
   units: Unit[];
   faculties: Faculty[];
+  humanResources: HumanResourceRecord[];
   academicYears: AcademicYear[];
   driveConfig?: GoogleDriveConfig;
 }
@@ -28,6 +29,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   onUpdateGroupConfig,
   units,
   faculties,
+  humanResources,
   academicYears,
   driveConfig
 }) => {
@@ -35,6 +37,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   
   // -- Filter State --
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('');
+  const [selectedFacultyFilter, setSelectedFacultyFilter] = useState<string>('');
 
   // -- Dashboard State --
   const [isAddingChart, setIsAddingChart] = useState(false);
@@ -49,11 +52,16 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [fileToUpload, setFileToUpload] = useState<Record<string, File | null>>({});
 
-  // --- HIERARCHY LOGIC ---
+  // --- HIERARCHY & FILTER LOGIC ---
   
-  // 1. Identify which field in this Group represents the "Unit" (Organization)
+  // 1. Identify key fields
   const unitFieldKey = useMemo(() => {
       const field = group.fields.find(f => f.type === 'reference' && f.referenceTarget === 'units');
+      return field ? field.key : null;
+  }, [group]);
+
+  const facultyFieldKey = useMemo(() => {
+      const field = group.fields.find(f => f.type === 'reference' && f.referenceTarget === 'faculties');
       return field ? field.key : null;
   }, [group]);
 
@@ -67,7 +75,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       return ids;
   };
 
-  // 3. Filter data
+  // 3. Filter Data
   const filteredData = useMemo(() => {
       // Base filter: Academic Year
       let result = data.filter(d => d.academicYear === currentAcademicYear);
@@ -81,8 +89,37 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
           });
       }
 
+      // Faculty Filter
+      if (selectedFacultyFilter && facultyFieldKey) {
+          result = result.filter(record => record[facultyFieldKey] === selectedFacultyFilter);
+      }
+
       return result;
-  }, [data, currentAcademicYear, selectedUnitFilter, unitFieldKey, units]);
+  }, [data, currentAcademicYear, selectedUnitFilter, selectedFacultyFilter, unitFieldKey, facultyFieldKey, units]);
+
+  // 4. Dynamic Options for Faculty Dropdown
+  const availableFaculties = useMemo(() => {
+      if (!selectedUnitFilter) {
+          // If no unit selected, show all faculties sorted by name
+          return [...faculties].sort((a, b) => a.name.vi.localeCompare(b.name.vi));
+      }
+
+      // If unit selected, find all faculties belonging to this unit (or its children)
+      const validUnitIds = getUnitAndDescendants(selectedUnitFilter, units);
+      
+      // Find IDs from humanResources
+      const facultyIdsInUnits = new Set(
+          humanResources
+            .filter(hr => validUnitIds.includes(hr.unitId))
+            .map(hr => hr.facultyId)
+      );
+
+      return faculties
+          .filter(f => facultyIdsInUnits.has(f.id))
+          .sort((a, b) => a.name.vi.localeCompare(b.name.vi));
+
+  }, [faculties, humanResources, selectedUnitFilter, units]);
+
 
   // --- DATA PROCESSING HELPERS ---
   const getLookupValue = (value: string, target?: string) => {
@@ -464,7 +501,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                       ))}
                       {filteredData.length === 0 && (
                           <tr><td colSpan={group.fields.length + 2} className="px-4 py-12 text-center text-slate-400 italic">
-                              {selectedUnitFilter ? "Chưa có dữ liệu cho đơn vị này." : "Chưa có dữ liệu cho năm học này."}
+                              {selectedUnitFilter || selectedFacultyFilter ? "Chưa có dữ liệu cho bộ lọc này." : "Chưa có dữ liệu cho năm học này."}
                           </td></tr>
                       )}
                   </tbody>
@@ -495,7 +532,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                                       <select className="w-full p-2 border border-slate-300 rounded text-sm" value={tempRecord[f.key] || ''} onChange={e => setTempRecord({...tempRecord, [f.key]: e.target.value})}>
                                           <option value="">-- Chọn tham chiếu --</option>
                                           {f.referenceTarget === 'units' && units.map(u => <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>)}
-                                          {f.referenceTarget === 'faculties' && faculties.map(fac => <option key={fac.id} value={fac.id}>{fac.name.vi}</option>)}
+                                          {f.referenceTarget === 'faculties' && faculties.sort((a,b) => a.name.vi.localeCompare(b.name.vi)).map(fac => <option key={fac.id} value={fac.id}>{fac.name.vi}</option>)}
                                           {f.referenceTarget === 'academicYears' && academicYears.map(y => <option key={y.id} value={y.code}>{y.code}</option>)}
                                       </select>
                                   ) : f.type === 'file' ? (
@@ -577,14 +614,19 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                 </div>
             </div>
 
-            {/* Hierarchical Unit Filter Dropdown */}
-            {unitFieldKey && (
-                <div className="flex items-center gap-2 mb-4 md:mb-0 pb-1">
-                    <Filter size={16} className="text-slate-400" />
+            {/* FILTERS TOOLBAR */}
+            <div className="flex items-center gap-2 mb-4 md:mb-0 pb-1">
+                <Filter size={16} className="text-slate-400" />
+                
+                {/* 1. Unit Filter */}
+                {unitFieldKey && (
                     <select 
-                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none"
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[200px]"
                         value={selectedUnitFilter}
-                        onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                        onChange={(e) => {
+                            setSelectedUnitFilter(e.target.value);
+                            setSelectedFacultyFilter(''); // Reset faculty filter when unit changes
+                        }}
                     >
                         <option value="">-- Tất cả Đơn vị --</option>
                         {unitOptions.map(opt => (
@@ -593,8 +635,22 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                             </option>
                         ))}
                     </select>
-                </div>
-            )}
+                )}
+
+                {/* 2. Faculty Filter (Context-Aware) */}
+                {facultyFieldKey && (
+                    <select 
+                        className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[200px]"
+                        value={selectedFacultyFilter}
+                        onChange={(e) => setSelectedFacultyFilter(e.target.value)}
+                    >
+                        <option value="">-- Tất cả Nhân sự --</option>
+                        {availableFaculties.map(fac => (
+                            <option key={fac.id} value={fac.id}>{fac.name.vi}</option>
+                        ))}
+                    </select>
+                )}
+            </div>
         </div>
 
         {/* Content */}

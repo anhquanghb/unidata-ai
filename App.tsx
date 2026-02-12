@@ -600,6 +600,7 @@ const App: React.FC = () => {
             // Context for Lookups
             units={units}
             faculties={faculties}
+            humanResources={humanResources} // Added prop
             academicYears={academicYears}
             // Drive Session (New)
             driveConfig={driveSession}
