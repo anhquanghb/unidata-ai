@@ -51,13 +51,11 @@ interface SettingsModuleProps {
 // Updated SCOPES to include readonly access for restoring backups
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION'; // Key for localStorage
-const TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes safety threshold
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
   users, 
-  reports,
+  reports, 
   units,
   academicYears,
   schoolInfo,
@@ -149,7 +147,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             if (resp.error) {
                 if (promptType === '' && (resp.error === 'immediate_failed' || resp.error === 'access_denied')) {
                     console.log("Silent refresh failed or access denied. Clearing session.");
-                    localStorage.removeItem(STORAGE_KEY);
                     // Update state to disconnected
                     onUpdateSettings({
                         ...settings,
@@ -266,12 +263,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                        driveConfig: newConfig
                     });
 
-                    // Save to LocalStorage
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                        config: newConfig,
-                        timestamp: Date.now()
-                    }));
-
+                    // NO LONGER SAVING TO LOCALSTORAGE TO AVOID USER CONFUSION
+                    
                     if (promptType === 'consent') {
                         alert(`Kết nối thành công!\nTài khoản: ${userEmail}\nThư mục Upload: ${targetFolderName}/Data`);
                     }
@@ -289,55 +282,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     // prompt: 'consent' -> Force account selection
     tokenClient.requestAccessToken({ prompt: promptType });
   };
-
-
-  // --- RESTORE SESSION & AUTO REFRESH ---
-  useEffect(() => {
-    if (!isGisLoaded || !isGapiLoaded) return;
-    
-    // Check local storage
-    const savedSession = localStorage.getItem(STORAGE_KEY);
-    
-    if (savedSession) {
-        try {
-            const parsed = JSON.parse(savedSession);
-            const savedConfig = parsed.config;
-            const clientId = envClientId || savedConfig.clientId;
-
-            if (!clientId) return;
-
-            // Sync manual ID state if needed
-            if (!envClientId && savedConfig.clientId !== manualClientId) {
-                setManualClientId(savedConfig.clientId);
-            }
-
-            const now = Date.now();
-            const isExpired = (now - parsed.timestamp) >= TOKEN_EXPIRY_MS;
-
-            if (!isExpired) {
-                // Token is still valid (fresh enough) -> Restore immediately
-                // This gives the "Instant Connected" experience
-                onUpdateSettings({ ...settings, driveConfig: savedConfig });
-                setDriveFolderId(savedConfig.folderId);
-                setDriveFolderName(savedConfig.folderName);
-                if (savedConfig.externalSourceFolderId) setExternalSourceFolderId(savedConfig.externalSourceFolderId);
-                
-                // Ensure GAPI has the token
-                if (window.gapi.client) {
-                    window.gapi.client.setToken({ access_token: savedConfig.accessToken });
-                }
-            } else {
-                // Token Expired -> Silent Refresh
-                // "Khi Token hết hạn: Hệ thống gọi requestAccessToken({ prompt: '' })"
-                console.log("Session expired. Attempting silent refresh...");
-                authenticateDrive(clientId, '', savedConfig);
-            }
-        } catch (e) {
-            console.error("Error restoring session:", e);
-            localStorage.removeItem(STORAGE_KEY);
-        }
-    }
-  }, [isGisLoaded, isGapiLoaded]); // Run once when libs are ready
 
   // --- USER HANDLER ---
   const handleConnectDrive = () => {
@@ -359,17 +303,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             });
         }
         
-        // 1. Clear session storage
-        localStorage.removeItem(STORAGE_KEY);
-
-        // 2. Clear all application data and disconnect via App prop
+        // 1. Clear all application data and disconnect via App prop
         onResetSystemData();
 
-        // 3. Reset local state
+        // 2. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
-        
-        // alert("Đã ngắt kết nối và xóa dữ liệu cục bộ."); // Handled in App.tsx
     }
   };
 
