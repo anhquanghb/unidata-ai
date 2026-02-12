@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { BackupVersion, GoogleDriveConfig, ExternalSource } from '../types';
-import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database, X } from 'lucide-react';
+import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database, X, Share2, User, Send, CheckCircle } from 'lucide-react';
 
 interface VersionSelectorModalProps {
   isOpen: boolean;
   driveConfig: GoogleDriveConfig;
   onConfirm: (versionId: string, customFileId?: string) => void;
   onClose: () => void;
+}
+
+interface DrivePermission {
+  id: string;
+  emailAddress?: string;
+  role: string;
+  displayName?: string;
+  photoLink?: string;
 }
 
 const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onConfirm, onClose }) => {
@@ -16,6 +24,12 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
   // My Drive State
   const [myBackups, setMyBackups] = useState<BackupVersion[]>([]);
   const [selectedMyId, setSelectedMyId] = useState<string>('');
+  
+  // Sharing State
+  const [filePermissions, setFilePermissions] = useState<DrivePermission[]>([]);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
 
   // External Source State
   const [externalSources, setExternalSources] = useState<ExternalSource[]>([]);
@@ -50,6 +64,56 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
       } catch (e) {
           console.error("List files error", e);
           return [];
+      }
+  };
+
+  const loadPermissions = async (fileId: string) => {
+      setIsLoadingPermissions(true);
+      try {
+          const response = await window.gapi.client.drive.permissions.list({
+              fileId: fileId,
+              fields: 'permissions(id, emailAddress, role, displayName, photoLink)',
+          });
+          setFilePermissions(response.result.permissions || []);
+      } catch (e) {
+          console.error("Error loading permissions", e);
+          setFilePermissions([]);
+      } finally {
+          setIsLoadingPermissions(false);
+      }
+  };
+
+  const handleShareFile = async () => {
+      if (!selectedMyId || !shareEmail.trim()) return;
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(shareEmail)) {
+          alert("Email không hợp lệ");
+          return;
+      }
+
+      setIsSharing(true);
+      try {
+          await window.gapi.client.drive.permissions.create({
+              fileId: selectedMyId,
+              resource: {
+                  role: 'reader',
+                  type: 'user',
+                  emailAddress: shareEmail
+              },
+              emailMessage: "UniData System: Bạn đã được chia sẻ quyền xem dữ liệu báo cáo."
+          });
+          
+          alert(`Đã chia sẻ thành công cho ${shareEmail}`);
+          setShareEmail('');
+          // Reload permissions
+          loadPermissions(selectedMyId);
+      } catch (e: any) {
+          console.error("Share error", e);
+          alert("Lỗi khi chia sẻ: " + (e.result?.error?.message || e.message));
+      } finally {
+          setIsSharing(false);
       }
   };
 
@@ -133,7 +197,12 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
               // 1. Load My Backups
               const myFiles = await listFiles(driveConfig.folderId);
               setMyBackups(myFiles);
-              if (myFiles.length > 0) setSelectedMyId(myFiles[0].id);
+              
+              // Only auto-select if nothing selected yet
+              if (myFiles.length > 0 && !selectedMyId) {
+                  // Don't auto select to avoid trigger permission loading immediately
+                  // setSelectedMyId(myFiles[0].id); 
+              }
 
               // 2. Load External Config
               await loadExternalConfig();
@@ -143,6 +212,15 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
           init();
       }
   }, [isOpen, driveConfig]);
+
+  // Effect to load permissions when a file is selected in My Drive tab
+  useEffect(() => {
+      if (activeTab === 'my_drive' && selectedMyId) {
+          loadPermissions(selectedMyId);
+      } else {
+          setFilePermissions([]);
+      }
+  }, [selectedMyId, activeTab]);
 
   // --- HANDLERS ---
   const handleScanExternal = async (folderId: string) => {
@@ -251,8 +329,8 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
 
                 {/* TAB: MY DRIVE */}
                 {activeTab === 'my_drive' && (
-                    <div className="space-y-4">
-                        <h4 className="font-bold text-slate-800 text-lg mb-2">Sao lưu từ UniData_Backups</h4>
+                    <div className="h-full flex flex-col">
+                        <h4 className="font-bold text-slate-800 text-lg mb-2 flex-shrink-0">Sao lưu từ UniData_Backups</h4>
                         {!driveConfig.isConnected ? (
                             <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                                 <p className="text-slate-500">Chưa kết nối Google Drive.</p>
@@ -262,16 +340,79 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                                 <p className="text-slate-500">Không tìm thấy file backup nào trong thư mục của bạn.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-2">
-                                {myBackups.map((ver) => (
-                                    <label key={ver.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${selectedMyId === ver.id ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300' : 'hover:bg-slate-50 border-slate-200'}`}>
-                                        <input type="radio" name="my_ver" className="w-4 h-4 text-blue-600" checked={selectedMyId === ver.id} onChange={() => setSelectedMyId(ver.id)} />
-                                        <div className="ml-3">
-                                            <div className="text-sm font-bold text-slate-700">{ver.fileName}</div>
-                                            <div className="text-xs text-slate-400 mt-0.5">{new Date(ver.createdTime).toLocaleString('vi-VN')} - {ver.size}</div>
+                            <div className="flex flex-col h-full overflow-hidden">
+                                {/* List of Files */}
+                                <div className="flex-1 overflow-y-auto mb-4 border border-slate-200 rounded-lg">
+                                    {myBackups.map((ver) => (
+                                        <label key={ver.id} className={`flex items-center p-3 border-b last:border-b-0 cursor-pointer transition-all ${selectedMyId === ver.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50 border-slate-100'}`}>
+                                            <input type="radio" name="my_ver" className="w-4 h-4 text-blue-600" checked={selectedMyId === ver.id} onChange={() => setSelectedMyId(ver.id)} />
+                                            <div className="ml-3">
+                                                <div className="text-sm font-bold text-slate-700">{ver.fileName}</div>
+                                                <div className="text-xs text-slate-400 mt-0.5">{new Date(ver.createdTime).toLocaleString('vi-VN')} - {ver.size}</div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {/* Sharing Section - Only show when file is selected */}
+                                {selectedMyId && (
+                                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex-shrink-0 animate-in slide-in-from-bottom-2 fade-in">
+                                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                                            <Share2 size={16} className="text-blue-600" />
+                                            <h5 className="text-sm font-bold text-slate-800">Quản lý chia sẻ</h5>
                                         </div>
-                                    </label>
-                                ))}
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* List Permissions */}
+                                            <div>
+                                                <p className="text-xs font-semibold text-slate-500 mb-2 uppercase">Đang truy cập ({filePermissions.length})</p>
+                                                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                                                    {isLoadingPermissions ? (
+                                                        <div className="text-xs text-slate-400 flex items-center"><Loader2 size={12} className="animate-spin mr-1"/> Đang tải...</div>
+                                                    ) : (
+                                                        filePermissions.map(perm => (
+                                                            <div key={perm.id} className="flex items-center gap-2 text-sm bg-white p-2 rounded border border-slate-100">
+                                                                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                                                    {perm.photoLink ? <img src={perm.photoLink} alt="avt" /> : <User size={12} className="text-slate-500"/>}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="truncate font-medium text-slate-700">{perm.displayName || perm.emailAddress}</div>
+                                                                    <div className="text-[10px] text-slate-400 truncate">{perm.emailAddress}</div>
+                                                                </div>
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${perm.role === 'owner' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                                    {perm.role}
+                                                                </span>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Add Permission */}
+                                            <div>
+                                                <p className="text-xs font-semibold text-slate-500 mb-2 uppercase">Chia sẻ (Quyền đọc)</p>
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        className="flex-1 min-w-0 p-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                        placeholder="Nhập email..."
+                                                        value={shareEmail}
+                                                        onChange={(e) => setShareEmail(e.target.value)}
+                                                    />
+                                                    <button 
+                                                        onClick={handleShareFile}
+                                                        disabled={isSharing || !shareEmail}
+                                                        className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                                    >
+                                                        {isSharing ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
+                                                    </button>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 mt-2">
+                                                    * Người được chia sẻ sẽ có quyền <strong>Reader</strong> (Chỉ xem) đối với file backup này.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -367,7 +508,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                     (activeTab === 'external' && !selectedExternalFileId)
                 }
             >
-                {activeTab === 'empty' ? 'Khởi tạo mới' : 'Tải Dữ liệu'}
+                {activeTab === 'empty' ? 'Khởi tạo mới' : <><CheckCircle size={16} className="mr-2"/> Tải Dữ liệu</>}
             </button>
         </div>
       </div>
