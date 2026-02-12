@@ -671,6 +671,7 @@ const App: React.FC = () => {
       <VersionSelectorModal 
         isOpen={isVersionModalOpen}
         onConfirm={handleVersionConfirm}
+        onClose={() => setIsVersionModalOpen(false)}
         driveConfig={settings.driveConfig}
       />
     </div>

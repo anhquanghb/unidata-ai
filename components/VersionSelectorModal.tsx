@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { BackupVersion, GoogleDriveConfig, ExternalSource } from '../types';
-import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database } from 'lucide-react';
+import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Database, X } from 'lucide-react';
 
 interface VersionSelectorModalProps {
   isOpen: boolean;
   driveConfig: GoogleDriveConfig;
   onConfirm: (versionId: string, customFileId?: string) => void;
+  onClose: () => void;
 }
 
-const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onConfirm }) => {
+const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onConfirm, onClose }) => {
   const [activeTab, setActiveTab] = useState<'my_drive' | 'external' | 'empty'>('my_drive');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -38,7 +39,9 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
               pageSize: 20
           });
           const files = response.result.files || [];
-          return files.map((f: any) => ({
+          return files
+            .filter((f: any) => f.name !== 'external.json') // Filter out config file
+            .map((f: any) => ({
               id: f.id,
               fileName: f.name,
               createdTime: f.createdTime,
@@ -205,6 +208,9 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
                 <p className="text-slate-400 text-xs">Chọn nguồn dữ liệu để khởi động UniData</p>
              </div>
           </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white hover:bg-slate-700 p-1 rounded-full transition-colors">
+              <X size={24} />
+          </button>
         </div>
 
         {/* Main Layout */}
