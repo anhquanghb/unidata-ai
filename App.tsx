@@ -589,6 +589,9 @@ const App: React.FC = () => {
       
       // Reset Drive Session (Disconnect)
       setDriveSession(INITIAL_DRIVE_SESSION);
+
+      // Force Clear Cache
+      localStorage.clear();
   };
 
   const handleUpdateSchoolInfo = (info: SchoolInfo) => {

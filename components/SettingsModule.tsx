@@ -234,7 +234,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
                     // Update Global Session State
                     onUpdateDriveSession(newSession);
 
-                    if (promptType === 'consent') {
+                    if (promptType.includes('select_account')) {
                         if (targetFolderId) {
                             alert(`Kết nối thành công!\nĐã tìm thấy thư mục: ${DEFAULT_FOLDER_NAME}`);
                         } else {
@@ -306,24 +306,42 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         alert("Vui lòng nhập Google Client ID.");
         return;
     }
-    authenticateDrive(effectiveClientId, 'consent');
+    // FORCE 'select_account' to prevent auto-login to the previous account
+    authenticateDrive(effectiveClientId, 'select_account consent');
   };
 
   const handleDisconnectDrive = () => {
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
+        // 1. Revoke Consent
         if (driveSession.accessToken && window.google) {
-            window.google.accounts.oauth2.revoke(driveSession.accessToken, () => {
-                console.log('Token revoked');
-            });
+            try {
+                window.google.accounts.oauth2.revoke(driveSession.accessToken, () => {
+                    console.log('Token revoked');
+                });
+            } catch (e) {
+                console.warn("Revoke failed (token might be invalid already)");
+            }
         }
         
-        // 1. Clear all application data and disconnect via App prop
+        // 2. Clear GAPI client cache completely
+        if (window.gapi && window.gapi.client) {
+            window.gapi.client.setToken(null);
+        }
+
+        // 3. Clear Local Storage to prevent sticky sessions
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 4. Clear all application data and disconnect via App prop
         onResetSystemData();
 
-        // 2. Reset local state
+        // 5. Reset local state
         setDriveFolderId('');
         setExternalSourceFolderId('');
+        
+        // Optional: Reload page to force fresh environment, but state reset should be enough
+        // window.location.reload(); 
     }
   };
 
