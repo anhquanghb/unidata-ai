@@ -227,32 +227,33 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   // --- AI IMPORT HANDLERS ---
   const generateAiPrompt = () => {
       const fieldsDesc = group.fields.map(f => {
-          let desc = `- Field "${f.label}" (Key: "${f.key}", Type: ${f.type})`;
+          let desc = `- Trường "${f.label}" (Key: "${f.key}", Loại: ${f.type})`;
           if (f.options && f.options.length > 0) {
-              desc += `. Allowed Values (Options): ${f.options.map(o => `"${o.value}"`).join(', ')}`;
+              desc += `. Giá trị cho phép (Options): ${f.options.map(o => `"${o.value}"`).join(', ')}`;
           }
-          if (f.type === 'date') desc += ` (Format: YYYY-MM-DD)`;
+          if (f.type === 'date') desc += ` (Định dạng: YYYY-MM-DD)`;
           return desc;
       }).join('\n');
 
-      return `Role: You are a Data Generation Assistant.
-Task: Generate a JSON Array of simulated data for the entity "${group.name}".
+      return `Bạn là trợ lý tạo dữ liệu giả lập cho hệ thống UniData.
+Nhiệm vụ: Tạo một mảng JSON chứa dữ liệu mẫu cho nhóm dữ liệu "${group.name}".
 
-Data Structure Schema:
+Cấu trúc dữ liệu yêu cầu:
 ${fieldsDesc}
 
-Requirements:
-1. Output MUST be a valid JSON Array of Objects.
-2. Do not include markdown formatting (like \`\`\`json). Just the raw JSON.
-3. Generate 5-10 realistic sample records in Vietnamese context.
-4. Ensure all "Type" constraints are met (e.g., numbers are numbers, dates are ISO strings).
-`;
+Yêu cầu về dữ liệu:
+1. Tạo 5-10 bản ghi mẫu thực tế phù hợp với bối cảnh đại học tại Việt Nam.
+2. Đảm bảo đúng kiểu dữ liệu (ví dụ: số là number, ngày là chuỗi ISO).
+
+Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ (Object), không thêm text giải thích.
+
+Sau khi bạn hiểu yêu cầu trên, tôi sẽ nói về chủ đề dữ liệu mà tôi cần tạo.`;
   };
 
   const handleCopyPrompt = () => {
       const prompt = generateAiPrompt();
       navigator.clipboard.writeText(prompt);
-      alert("Đã sao chép Prompt vào clipboard! \nHãy dán vào ChatGPT hoặc Gemini để tạo dữ liệu JSON.");
+      alert("Đã sao chép Prompt vào clipboard! \nHãy dán vào ChatGPT hoặc Gemini để bắt đầu quy trình tạo dữ liệu.");
   };
 
   const handleParseImport = () => {
