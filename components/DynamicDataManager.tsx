@@ -235,15 +235,15 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
           return desc;
       }).join('\n');
 
-      return `Bạn là trợ lý tạo dữ liệu giả lập cho hệ thống UniData.
-Nhiệm vụ: Tạo một mảng JSON chứa dữ liệu mẫu cho nhóm dữ liệu "${group.name}".
+      return `Bạn là trợ lý hỗ trợ nhập liệu chuẩn xác cho hệ thống UniData.
+Nhiệm vụ: Tạo một mảng JSON chứa dữ liệu cho nhóm "${group.name}".
 
-Cấu trúc dữ liệu yêu cầu:
+Cấu trúc dữ liệu yêu cầu (Schema):
 ${fieldsDesc}
 
 Yêu cầu về dữ liệu:
-1. Tạo 5-10 bản ghi mẫu thực tế phù hợp với bối cảnh đại học tại Việt Nam.
-2. Đảm bảo đúng kiểu dữ liệu (ví dụ: số là number, ngày là chuỗi ISO).
+1. Dữ liệu tạo ra phải tuân thủ nghiêm ngặt cấu trúc và kiểu dữ liệu đã định nghĩa ở trên.
+2. Không tự ý thêm trường dữ liệu không được khai báo.
 
 Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ (Object), không thêm text giải thích.
 
