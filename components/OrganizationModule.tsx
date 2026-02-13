@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Unit, Faculty, HumanResourceRecord } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check } from 'lucide-react';
 
 interface OrganizationModuleProps {
   units: Unit[];
@@ -28,9 +28,26 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   // Personnel Adding State
   const [isAddingPerson, setIsAddingPerson] = useState(false);
-  const [personToAdd, setPersonToAdd] = useState<string>(''); // Faculty ID
+  const [personSearchTerm, setPersonSearchTerm] = useState('');
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [joinDate, setJoinDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isTransfer, setIsTransfer] = useState(false); // True: Move, False: Concurrent
 
-  // --- Unit Tree Helpers ---
+  // Personnel Inline Editing State (Start Date)
+  const [editingHrId, setEditingHrId] = useState<string | null>(null);
+  const [editJoinDate, setEditJoinDate] = useState('');
+
+  // --- Helpers ---
+  const getFacultyCurrentUnit = (facultyId: string) => {
+      // Find active record (no endDate or endDate in future)
+      const activeRecord = humanResources.find(hr => 
+          hr.facultyId === facultyId && 
+          (!hr.endDate || new Date(hr.endDate) > new Date())
+      );
+      if (!activeRecord) return null;
+      return units.find(u => u.unit_id === activeRecord.unitId);
+  };
+
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedUnits);
     if (newExpanded.has(id)) newExpanded.delete(id);
@@ -42,6 +59,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     return units.filter(u => u.unit_parentId === parentId || (!parentId && !u.unit_parentId));
   };
 
+  // --- Unit Actions ---
   const handleDeleteUnit = (id: string) => {
     if (confirm("Bạn có chắc chắn muốn xóa đơn vị này? Các đơn vị con cũng sẽ bị xóa.")) {
       const idsToDelete = new Set<string>();
@@ -75,33 +93,69 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     setTempUnit({});
   };
 
-  // --- Personnel Helpers ---
+  // --- Personnel Actions ---
   const handleAddPersonnel = () => {
-    if (!selectedUnitId || !personToAdd) return;
+    if (!selectedUnitId || !selectedPersonId) return;
     
-    // Fix: Using the logic from the user's snippet requirement
-    const facultyId = personToAdd;
-    const activeHrUnitId = selectedUnitId;
+    let updatedHR = [...humanResources];
+
+    // Handle Transfer Logic: Close old record if exists and isTransfer is true
+    if (isTransfer) {
+        const currentActive = humanResources.find(hr => 
+            hr.facultyId === selectedPersonId && 
+            (!hr.endDate || new Date(hr.endDate) > new Date())
+        );
+        
+        if (currentActive) {
+            // Set end date of old record to day before join date
+            const endDate = new Date(joinDate);
+            endDate.setDate(endDate.getDate() - 1);
+            
+            updatedHR = updatedHR.map(hr => 
+                hr.id === currentActive.id 
+                ? { ...hr, endDate: endDate.toISOString().split('T')[0] } 
+                : hr
+            );
+        }
+    }
 
     const newRecord: HumanResourceRecord = {
         id: uuidv4(),
-        unitId: activeHrUnitId,
-        facultyId: facultyId,
+        unitId: selectedUnitId,
+        facultyId: selectedPersonId,
         role: 'Giảng viên', // Default role
         assignedDate: new Date().toISOString(),
-        startDate: new Date().toISOString(), // Default start date is now
-        endDate: undefined // Default is open-ended
+        startDate: joinDate, 
+        endDate: undefined 
     };
 
-    onUpdateHumanResources([...humanResources, newRecord]);
+    onUpdateHumanResources([...updatedHR, newRecord]);
+    
+    // Reset UI
     setIsAddingPerson(false);
-    setPersonToAdd('');
+    setSelectedPersonId(null);
+    setPersonSearchTerm('');
+    setIsTransfer(false);
   };
 
   const handleRemovePersonnel = (recordId: string) => {
     if (confirm("Xóa nhân sự khỏi đơn vị này?")) {
       onUpdateHumanResources(humanResources.filter(hr => hr.id !== recordId));
     }
+  };
+
+  const handleStartEditDate = (hr: HumanResourceRecord) => {
+      setEditingHrId(hr.id);
+      setEditJoinDate(hr.startDate ? hr.startDate.split('T')[0] : '');
+  };
+
+  const handleSaveEditDate = () => {
+      if (editingHrId) {
+          onUpdateHumanResources(humanResources.map(hr => 
+              hr.id === editingHrId ? { ...hr, startDate: editJoinDate } : hr
+          ));
+          setEditingHrId(null);
+      }
   };
 
   // --- Renderers ---
@@ -126,10 +180,6 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
           
           <Building size={16} className={`mr-2 ${unit.unit_type === 'school' ? 'text-indigo-600' : unit.unit_type === 'faculty' ? 'text-blue-600' : 'text-slate-500'}`} />
           <span className="text-sm font-medium truncate flex-1">{unit.unit_name}</span>
-          
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-             {/* Actions could go here */}
-          </div>
         </div>
         
         {isExpanded && children.map(child => renderUnitNode(child, level + 1))}
@@ -138,7 +188,21 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   };
 
   const selectedUnit = units.find(u => u.unit_id === selectedUnitId);
-  const selectedUnitPersonnel = humanResources.filter(hr => hr.unitId === selectedUnitId);
+  
+  // Filter personnel for the selected unit
+  const selectedUnitPersonnel = humanResources.filter(hr => 
+      hr.unitId === selectedUnitId && 
+      (!hr.endDate || new Date(hr.endDate) > new Date()) // Only show active
+  );
+
+  // Filter for adding personnel modal
+  const filteredCandidates = useMemo(() => {
+      if (!personSearchTerm.trim()) return [];
+      return faculties.filter(f => 
+          f.name.vi.toLowerCase().includes(personSearchTerm.toLowerCase()) || 
+          f.email?.toLowerCase().includes(personSearchTerm.toLowerCase())
+      ).slice(0, 5); // Limit results
+  }, [personSearchTerm, faculties]);
 
   return (
     <div className="flex h-full bg-white">
@@ -193,7 +257,12 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                <div className="flex justify-between items-center mb-4">
                  <h4 className="font-bold text-slate-700">Danh sách Nhân sự ({selectedUnitPersonnel.length})</h4>
                  <button 
-                    onClick={() => setIsAddingPerson(true)}
+                    onClick={() => {
+                        setIsAddingPerson(true);
+                        setJoinDate(new Date().toISOString().split('T')[0]);
+                        setPersonSearchTerm('');
+                        setSelectedPersonId(null);
+                    }}
                     className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700"
                  >
                     <Plus size={14}/> Thêm Nhân sự
@@ -219,7 +288,27 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                                {faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>}
                              </td>
                              <td className="px-4 py-3">{hr.role}</td>
-                             <td className="px-4 py-3 text-slate-500">{new Date(hr.startDate || '').toLocaleDateString('vi-VN')}</td>
+                             <td className="px-4 py-3 text-slate-500">
+                                {editingHrId === hr.id ? (
+                                    <div className="flex items-center gap-1">
+                                        <input 
+                                            type="date" 
+                                            className="p-1 border border-slate-300 rounded text-xs" 
+                                            value={editJoinDate} 
+                                            onChange={e => setEditJoinDate(e.target.value)}
+                                        />
+                                        <button onClick={handleSaveEditDate} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14}/></button>
+                                        <button onClick={() => setEditingHrId(null)} className="text-red-400 hover:bg-red-50 p-1 rounded"><X size={14}/></button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 group">
+                                        <span>{new Date(hr.startDate || '').toLocaleDateString('vi-VN')}</span>
+                                        <button onClick={() => handleStartEditDate(hr)} className="text-slate-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Edit2 size={12}/>
+                                        </button>
+                                    </div>
+                                )}
+                             </td>
                              <td className="px-4 py-3 text-right">
                                <button 
                                  onClick={() => handleRemovePersonnel(hr.id)}
@@ -287,27 +376,113 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         </div>
       )}
 
-      {/* Modal: Add Personnel */}
+      {/* Modal: Add Personnel (Searchable & Transfer Logic) */}
       {isAddingPerson && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-           <div className="bg-white rounded-xl shadow-xl p-6 w-96">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
               <h3 className="font-bold text-lg mb-4">Thêm Nhân sự vào {selectedUnit?.unit_name}</h3>
-              <div className="mb-4">
-                 <label className="block text-xs font-bold text-slate-500 mb-1">Chọn Nhân sự</label>
-                 <select 
-                   className="w-full p-2 border border-slate-300 rounded text-sm"
-                   value={personToAdd}
-                   onChange={(e) => setPersonToAdd(e.target.value)}
-                 >
-                    <option value="">-- Chọn nhân sự --</option>
-                    {faculties.map(f => (
-                      <option key={f.id} value={f.id}>{f.name.vi} ({f.email})</option>
-                    ))}
-                 </select>
+              
+              <div className="space-y-4">
+                 {/* 1. Search */}
+                 <div>
+                     <label className="block text-xs font-bold text-slate-500 mb-1">Tìm kiếm nhân sự</label>
+                     <div className="relative">
+                         <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                         <input 
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Nhập tên hoặc email..."
+                            value={personSearchTerm}
+                            onChange={(e) => { setPersonSearchTerm(e.target.value); setSelectedPersonId(null); }}
+                         />
+                     </div>
+                     
+                     {/* Search Results */}
+                     {personSearchTerm && !selectedPersonId && (
+                         <div className="mt-1 border border-slate-200 rounded-lg max-h-40 overflow-y-auto bg-white shadow-sm">
+                             {filteredCandidates.map(f => {
+                                 const currentUnit = getFacultyCurrentUnit(f.id);
+                                 return (
+                                     <div 
+                                        key={f.id} 
+                                        className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm"
+                                        onClick={() => setSelectedPersonId(f.id)}
+                                     >
+                                         <div>
+                                             <div className="font-medium text-slate-800">{f.name.vi}</div>
+                                             <div className="text-xs text-slate-500">{f.email}</div>
+                                         </div>
+                                         {currentUnit && (
+                                             <div className="text-xs px-2 py-1 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                                                 {currentUnit.unit_name}
+                                             </div>
+                                         )}
+                                     </div>
+                                 );
+                             })}
+                             {filteredCandidates.length === 0 && (
+                                 <div className="p-3 text-center text-xs text-slate-400">Không tìm thấy nhân sự.</div>
+                             )}
+                         </div>
+                     )}
+                 </div>
+
+                 {/* 2. Selected Person Details & Config */}
+                 {selectedPersonId && (
+                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                         <div className="flex items-center gap-3 mb-4">
+                             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
+                                 {faculties.find(f => f.id === selectedPersonId)?.name.vi.charAt(0)}
+                             </div>
+                             <div>
+                                 <div className="font-bold text-slate-800">{faculties.find(f => f.id === selectedPersonId)?.name.vi}</div>
+                                 <div className="text-xs text-slate-500">{faculties.find(f => f.id === selectedPersonId)?.email}</div>
+                             </div>
+                         </div>
+
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1">Ngày bắt đầu</label>
+                                 <div className="relative">
+                                     <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                     <input 
+                                        type="date" 
+                                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                        value={joinDate}
+                                        onChange={(e) => setJoinDate(e.target.value)}
+                                     />
+                                 </div>
+                             </div>
+                             
+                             {/* Transfer Option */}
+                             {getFacultyCurrentUnit(selectedPersonId) && getFacultyCurrentUnit(selectedPersonId)?.unit_id !== selectedUnitId && (
+                                 <div className="col-span-2 pt-2 border-t border-slate-200 mt-2">
+                                     <div className="flex items-start gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                         <div className="mt-0.5"><ArrowRight size={16} className="text-amber-600"/></div>
+                                         <div className="flex-1">
+                                             <p className="text-xs text-amber-800 mb-1">
+                                                 Nhân sự này đang thuộc: <strong>{getFacultyCurrentUnit(selectedPersonId)?.unit_name}</strong>
+                                             </p>
+                                             <label className="flex items-center cursor-pointer">
+                                                 <input 
+                                                    type="checkbox" 
+                                                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                                                    checked={isTransfer}
+                                                    onChange={(e) => setIsTransfer(e.target.checked)}
+                                                 />
+                                                 <span className="ml-2 text-sm font-medium text-slate-700">Chuyển công tác (Rời đơn vị cũ)</span>
+                                             </label>
+                                         </div>
+                                     </div>
+                                 </div>
+                             )}
+                         </div>
+                     </div>
+                 )}
               </div>
-              <div className="flex justify-end gap-2">
-                 <button onClick={() => setIsAddingPerson(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Hủy</button>
-                 <button onClick={handleAddPersonnel} disabled={!personToAdd} className="px-4 py-2 bg-indigo-600 text-white rounded font-bold text-sm disabled:bg-slate-300">Thêm</button>
+
+              <div className="flex justify-end gap-2 mt-6">
+                 <button onClick={() => setIsAddingPerson(false)} className="px-4 py-2 text-slate-600 font-bold text-sm bg-slate-100 hover:bg-slate-200 rounded-lg">Hủy</button>
+                 <button onClick={handleAddPersonnel} disabled={!selectedPersonId} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:bg-slate-300 disabled:cursor-not-allowed">Xác nhận Thêm</button>
               </div>
            </div>
         </div>
