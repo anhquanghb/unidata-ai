@@ -1,5 +1,6 @@
 import React from 'react';
 import { ViewState } from '../types';
+import { CloudUpload, Download } from 'lucide-react';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -8,9 +9,24 @@ interface SidebarProps {
   currentAcademicYear: string;
   isCollapsed: boolean;
   toggleSidebar: () => void;
+  hasUnsavedChanges: boolean;
+  onSaveToCloud: () => void;
+  onExportData: () => void;
+  isCloudConnected: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, schoolName, currentAcademicYear, isCollapsed, toggleSidebar }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, 
+  onViewChange, 
+  schoolName, 
+  currentAcademicYear, 
+  isCollapsed, 
+  toggleSidebar,
+  hasUnsavedChanges,
+  onSaveToCloud,
+  onExportData,
+  isCloudConnected
+}) => {
   const menuItems: { id: ViewState; label: string; icon: React.ReactNode }[] = [
     {
       id: 'dashboard',
@@ -65,24 +81,63 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, schoolName
       className={`bg-slate-800 text-white min-h-screen flex flex-col shadow-xl transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-700 flex flex-col items-start justify-between gap-3">
+        <div className="flex items-center justify-between w-full">
+            {!isCollapsed && (
+            <div className="overflow-hidden">
+                <h1 className="text-xl font-bold tracking-tight text-blue-400 whitespace-nowrap">UniData</h1>
+                <p className="text-xs text-slate-400 mt-1 truncate" title={schoolName}>{schoolName}</p>
+                <h2 className="text-sm font-bold text-white mt-1">{currentAcademicYear}</h2>
+            </div>
+            )}
+            <button 
+            onClick={toggleSidebar}
+            className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            >
+            {isCollapsed ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
+            )}
+            </button>
+        </div>
+
+        {/* Action Buttons */}
         {!isCollapsed && (
-          <div className="overflow-hidden">
-             <h1 className="text-xl font-bold tracking-tight text-blue-400 whitespace-nowrap">UniData</h1>
-             <p className="text-xs text-slate-400 mt-1 truncate" title={schoolName}>{schoolName}</p>
-             <h2 className="text-sm font-bold text-white mt-1">{currentAcademicYear}</h2>
-          </div>
+            <div className="w-full flex gap-2 mt-2">
+                <button 
+                    onClick={onSaveToCloud}
+                    disabled={!hasUnsavedChanges || !isCloudConnected}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-xs font-bold transition-all ${
+                        hasUnsavedChanges 
+                            ? 'bg-green-600 text-white shadow-md hover:bg-green-700 animate-pulse' 
+                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    }`}
+                    title={isCloudConnected ? "Lưu thay đổi lên Đám mây" : "Chưa kết nối Google Drive"}
+                >
+                    <CloudUpload size={14}/>
+                    Lưu Cloud
+                </button>
+                <button 
+                    onClick={onExportData}
+                    disabled={!hasUnsavedChanges}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-xs font-bold transition-all ${
+                        hasUnsavedChanges 
+                            ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    }`}
+                    title="Xuất dữ liệu ra file JSON"
+                >
+                    <Download size={14}/>
+                    Xuất File
+                </button>
+            </div>
         )}
-        <button 
-          onClick={toggleSidebar}
-          className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-        >
-           {isCollapsed ? (
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
-           ) : (
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
-           )}
-        </button>
+        {isCollapsed && hasUnsavedChanges && (
+             <div className="flex flex-col gap-2 mt-2 w-full items-center">
+                <button onClick={onSaveToCloud} className="p-2 bg-green-600 rounded-full text-white animate-pulse" title="Lưu Cloud"><CloudUpload size={14}/></button>
+             </div>
+        )}
       </div>
 
       {/* Nav */}
