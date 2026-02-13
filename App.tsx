@@ -10,6 +10,10 @@ import SettingsModule from './components/SettingsModule';
 import VersionSelectorModal from './components/VersionSelectorModal'; // NEW IMPORT
 import { ViewState, Unit, Faculty, HumanResourceRecord, SystemSettings, GoogleDriveConfig, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, DynamicRecord, FacultyTitles } from './types';
 
+// Constants for Drive
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
 // Initial Data
 const initialSettings: SystemSettings = {
   currentAcademicYear: '2023-2024',
@@ -23,7 +27,8 @@ const initialDriveSession: GoogleDriveConfig = { isConnected: false };
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showVersionModal, setShowVersionModal] = useState(false); // NEW STATE
+  const [showVersionModal, setShowVersionModal] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Data States
   const [settings, setSettings] = useState<SystemSettings>(initialSettings);
@@ -50,11 +55,30 @@ const App: React.FC = () => {
   const [dataConfigGroups, setDataConfigGroups] = useState<DataConfigGroup[]>([]);
   const [dynamicDataStore, setDynamicDataStore] = useState<Record<string, DynamicRecord[]>>({});
 
-  // Handlers
+  // --- Handlers & Wrappers ---
   const handleViewChange = (view: ViewState) => setCurrentView(view);
   const handleToggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
 
-  // Data Import Handler (Generic)
+  // Mark dirty helper
+  const markDirty = () => setHasUnsavedChanges(true);
+
+  // --- WRAPPED SETTERS ---
+  const handleSetFaculties: React.Dispatch<React.SetStateAction<Faculty[]>> = (value) => {
+      setFaculties(value);
+      markDirty();
+  };
+  const handleSetFacultyTitles: React.Dispatch<React.SetStateAction<FacultyTitles>> = (value) => {
+      setFacultyTitles(value);
+      markDirty();
+  };
+  const handleUpdateUnits = (newUnits: Unit[]) => {
+      setUnits(newUnits);
+      markDirty();
+  };
+  const handleUpdateHumanResources = (newHr: HumanResourceRecord[]) => {
+      setHumanResources(newHr);
+      markDirty();
+  };
   const handleDataImport = (type: string, data: any[]) => {
       console.log(`Importing ${type}`, data);
       if (type === 'SCIENTIFIC') setScientificRecords(prev => [...prev, ...data]);
@@ -64,22 +88,27 @@ const App: React.FC = () => {
       if (type === 'CLASS') setClassRecords(prev => [...prev, ...data]);
       if (type === 'DEPARTMENT') setDepartmentRecords(prev => [...prev, ...data]);
       if (type === 'BUSINESS') setBusinessRecords(prev => [...prev, ...data]);
+      markDirty();
   };
 
-  const handleUpdateSettings = (newSettings: SystemSettings) => setSettings(newSettings);
-  const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session);
+  const handleUpdateSettings = (newSettings: SystemSettings) => {
+      setSettings(newSettings);
+      markDirty();
+  };
+  const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session); // Drive session changes shouldn't trigger data dirty? Maybe no.
 
   const handleUpdateDynamicData = (groupId: string, data: DynamicRecord[]) => {
-      setDynamicDataStore(prev => ({
-          ...prev,
-          [groupId]: data
-      }));
+      setDynamicDataStore(prev => ({ ...prev, [groupId]: data }));
+      markDirty();
+  };
+  const handleUpdateDataConfigGroups = (groups: DataConfigGroup[]) => {
+      setDataConfigGroups(groups);
+      markDirty();
   };
 
   // Full System Import Handler
   const handleSystemDataImport = (data: any) => {
       if (data === 'RESET') {
-          // Reset all to initial state (except Drive Session which is handled separately usually, but here we can keep it connected)
           setUsers([]);
           setUnits([]);
           setFaculties([]);
@@ -93,8 +122,7 @@ const App: React.FC = () => {
           setBusinessRecords([]);
           setDataConfigGroups([]);
           setDynamicDataStore({});
-          // Keep settings but maybe reset non-config parts?
-          // For now, keep as is.
+          setHasUnsavedChanges(false); // Reset implies clean slate
           return;
       }
 
@@ -118,6 +146,110 @@ const App: React.FC = () => {
 
       if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
       if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
+      
+      setHasUnsavedChanges(true); // Imported data counts as "unsaved" until synced to cloud
+  };
+
+  // --- GOOGLE DRIVE LOGIC (GLOBAL) ---
+  useEffect(() => {
+    // Load GAPI/GIS globally
+    const loadGapi = () => {
+      const script = document.createElement('script');
+      script.src = 'https://apis.google.com/js/api.js';
+      script.onload = () => {
+        window.gapi.load('client', async () => {
+          await window.gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] });
+        });
+      };
+      document.body.appendChild(script);
+    };
+    const loadGis = () => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      document.body.appendChild(script);
+    };
+    if (!window.gapi) loadGapi();
+    if (!window.google) loadGis();
+  }, []);
+
+  const handleSaveToCloud = async () => {
+      if (!driveSession.isConnected || !driveSession.folderId) {
+          alert("Chưa kết nối Google Drive hoặc chưa cấu hình thư mục.");
+          return;
+      }
+
+      // Check token
+      const tokenObj = window.gapi?.client?.getToken();
+      if (!tokenObj && driveSession.accessToken) {
+          window.gapi.client.setToken({ access_token: driveSession.accessToken });
+      } else if (!tokenObj && !driveSession.accessToken) {
+          alert("Phiên làm việc hết hạn. Vui lòng kết nối lại trong Cài đặt.");
+          return;
+      }
+
+      // Prepare Data
+      const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+      const data = {
+          units, users, settings: safeSettings, academicYears, schoolInfo,
+          faculties, facultyTitles, humanResources,
+          scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          dataConfigGroups, dynamicDataStore,
+          backupDate: new Date().toISOString(),
+          version: "2.0.0"
+      };
+
+      const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const fileContent = JSON.stringify(data, null, 2);
+      const file = new Blob([fileContent], {type: 'application/json'});
+      
+      const metadata = {
+          name: fileName,
+          mimeType: 'application/json',
+          parents: [driveSession.folderId]
+      };
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file);
+
+      try {
+          const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+              method: 'POST',
+              headers: new Headers({ 'Authorization': 'Bearer ' + (window.gapi.client.getToken()?.access_token || driveSession.accessToken) }),
+              body: form,
+          });
+          
+          if (!response.ok) throw new Error("Upload failed");
+          
+          alert("Đã lưu bản cập nhật mới lên Cloud thành công!");
+          setHasUnsavedChanges(false);
+      } catch (error) {
+          console.error(error);
+          alert("Lỗi khi lưu lên Cloud. Vui lòng kiểm tra kết nối.");
+      }
+  };
+
+  const handleExportData = () => {
+      const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+      const data = {
+          units, users, settings: safeSettings, academicYears, schoolInfo,
+          faculties, facultyTitles, humanResources,
+          scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          dataConfigGroups, dynamicDataStore,
+          backupDate: new Date().toISOString(),
+          version: "2.0.0"
+      };
+      
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `unidata_export_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      // Export does not clear dirty state usually, but user might want confirmation. We keep it dirty until cloud sync.
   };
   
   // Render Content
@@ -136,7 +268,7 @@ const App: React.FC = () => {
              dataConfigGroups={dataConfigGroups}
              dynamicDataStore={dynamicDataStore}
              onUpdateDynamicData={handleUpdateDynamicData}
-             onUpdateDataConfigGroups={setDataConfigGroups}
+             onUpdateDataConfigGroups={handleUpdateDataConfigGroups}
              units={units}
              faculties={faculties}
              humanResources={humanResources}
@@ -146,9 +278,9 @@ const App: React.FC = () => {
       case 'faculty_profiles':
         return <FacultyModule 
              faculties={faculties}
-             setFaculties={setFaculties}
+             setFaculties={handleSetFaculties}
              facultyTitles={facultyTitles}
-             setFacultyTitles={setFacultyTitles}
+             setFacultyTitles={handleSetFacultyTitles}
              courses={[]} 
              geminiConfig={{ apiKey: (import.meta as any).env?.API_KEY }}
              units={units}
@@ -158,10 +290,10 @@ const App: React.FC = () => {
       case 'organization':
         return <OrganizationModule 
             units={units}
-            onUpdateUnits={setUnits}
+            onUpdateUnits={handleUpdateUnits}
             faculties={faculties}
             humanResources={humanResources}
-            onUpdateHumanResources={setHumanResources}
+            onUpdateHumanResources={handleUpdateHumanResources}
         />;
        case 'settings':
         return <SettingsModule 
@@ -183,18 +315,18 @@ const App: React.FC = () => {
             businessRecords={businessRecords}
             dataConfigGroups={dataConfigGroups}
             dynamicDataStore={dynamicDataStore}
-            onUpdateDataConfigGroups={setDataConfigGroups}
+            onUpdateDataConfigGroups={handleUpdateDataConfigGroups}
             onUpdateSettings={handleUpdateSettings}
             onUpdateDriveSession={handleUpdateDriveSession}
-            onAddUser={(u) => setUsers([...users, u])}
-            onRemoveUser={(id) => setUsers(users.filter(u => u.id !== id))}
-            onAddAcademicYear={(y) => setAcademicYears([...academicYears, y])}
-            onUpdateAcademicYear={(y) => setAcademicYears(academicYears.map(ay => ay.id === y.id ? y : ay))}
-            onDeleteAcademicYear={(id) => setAcademicYears(academicYears.filter(ay => ay.id !== id))}
-            onToggleLockAcademicYear={(id) => setAcademicYears(academicYears.map(ay => ay.id === id ? {...ay, isLocked: !ay.isLocked} : ay))}
+            onAddUser={(u) => { setUsers([...users, u]); markDirty(); }}
+            onRemoveUser={(id) => { setUsers(users.filter(u => u.id !== id)); markDirty(); }}
+            onAddAcademicYear={(y) => { setAcademicYears([...academicYears, y]); markDirty(); }}
+            onUpdateAcademicYear={(y) => { setAcademicYears(academicYears.map(ay => ay.id === y.id ? y : ay)); markDirty(); }}
+            onDeleteAcademicYear={(id) => { setAcademicYears(academicYears.filter(ay => ay.id !== id)); markDirty(); }}
+            onToggleLockAcademicYear={(id) => { setAcademicYears(academicYears.map(ay => ay.id === id ? {...ay, isLocked: !ay.isLocked} : ay)); markDirty(); }}
             onImportData={handleSystemDataImport}
-            onUpdateSchoolInfo={setSchoolInfo}
-            onShowVersions={() => setShowVersionModal(true)} // PASSED PROP
+            onUpdateSchoolInfo={(info) => { setSchoolInfo(info); markDirty(); }}
+            onShowVersions={() => setShowVersionModal(true)} 
             onResetSystemData={() => handleSystemDataImport('RESET')}
         />;
       default:
@@ -215,6 +347,10 @@ const App: React.FC = () => {
         currentAcademicYear={settings.currentAcademicYear}
         isCollapsed={isSidebarCollapsed}
         toggleSidebar={handleToggleSidebar}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSaveToCloud={handleSaveToCloud}
+        onExportData={handleExportData}
+        isCloudConnected={driveSession.isConnected}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <main className="flex-1 overflow-y-auto p-0">
