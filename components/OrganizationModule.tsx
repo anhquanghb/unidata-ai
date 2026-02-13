@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Unit, Faculty, HumanResourceRecord } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check, Download } from 'lucide-react';
 
 interface OrganizationModuleProps {
   units: Unit[];
@@ -9,6 +9,7 @@ interface OrganizationModuleProps {
   faculties: Faculty[];
   humanResources: HumanResourceRecord[];
   onUpdateHumanResources: (records: HumanResourceRecord[]) => void;
+  onExportUnitData?: (unitId: string) => void;
 }
 
 const OrganizationModule: React.FC<OrganizationModuleProps> = ({ 
@@ -16,7 +17,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   onUpdateUnits, 
   faculties, 
   humanResources, 
-  onUpdateHumanResources 
+  onUpdateHumanResources,
+  onExportUnitData
 }) => {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
@@ -237,6 +239,15 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                     </div>
                  </div>
                  <div className="flex gap-2">
+                    {onExportUnitData && (
+                        <button 
+                            onClick={() => onExportUnitData(selectedUnit.unit_id)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-sm font-medium hover:bg-indigo-100 transition-colors"
+                            title="Xuất dữ liệu đơn vị này (Bao gồm cấu trúc, nhân sự và thông tin liên quan)"
+                        >
+                            <Download size={14}/> Xuất JSON
+                        </button>
+                    )}
                     <button 
                       onClick={() => { setTempUnit(selectedUnit); setIsEditingUnit(true); }}
                       className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50"

@@ -106,6 +106,104 @@ const App: React.FC = () => {
       markDirty();
   };
 
+  // --- UNIT SPECIFIC EXPORT LOGIC ---
+  const handleExportUnitData = (unitId: string) => {
+      const targetUnit = units.find(u => u.unit_id === unitId);
+      if (!targetUnit) return;
+
+      // 1. Identify Hierarchy (Self + Children + Parents)
+      const relatedUnitIds = new Set<string>();
+      relatedUnitIds.add(unitId);
+
+      // Collect Children (Recursive)
+      const collectChildren = (parentId: string) => {
+          units.filter(u => u.unit_parentId === parentId).forEach(child => {
+              relatedUnitIds.add(child.unit_id);
+              collectChildren(child.unit_id);
+          });
+      };
+      collectChildren(unitId);
+
+      // Collect Parents (Recursive)
+      let currentParentId = targetUnit.unit_parentId;
+      while (currentParentId) {
+          relatedUnitIds.add(currentParentId);
+          const parent = units.find(u => u.unit_id === currentParentId);
+          currentParentId = parent ? parent.unit_parentId : undefined;
+      }
+
+      const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id));
+
+      // 2. Identify Related Personnel
+      // Only include personnel belonging to the Exported Units (specifically the Target/Children subtree, parents usually don't need their personnel exported in this context, but adhering to "related to it" usually implies subtree. Let's keep it to all units in the hierarchy for completeness or just subtree? 
+      // Requirement: "Xuất hồ sơ nhân sự liên quan đến nó". Typically implies subtree.
+      const filteredHR = humanResources.filter(hr => relatedUnitIds.has(hr.unitId));
+      const relatedFacultyIds = new Set(filteredHR.map(hr => hr.facultyId));
+      const filteredFaculties = faculties.filter(f => relatedFacultyIds.has(f.id));
+
+      // 3. Identify Related Dynamic Data
+      // Filter records that reference any of the `relatedUnitIds` OR `relatedFacultyIds`
+      const filteredDynamicStore: Record<string, DynamicRecord[]> = {};
+      
+      dataConfigGroups.forEach(group => {
+          const unitRefFields = group.fields.filter(f => (f.type === 'reference' || f.type === 'reference_multiple') && f.referenceTarget === 'units').map(f => f.key);
+          const facultyRefFields = group.fields.filter(f => (f.type === 'reference' || f.type === 'reference_multiple') && f.referenceTarget === 'faculties').map(f => f.key);
+          
+          if (unitRefFields.length > 0 || facultyRefFields.length > 0) {
+              const allRecords = dynamicDataStore[group.id] || [];
+              const relevantRecords = allRecords.filter(record => {
+                  // Check Unit References
+                  const hasUnitRef = unitRefFields.some(key => {
+                      const val = record[key];
+                      if (Array.isArray(val)) return val.some(v => relatedUnitIds.has(v));
+                      return relatedUnitIds.has(val);
+                  });
+                  if (hasUnitRef) return true;
+
+                  // Check Faculty References
+                  const hasFacultyRef = facultyRefFields.some(key => {
+                      const val = record[key];
+                      if (Array.isArray(val)) return val.some(v => relatedFacultyIds.has(v));
+                      return relatedFacultyIds.has(val);
+                  });
+                  return hasFacultyRef;
+              });
+
+              if (relevantRecords.length > 0) {
+                  filteredDynamicStore[group.id] = relevantRecords;
+              }
+          }
+      });
+
+      // 4. Construct JSON Payload
+      const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+      
+      const exportData = {
+          exportType: "UNIT_PARTIAL",
+          rootUnitName: targetUnit.unit_name,
+          exportDate: new Date().toISOString(),
+          settings: safeSettings,
+          units: filteredUnits,
+          humanResources: filteredHR,
+          faculties: filteredFaculties,
+          dataConfigGroups: dataConfigGroups, // Export all definitions so dynamic data makes sense
+          dynamicDataStore: filteredDynamicStore,
+          // We assume static records (scientific, etc.) are legacy and not part of this specific "Dynamic" export request, unless added similarly. 
+          // If "Dynamic Information" implies the new module, we stick to dynamicDataStore.
+      };
+
+      // 5. Download File
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Export_${targetUnit.unit_code || 'Unit'}_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   // Full System Import Handler
   const handleSystemDataImport = (data: any) => {
       if (data === 'RESET') {
@@ -294,6 +392,7 @@ const App: React.FC = () => {
             faculties={faculties}
             humanResources={humanResources}
             onUpdateHumanResources={handleUpdateHumanResources}
+            onExportUnitData={handleExportUnitData}
         />;
        case 'settings':
         return <SettingsModule 

@@ -87,6 +87,9 @@ export interface Faculty {
   workload: number;
   email?: string;
   tel?: string;
+  mobile?: string;
+  office?: string;
+  officeHours?: string;
   
   educationList: {
     id: string;
