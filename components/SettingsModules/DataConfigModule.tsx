@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
 import { DataConfigGroup, DataFieldDefinition, DataFieldType, DataFieldOption } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter, ArrowUp, ArrowDown, BookOpen, Briefcase, Users, GraduationCap, Award, Globe, Database, Activity, Star, Zap, Archive, Layout } from 'lucide-react';
 
 interface DataConfigModuleProps {
   groups: DataConfigGroup[];
   onUpdateGroups: (groups: DataConfigGroup[]) => void;
 }
+
+// Available Icons for Selection
+const AVAILABLE_ICONS = [
+    { name: 'BookOpen', icon: <BookOpen size={20}/> },
+    { name: 'Briefcase', icon: <Briefcase size={20}/> },
+    { name: 'Users', icon: <Users size={20}/> },
+    { name: 'GraduationCap', icon: <GraduationCap size={20}/> },
+    { name: 'Award', icon: <Award size={20}/> },
+    { name: 'Globe', icon: <Globe size={20}/> },
+    { name: 'Database', icon: <Database size={20}/> },
+    { name: 'Activity', icon: <Activity size={20}/> },
+    { name: 'Star', icon: <Star size={20}/> },
+    { name: 'Zap', icon: <Zap size={20}/> },
+    { name: 'Archive', icon: <Archive size={20}/> },
+    { name: 'Layout', icon: <Layout size={20}/> },
+];
 
 const FIELD_TYPES: { type: DataFieldType; label: string; icon: React.ReactNode }[] = [
   { type: 'text', label: 'Văn bản (String)', icon: <Type size={14} /> },
@@ -28,6 +44,7 @@ Yêu cầu cấu trúc JSON (TypeScript Interface):
 interface DataConfigGroup {
   name: string;        // Tên nhóm (Ví dụ: Quản lý Đề tài)
   description?: string;
+  icon?: string;       // Tên icon (BookOpen, Users, Database...)
   fields: DataFieldDefinition[];
 }
 
@@ -51,8 +68,10 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ nói về chủ đề dữ li�
 
 const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGroups }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(groups.length > 0 ? groups[0].id : null);
+  
+  // Group Editing State
   const [isEditingGroup, setIsEditingGroup] = useState<string | null>(null);
-  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupData, setEditGroupData] = useState<{name: string, description: string, icon: string}>({ name: '', description: '', icon: 'Folder' });
   
   // Field Editor State
   const [isEditingField, setIsEditingField] = useState(false);
@@ -80,10 +99,16 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
       const newGroup: DataConfigGroup = {
           id: uuidv4(),
           name: "Nhóm dữ liệu mới",
+          description: "Mô tả ngắn về nhóm dữ liệu này",
+          icon: "Database",
           fields: []
       };
       onUpdateGroups([...groups, newGroup]);
       setSelectedGroupId(newGroup.id);
+      
+      // Auto enter edit mode
+      setIsEditingGroup(newGroup.id);
+      setEditGroupData({ name: newGroup.name, description: newGroup.description || '', icon: newGroup.icon || 'Database' });
   };
 
   const handleDeleteGroup = (id: string) => {
@@ -95,13 +120,33 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
 
   const startEditGroup = (group: DataConfigGroup) => {
       setIsEditingGroup(group.id);
-      setEditGroupName(group.name);
+      setEditGroupData({ 
+          name: group.name, 
+          description: group.description || '', 
+          icon: group.icon || 'Database' 
+      });
   };
 
   const saveEditGroup = () => {
       if (!isEditingGroup) return;
-      onUpdateGroups(groups.map(g => g.id === isEditingGroup ? { ...g, name: editGroupName } : g));
+      onUpdateGroups(groups.map(g => g.id === isEditingGroup ? { 
+          ...g, 
+          name: editGroupData.name,
+          description: editGroupData.description,
+          icon: editGroupData.icon
+      } : g));
       setIsEditingGroup(null);
+  };
+
+  const moveGroup = (index: number, direction: 'up' | 'down') => {
+      if (direction === 'up' && index === 0) return;
+      if (direction === 'down' && index === groups.length - 1) return;
+      
+      const newGroups = [...groups];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      // Swap
+      [newGroups[index], newGroups[targetIndex]] = [newGroups[targetIndex], newGroups[index]];
+      onUpdateGroups(newGroups);
   };
 
   // --- Field Handlers ---
@@ -243,6 +288,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
               id: uuidv4(),
               name: parsed.name,
               description: parsed.description || "",
+              icon: parsed.icon || "Database",
               fields: parsed.fields.map((f: any) => ({
                   ...f,
                   id: uuidv4(),
@@ -281,48 +327,93 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[600px] border border-slate-200 rounded-lg overflow-hidden bg-white relative">
+    <div className="flex flex-col md:flex-row h-[700px] border border-slate-200 rounded-lg overflow-hidden bg-white relative">
         {/* Sidebar: Groups */}
-        <div className="w-full md:w-64 bg-slate-50 border-r border-slate-200 flex flex-col">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+        <div className="w-full md:w-72 bg-slate-50 border-r border-slate-200 flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
                 <h4 className="font-bold text-slate-700 text-sm">Nhóm Dữ liệu</h4>
                 <div className="flex gap-1">
                     <button 
                         onClick={() => setIsImportModalOpen(true)}
-                        className="p-1 text-purple-600 hover:bg-purple-100 rounded"
+                        className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded border border-purple-100"
                         title="Tạo bằng AI (Import JSON)"
                     >
                         <Bot size={16} />
                     </button>
-                    <button onClick={handleAddGroup} className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="Thêm thủ công">
+                    <button onClick={handleAddGroup} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded border border-blue-100" title="Thêm thủ công">
                         <Plus size={16} />
                     </button>
                 </div>
             </div>
+            
+            {/* Groups List */}
             <div className="flex-1 overflow-y-auto">
-                {groups.map(group => (
+                {groups.map((group, index) => (
                     <div 
                         key={group.id}
-                        className={`p-3 border-b border-slate-100 cursor-pointer flex justify-between items-center group/item ${selectedGroupId === group.id ? 'bg-white border-l-4 border-l-blue-500 shadow-sm' : 'hover:bg-slate-100'}`}
+                        className={`p-3 border-b border-slate-100 cursor-pointer flex flex-col gap-2 group/item transition-all ${selectedGroupId === group.id ? 'bg-white border-l-4 border-l-blue-500 shadow-sm' : 'hover:bg-slate-100'}`}
                         onClick={() => { setSelectedGroupId(group.id); setIsEditingField(false); }}
                     >
                         {isEditingGroup === group.id ? (
-                            <input 
-                                className="w-full text-sm border border-slate-300 rounded px-1"
-                                value={editGroupName}
-                                onChange={(e) => setEditGroupName(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && saveEditGroup()}
-                                autoFocus
-                                onBlur={saveEditGroup}
-                            />
+                            <div className="flex flex-col gap-2 bg-white p-2 rounded border border-blue-200 shadow-sm" onClick={e => e.stopPropagation()}>
+                                <label className="text-[10px] font-bold text-slate-400">Tên nhóm</label>
+                                <input 
+                                    className="w-full text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-500"
+                                    value={editGroupData.name}
+                                    onChange={(e) => setEditGroupData({...editGroupData, name: e.target.value})}
+                                    autoFocus
+                                />
+                                <label className="text-[10px] font-bold text-slate-400">Mô tả</label>
+                                <textarea 
+                                    className="w-full text-xs border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-500 resize-none"
+                                    rows={2}
+                                    value={editGroupData.description}
+                                    onChange={(e) => setEditGroupData({...editGroupData, description: e.target.value})}
+                                />
+                                <label className="text-[10px] font-bold text-slate-400">Icon</label>
+                                <div className="grid grid-cols-6 gap-1">
+                                    {AVAILABLE_ICONS.map(ic => (
+                                        <button 
+                                            key={ic.name} 
+                                            onClick={() => setEditGroupData({...editGroupData, icon: ic.name})}
+                                            className={`p-1 rounded flex justify-center items-center ${editGroupData.icon === ic.name ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                                            title={ic.name}
+                                        >
+                                            {ic.icon}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex justify-end gap-2 mt-1">
+                                    <button onClick={() => setIsEditingGroup(null)} className="text-xs font-bold text-slate-500 hover:bg-slate-100 px-2 py-1 rounded">Hủy</button>
+                                    <button onClick={saveEditGroup} className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded">Lưu</button>
+                                </div>
+                            </div>
                         ) : (
-                            <span className="text-sm font-medium text-slate-700 truncate">{group.name}</span>
+                            <>
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <div className={`p-1.5 rounded-lg ${selectedGroupId === group.id ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-500'}`}>
+                                            {AVAILABLE_ICONS.find(i => i.name === group.icon)?.icon || <Database size={16}/>}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-bold text-slate-700 truncate block">{group.name}</span>
+                                            <span className="text-[10px] text-slate-500 truncate block">{group.description || 'Không có mô tả'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex justify-between items-center mt-1 border-t border-slate-50 pt-1">
+                                    <div className="flex gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'up'); }} disabled={index === 0} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'down'); }} disabled={index === groups.length - 1} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowDown size={12} /></button>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); startEditGroup(group); }} className="text-slate-400 hover:text-blue-600 p-1 bg-slate-50 rounded hover:bg-blue-50"><Edit2 size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }} className="text-slate-400 hover:text-red-600 p-1 bg-slate-50 rounded hover:bg-red-50"><Trash2 size={12} /></button>
+                                    </div>
+                                </div>
+                            </>
                         )}
-                        
-                        <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                             <button onClick={(e) => { e.stopPropagation(); startEditGroup(group); }} className="text-slate-400 hover:text-blue-600 p-1"><Edit2 size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }} className="text-slate-400 hover:text-red-600 p-1"><Trash2 size={12} /></button>
-                        </div>
                     </div>
                 ))}
             </div>
@@ -429,16 +520,21 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                     // --- Field List View ---
                     <div className="flex flex-col h-full">
                         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                            <div>
-                                <h3 className="font-bold text-slate-800">{selectedGroup.name}</h3>
-                                <p className="text-xs text-slate-500">{selectedGroup.fields.length} trường dữ liệu</p>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white border border-slate-200 rounded-lg text-blue-600">
+                                    {AVAILABLE_ICONS.find(i => i.name === selectedGroup.icon)?.icon || <Database size={20}/>}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">{selectedGroup.name}</h3>
+                                    <p className="text-xs text-slate-500">{selectedGroup.description || 'Không có mô tả'}</p>
+                                </div>
                             </div>
                             <button onClick={handleAddField} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold flex items-center gap-1 hover:bg-blue-700 shadow-sm"><Plus size={14}/> Thêm Trường</button>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-0">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase sticky top-0">
+                                <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase sticky top-0 shadow-sm">
                                     <tr>
                                         <th className="px-4 py-3">Nhãn (Label)</th>
                                         <th className="px-4 py-3">Mã (Key)</th>
@@ -556,7 +652,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     </h4>
                                     <textarea 
                                         className="w-full h-40 p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                                        placeholder={`{\n  "name": "Quản lý Sinh viên",\n  "fields": [\n    { "key": "studentName", "label": "Họ tên", "type": "text", "required": true }\n  ]\n}`}
+                                        placeholder={`{\n  "name": "Quản lý Sinh viên",\n  "description": "...",\n  "icon": "Users",\n  "fields": [\n    { "key": "studentName", "label": "Họ tên", "type": "text", "required": true }\n  ]\n}`}
                                         value={importJson}
                                         onChange={(e) => setImportJson(e.target.value)}
                                     />

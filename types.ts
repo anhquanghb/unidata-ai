@@ -214,6 +214,7 @@ export interface DataConfigGroup {
   id: string;
   name: string;
   description?: string;
+  icon?: string; // New: Icon name for display
   fields: DataFieldDefinition[];
   charts?: ChartConfig[];
 }

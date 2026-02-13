@@ -69,6 +69,13 @@ const App: React.FC = () => {
   const handleUpdateSettings = (newSettings: SystemSettings) => setSettings(newSettings);
   const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session);
 
+  const handleUpdateDynamicData = (groupId: string, data: DynamicRecord[]) => {
+      setDynamicDataStore(prev => ({
+          ...prev,
+          [groupId]: data
+      }));
+  };
+
   // Full System Import Handler
   const handleSystemDataImport = (data: any) => {
       if (data === 'RESET') {
@@ -123,12 +130,18 @@ const App: React.FC = () => {
           currentAcademicYear={settings.currentAcademicYear}
         />;
       case 'scientific_management':
-        return <IngestionModule 
-            onDataImport={handleDataImport}
-            academicYears={academicYears}
-            currentAcademicYearCode={settings.currentAcademicYear}
-            isLocked={false} 
-            virtualAssistantUrl={settings.virtualAssistantUrl}
+        return <DataStorageModule 
+             isLocked={false}
+             currentAcademicYear={settings.currentAcademicYear}
+             dataConfigGroups={dataConfigGroups}
+             dynamicDataStore={dynamicDataStore}
+             onUpdateDynamicData={handleUpdateDynamicData}
+             onUpdateDataConfigGroups={setDataConfigGroups}
+             units={units}
+             faculties={faculties}
+             humanResources={humanResources}
+             academicYears={academicYears}
+             driveConfig={driveSession}
         />;
       case 'faculty_profiles':
         return <FacultyModule 
