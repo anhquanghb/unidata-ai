@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DataConfigGroup, DynamicRecord, Unit, Faculty, AcademicYear, ChartConfig, ChartType, GoogleDriveConfig, HumanResourceRecord } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building, User, Search } from 'lucide-react';
+import { LayoutDashboard, Table, Plus, Trash2, Edit2, Settings, Save, X, PieChart as PieIcon, BarChart3, LineChart as LineIcon, Radar as RadarIcon, Filter, UploadCloud, FileText, Loader2, ExternalLink, Building, User, Search, Bot, Copy, ArrowRight, Check } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DynamicDataManagerProps {
@@ -38,8 +38,8 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   // -- Filter State --
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('');
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState<string>('');
-  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string>>({}); // New: Generic dynamic filters
-  const [searchText, setSearchText] = useState<string>(''); // New: Search text
+  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string>>({}); 
+  const [searchText, setSearchText] = useState<string>(''); 
 
   // -- Dashboard State --
   const [isAddingChart, setIsAddingChart] = useState(false);
@@ -49,6 +49,12 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   const [isAddingRecord, setIsAddingRecord] = useState(false);
   const [tempRecord, setTempRecord] = useState<Partial<DynamicRecord>>({});
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+
+  // -- AI Import State --
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [parsedPreviewData, setParsedPreviewData] = useState<any[] | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // -- Upload State --
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -113,7 +119,6 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
           if (filterValue) {
               result = result.filter(record => {
                   const val = record[filterKey];
-                  // Handle arrays (multiselect/multi-ref) vs primitives
                   if (Array.isArray(val)) {
                       return val.includes(filterValue);
                   }
@@ -132,13 +137,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                   return searchableFields.some(key => {
                       const val = record[key];
                       if (!val) return false;
-                      // Handle Lookups display value if needed? 
-                      // For now, simple text search on the raw value or resolved primitive
-                      // To make search truly powerful, we should resolve references (e.g. searching 'Science' finds records with Faculty of Science)
-                      // Simple implementation: String(val)
-                      // Improved: Try to find label if it's a reference
                       let stringVal = String(val);
-                      // TODO: Basic resolution for better search experience could be added here
                       return stringVal.toLowerCase().includes(searchLower);
                   });
               });
@@ -168,11 +167,9 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
   // --- DATA PROCESSING HELPERS ---
   const getLookupValue = (value: string | string[], target?: string) => {
       if (!value) return '';
-      // Handle array for multi-select
       if (Array.isArray(value)) {
           return value.map(v => getLookupValue(v, target)).join(', ');
       }
-
       if (target === 'units') return units.find(u => u.unit_id === value)?.unit_name || value;
       if (target === 'faculties') return faculties.find(f => f.id === value)?.name.vi || value;
       if (target === 'academicYears') return academicYears.find(y => y.id === value)?.code || value;
@@ -181,11 +178,9 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
 
   const processChartData = (config: ChartConfig) => {
       if (config.type === 'pie') {
-          // Count occurences
           const counts: Record<string, number> = {};
           filteredData.forEach(item => {
               const rawKey = item[config.categoryField || ''];
-              // If multi-select, we might count each selection individually? For now assume single categorization or primary
               const valArr = Array.isArray(rawKey) ? rawKey : [rawKey || 'Undefined'];
               
               valArr.forEach(val => {
@@ -229,7 +224,77 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       }
   };
 
-  // --- HANDLERS ---
+  // --- AI IMPORT HANDLERS ---
+  const generateAiPrompt = () => {
+      const fieldsDesc = group.fields.map(f => {
+          let desc = `- Field "${f.label}" (Key: "${f.key}", Type: ${f.type})`;
+          if (f.options && f.options.length > 0) {
+              desc += `. Allowed Values (Options): ${f.options.map(o => `"${o.value}"`).join(', ')}`;
+          }
+          if (f.type === 'date') desc += ` (Format: YYYY-MM-DD)`;
+          return desc;
+      }).join('\n');
+
+      return `Role: You are a Data Generation Assistant.
+Task: Generate a JSON Array of simulated data for the entity "${group.name}".
+
+Data Structure Schema:
+${fieldsDesc}
+
+Requirements:
+1. Output MUST be a valid JSON Array of Objects.
+2. Do not include markdown formatting (like \`\`\`json). Just the raw JSON.
+3. Generate 5-10 realistic sample records in Vietnamese context.
+4. Ensure all "Type" constraints are met (e.g., numbers are numbers, dates are ISO strings).
+`;
+  };
+
+  const handleCopyPrompt = () => {
+      const prompt = generateAiPrompt();
+      navigator.clipboard.writeText(prompt);
+      alert("Đã sao chép Prompt vào clipboard! \nHãy dán vào ChatGPT hoặc Gemini để tạo dữ liệu JSON.");
+  };
+
+  const handleParseImport = () => {
+      if (!jsonInput.trim()) {
+          setImportError("Vui lòng nhập JSON.");
+          return;
+      }
+      try {
+          // Try to sanitise markdown if present
+          let raw = jsonInput.trim();
+          if (raw.startsWith('```json')) raw = raw.replace(/^```json/, '').replace(/```$/, '');
+          if (raw.startsWith('```')) raw = raw.replace(/^```/, '').replace(/```$/, '');
+          
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) throw new Error("Dữ liệu phải là một mảng JSON (Array).");
+          
+          // Hydrate with IDs and Academic Year
+          const hydrated = parsed.map((item: any) => ({
+              ...item,
+              id: uuidv4(),
+              academicYear: currentAcademicYear
+          }));
+          
+          setParsedPreviewData(hydrated);
+          setImportError(null);
+      } catch (e: any) {
+          setImportError("Lỗi parse JSON: " + e.message);
+          setParsedPreviewData(null);
+      }
+  };
+
+  const handleConfirmImport = () => {
+      if (parsedPreviewData && parsedPreviewData.length > 0) {
+          onUpdateData([...data, ...parsedPreviewData]);
+          setParsedPreviewData(null);
+          setJsonInput('');
+          setIsAiModalOpen(false);
+          alert(`Đã nhập thành công ${parsedPreviewData.length} bản ghi!`);
+      }
+  };
+
+  // --- GENERAL HANDLERS ---
   const handleSaveChart = () => {
       if (!newChartConfig.title || !newChartConfig.type) return;
       const newChart: ChartConfig = {
@@ -328,14 +393,11 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
       setFileToUpload(prev => ({ ...prev, [key]: file }));
   };
 
-  // Helper for multi-select input handling
   const handleMultiSelectChange = (key: string, value: string) => {
       const currentValues: string[] = Array.isArray(tempRecord[key]) ? tempRecord[key] : [];
       if (currentValues.includes(value)) {
-          // Remove if exists
           setTempRecord({ ...tempRecord, [key]: currentValues.filter(v => v !== value) });
       } else {
-          // Add if not exists
           setTempRecord({ ...tempRecord, [key]: [...currentValues, value] });
       }
   };
@@ -517,12 +579,21 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">{filteredData.length} bản ghi</span>
               </div>
               {!isLocked && (
-                  <button 
-                      onClick={() => { setEditingRecordId(null); setTempRecord({}); setIsAddingRecord(true); setFileToUpload({}); }}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 text-sm font-bold"
-                  >
-                      <Plus size={16} /> Thêm Mới
-                  </button>
+                  <div className="flex gap-2">
+                      <button 
+                          onClick={() => { setJsonInput(''); setParsedPreviewData(null); setImportError(null); setIsAiModalOpen(true); }}
+                          className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg shadow-sm hover:bg-purple-700 text-xs font-bold"
+                          title="Sử dụng AI tạo dữ liệu"
+                      >
+                          <Bot size={16} /> AI Import
+                      </button>
+                      <button 
+                          onClick={() => { setEditingRecordId(null); setTempRecord({}); setIsAddingRecord(true); setFileToUpload({}); }}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 text-xs font-bold"
+                      >
+                          <Plus size={16} /> Thêm Mới
+                      </button>
+                  </div>
               )}
           </div>
 
@@ -574,6 +645,114 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                   </tbody>
               </table>
           </div>
+
+          {/* AI Import Modal */}
+          {isAiModalOpen && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+                      <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50 rounded-t-xl">
+                          <h3 className="font-bold text-purple-900 flex items-center gap-2">
+                              <Bot size={20} className="text-purple-600"/> 
+                              AI Hỗ trợ tạo dữ liệu cho "{group.name}"
+                          </h3>
+                          <button onClick={() => setIsAiModalOpen(false)} className="text-purple-300 hover:text-purple-600">
+                              <X size={20}/>
+                          </button>
+                      </div>
+                      
+                      <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                          {/* Step 1: Copy Prompt */}
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                              <div className="flex justify-between items-center mb-2">
+                                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">1</span> 
+                                      Sao chép Prompt mẫu
+                                  </h4>
+                                  <button 
+                                      onClick={handleCopyPrompt}
+                                      className="flex items-center gap-2 px-3 py-1.5 bg-white border border-purple-200 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-50 shadow-sm transition-all"
+                                  >
+                                      <Copy size={14}/> Sao chép
+                                  </button>
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                  Copy prompt này và gửi cho AI (ChatGPT, Gemini) để tạo dữ liệu JSON theo đúng cấu trúc của nhóm dữ liệu này.
+                              </p>
+                          </div>
+
+                          {/* Step 2: Paste JSON */}
+                          <div>
+                              <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">2</span> 
+                                  Dán kết quả JSON vào đây
+                              </h4>
+                              <textarea 
+                                  className="w-full h-40 p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                                  placeholder='[ { "field1": "value1", ... }, ... ]'
+                                  value={jsonInput}
+                                  onChange={(e) => setJsonInput(e.target.value)}
+                              />
+                              {importError && (
+                                  <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                                      {importError}
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Step 3: Preview */}
+                          {parsedPreviewData && (
+                              <div className="border-t border-slate-200 pt-4">
+                                  <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">3</span> 
+                                      Xem trước ({parsedPreviewData.length} bản ghi)
+                                  </h4>
+                                  <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
+                                      <table className="w-full text-xs text-left">
+                                          <thead className="bg-slate-100 sticky top-0">
+                                              <tr>
+                                                  <th className="px-2 py-1">#</th>
+                                                  {group.fields.slice(0, 3).map(f => <th key={f.id} className="px-2 py-1">{f.label}</th>)}
+                                                  {group.fields.length > 3 && <th className="px-2 py-1">...</th>}
+                                              </tr>
+                                          </thead>
+                                          <tbody>
+                                              {parsedPreviewData.map((row, idx) => (
+                                                  <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                                      <td className="px-2 py-1 text-slate-400">{idx + 1}</td>
+                                                      {group.fields.slice(0, 3).map(f => (
+                                                          <td key={f.id} className="px-2 py-1 truncate max-w-[100px]">{String(row[f.key])}</td>
+                                                      ))}
+                                                      {group.fields.length > 3 && <td className="px-2 py-1 text-slate-400 italic">...</td>}
+                                                  </tr>
+                                              ))}
+                                          </tbody>
+                                      </table>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+
+                      <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-xl">
+                          {!parsedPreviewData ? (
+                              <button 
+                                  onClick={handleParseImport} 
+                                  disabled={!jsonInput}
+                                  className="px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+                              >
+                                  Phân tích & Xem trước <ArrowRight size={16}/>
+                              </button>
+                          ) : (
+                              <>
+                                  <button onClick={() => setParsedPreviewData(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-bold">Hủy bỏ</button>
+                                  <button onClick={handleConfirmImport} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-bold flex items-center gap-2">
+                                      <Check size={16}/> Xác nhận Nhập
+                                  </button>
+                              </>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          )}
 
           {/* Add/Edit Modal */}
           {isAddingRecord && (
