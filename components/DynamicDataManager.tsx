@@ -599,7 +599,7 @@ const DynamicDataManager: React.FC<DynamicDataManagerProps> = ({
                                       // Native Multi-Select workaround for demo
                                       <select multiple className="w-full p-2 border border-slate-300 rounded text-sm h-24" 
                                           value={Array.isArray(tempRecord[f.key]) ? tempRecord[f.key] : []} 
-                                          onChange={e => setTempRecord({...tempRecord, [f.key]: Array.from(e.target.selectedOptions, option => option.value)})}
+                                          onChange={e => setTempRecord({...tempRecord, [f.key]: Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value)})}
                                       >
                                           {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                       </select>

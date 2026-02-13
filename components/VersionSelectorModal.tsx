@@ -5,8 +5,7 @@ import { Folder, HardDrive, Plus, Save, Cloud, FileJson, Trash2, Loader2, Databa
 interface VersionSelectorModalProps {
   isOpen: boolean;
   driveConfig: GoogleDriveConfig;
-  onConfirm: (versionId: string, customFileId?: string) => void;
-  onImportData?: (data: any) => void; // New prop to handle merged data
+  onImportData: (data: any) => void; // Changed to mandatory
   onClose: () => void;
   currentData?: any; // To compare
 }
@@ -51,7 +50,7 @@ const migrateDataLocal = (data: any) => {
     return migrated;
 };
 
-const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onConfirm, onImportData, onClose, currentData }) => {
+const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, driveConfig, onImportData, onClose, currentData }) => {
   const [activeTab, setActiveTab] = useState<'my_drive' | 'external' | 'empty'>('my_drive');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -477,13 +476,27 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
       }
   };
 
-  const handleFinalConfirm = () => {
+  const handleFinalConfirm = async () => {
       if (activeTab === 'empty') {
-          onConfirm(''); 
-      } else if (activeTab === 'my_drive') {
-          onConfirm(selectedMyId);
-      } else if (activeTab === 'external') {
-          onConfirm(selectedExternalFileId); 
+          onImportData('RESET'); // Signal to reset
+          onClose();
+      } else {
+          const fileId = activeTab === 'my_drive' ? selectedMyId : selectedExternalFileId;
+          if (!fileId) return;
+
+          setIsLoading(true);
+          try {
+              const rawData = await fetchFileContent(fileId);
+              const data = migrateDataLocal(rawData);
+              onImportData(data);
+              alert("Đã tải dữ liệu thành công!");
+              onClose();
+          } catch (e: any) {
+              console.error(e);
+              alert("Lỗi khi tải dữ liệu: " + e.message);
+          } finally {
+              setIsLoading(false);
+          }
       }
   };
 

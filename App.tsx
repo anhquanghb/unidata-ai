@@ -7,6 +7,7 @@ import OrganizationModule from './components/OrganizationModule';
 import AnalysisModule from './components/AnalysisModule';
 import DataStorageModule from './components/DataStorageModule';
 import SettingsModule from './components/SettingsModule';
+import VersionSelectorModal from './components/VersionSelectorModal'; // NEW IMPORT
 import { ViewState, Unit, Faculty, HumanResourceRecord, SystemSettings, GoogleDriveConfig, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, DynamicRecord, FacultyTitles } from './types';
 
 // Initial Data
@@ -22,6 +23,7 @@ const initialDriveSession: GoogleDriveConfig = { isConnected: false };
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showVersionModal, setShowVersionModal] = useState(false); // NEW STATE
 
   // Data States
   const [settings, setSettings] = useState<SystemSettings>(initialSettings);
@@ -66,6 +68,50 @@ const App: React.FC = () => {
 
   const handleUpdateSettings = (newSettings: SystemSettings) => setSettings(newSettings);
   const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session);
+
+  // Full System Import Handler
+  const handleSystemDataImport = (data: any) => {
+      if (data === 'RESET') {
+          // Reset all to initial state (except Drive Session which is handled separately usually, but here we can keep it connected)
+          setUsers([]);
+          setUnits([]);
+          setFaculties([]);
+          setHumanResources([]);
+          setScientificRecords([]);
+          setTrainingRecords([]);
+          setPersonnelRecords([]);
+          setAdmissionRecords([]);
+          setClassRecords([]);
+          setDepartmentRecords([]);
+          setBusinessRecords([]);
+          setDataConfigGroups([]);
+          setDynamicDataStore({});
+          // Keep settings but maybe reset non-config parts?
+          // For now, keep as is.
+          return;
+      }
+
+      if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      if (data.users) setUsers(data.users);
+      if (data.units) setUnits(data.units);
+      if (data.academicYears) setAcademicYears(data.academicYears);
+      if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
+      
+      if (data.faculties) setFaculties(data.faculties);
+      if (data.facultyTitles) setFacultyTitles(data.facultyTitles);
+      if (data.humanResources) setHumanResources(data.humanResources);
+
+      if (data.scientificRecords) setScientificRecords(data.scientificRecords);
+      if (data.trainingRecords) setTrainingRecords(data.trainingRecords);
+      if (data.personnelRecords) setPersonnelRecords(data.personnelRecords);
+      if (data.admissionRecords) setAdmissionRecords(data.admissionRecords);
+      if (data.classRecords) setClassRecords(data.classRecords);
+      if (data.departmentRecords) setDepartmentRecords(data.departmentRecords);
+      if (data.businessRecords) setBusinessRecords(data.businessRecords);
+
+      if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
+      if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
+  };
   
   // Render Content
   const renderContent = () => {
@@ -133,21 +179,16 @@ const App: React.FC = () => {
             onUpdateAcademicYear={(y) => setAcademicYears(academicYears.map(ay => ay.id === y.id ? y : ay))}
             onDeleteAcademicYear={(id) => setAcademicYears(academicYears.filter(ay => ay.id !== id))}
             onToggleLockAcademicYear={(id) => setAcademicYears(academicYears.map(ay => ay.id === id ? {...ay, isLocked: !ay.isLocked} : ay))}
-            onImportData={(d) => console.log('Import Data:', d)}
+            onImportData={handleSystemDataImport}
             onUpdateSchoolInfo={setSchoolInfo}
-            onResetSystemData={() => console.log('Reset Data')}
+            onShowVersions={() => setShowVersionModal(true)} // PASSED PROP
+            onResetSystemData={() => handleSystemDataImport('RESET')}
         />;
       default:
          // Fallback for analysis and data storage or others
-        if (currentView === 'analysis' as any) { // Assuming analysis exists in viewstate but not handled in standard switch
+        if (currentView === 'analysis' as any) { 
              return <AnalysisModule reports={[]} customPrompt={settings.analysisPrompt} />;
         }
-        // Fallback for Data Storage which is likely handled under 'scientific_management' or separate?
-        // Based on Sidebar it seems 'scientific_management' is the IngestionHub.
-        // Let's check Sidebar.tsx... 
-        // Sidebar has: dashboard, scientific_management, faculty_profiles, organization, settings.
-        // DataStorageModule seems unused in main nav or perhaps a submodule? 
-        // Assuming it might be a part of scientific_management or a separate view not in sidebar yet.
         return <div>View not found</div>;
     }
   };
@@ -166,6 +207,18 @@ const App: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+
+      {/* GLOBAL MODALS */}
+      <VersionSelectorModal 
+        isOpen={showVersionModal}
+        driveConfig={driveSession}
+        onImportData={handleSystemDataImport}
+        onClose={() => setShowVersionModal(false)}
+        currentData={{
+            units, faculties, scientificRecords, trainingRecords, 
+            personnelRecords, admissionRecords, dataConfigGroups, dynamicDataStore
+        }}
+      />
     </div>
   );
 };
