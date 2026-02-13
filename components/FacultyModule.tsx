@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Faculty, FacultyTitles, FacultyTitle, FacultyListItem, Language, Course, Unit, HumanResourceRecord } from '../types';
-import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building, Bot, Copy, ArrowRight } from 'lucide-react';
 import { importFacultyFromPdf, translateContent } from '../services/geminiService';
 // import { exportFacultyCvPdf } from '../services/FacultyExportPDF'; // Removed as file not provided, replaced with dummy
 import AILoader from '../components/AILoader';
@@ -19,6 +19,43 @@ interface FacultyModuleProps {
   humanResources?: HumanResourceRecord[];
   currentAcademicYear?: string;
 }
+
+const AI_PROMPT_TEMPLATE = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập cho hệ thống quản lý nhân sự đại học (UniData).
+Hãy tạo một mảng dữ liệu JSON (JSON Array) chứa thông tin của 3-5 giảng viên/nhân sự.
+
+Yêu cầu cấu trúc dữ liệu chính xác như sau (TypeScript Interface):
+
+interface Faculty {
+  name: { vi: string; en: string };          // Tên (Song ngữ)
+  email: string;                             // Email duy nhất
+  rank: { vi: string; en: string };          // Chức danh (Giảng viên, GV Chính, Phó Giáo sư, Giáo sư)
+  degree: { vi: string; en: string };        // Học vị (Cử nhân, Thạc sĩ, Tiến sĩ)
+  academicTitle: { vi: string; en: string }; // Học hàm (nếu có, hoặc rỗng)
+  position: { vi: string; en: string };      // Vị trí (Trưởng khoa, Phó khoa, Giảng viên)
+  experience: { vi: string; en: string };    // Số năm kinh nghiệm (dạng chuỗi)
+  careerStartYear: number;                   // Năm bắt đầu sự nghiệp
+  mobile?: string;
+  office?: string;                           // Phòng làm việc
+  
+  // Danh sách quá trình đào tạo
+  educationList: {
+    id: string; // Tự sinh ngẫu nhiên
+    year: string; // Năm tốt nghiệp
+    degree: { vi: string; en: string }; // Loại bằng
+    institution: { vi: string; en: string }; // Nơi đào tạo
+  }[];
+
+  // Danh sách công bố khoa học (chỉ cần text mô tả)
+  publicationsList: {
+    id: string;
+    text: { vi: string; en: string };
+  }[];
+}
+
+Yêu cầu:
+1. Tạo dữ liệu mẫu tiếng Việt có ý nghĩa, sát thực tế (Ví dụ: Nguyễn Văn A, Tiến sĩ Khoa học máy tính...).
+2. Các trường song ngữ { vi, en } phải có đủ dữ liệu.
+3. CHỈ TRẢ VỀ JSON ARRAY. Không thêm bất kỳ lời dẫn hay giải thích nào (markdown json block là chấp nhận được).`;
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 
@@ -43,6 +80,12 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
   // -- ID Inline Editing State --
   const [editingIdTarget, setEditingIdTarget] = useState<string | null>(null);
   const [tempIdValue, setTempIdValue] = useState('');
+
+  // -- AI Prompt & Import Modal State --
+  const [isAiImportModalOpen, setIsAiImportModalOpen] = useState(false);
+  const [aiJsonInput, setAiJsonInput] = useState('');
+  const [aiParsedData, setAiParsedData] = useState<Faculty[] | null>(null);
+  const [aiImportError, setAiImportError] = useState<string | null>(null);
 
   // Refs for file inputs
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -317,6 +360,71 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
               ...prev,
               [categoryType]: prev[categoryType].filter(item => item.id !== id)
           }));
+      }
+  };
+
+  // --- AI IMPORT HANDLERS ---
+  const handleCopyAiPrompt = () => {
+      navigator.clipboard.writeText(AI_PROMPT_TEMPLATE).then(() => {
+          alert("Đã sao chép Prompt vào bộ nhớ đệm! Hãy dán vào ChatGPT/Gemini.");
+      });
+  };
+
+  const handleParseAiJson = () => {
+      if (!aiJsonInput.trim()) {
+          setAiImportError("Vui lòng nhập JSON.");
+          return;
+      }
+      try {
+          // Attempt to sanitize markdown code blocks
+          let raw = aiJsonInput.trim();
+          if (raw.startsWith('```json')) raw = raw.replace(/^```json/, '').replace(/```$/, '');
+          else if (raw.startsWith('```')) raw = raw.replace(/^```/, '').replace(/```$/, '');
+          
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) throw new Error("Dữ liệu phải là một mảng JSON (Array).");
+          
+          // Hydrate with necessary fields
+          const hydrated: Faculty[] = parsed.map((item: any) => ({
+              id: `fac-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              name: item.name || { vi: "No Name", en: "No Name" },
+              rank: item.rank || { vi: "", en: "" },
+              degree: item.degree || { vi: "", en: "" },
+              academicTitle: item.academicTitle || { vi: "", en: "" },
+              position: item.position || { vi: "", en: "" },
+              experience: item.experience || { vi: "0", en: "0" },
+              careerStartYear: item.careerStartYear || new Date().getFullYear(),
+              email: item.email || "",
+              mobile: item.mobile || "",
+              educationList: Array.isArray(item.educationList) ? item.educationList : [],
+              publicationsList: Array.isArray(item.publicationsList) ? item.publicationsList : [],
+              academicExperienceList: [],
+              nonAcademicExperienceList: [],
+              certificationsList: [],
+              membershipsList: [],
+              honorsList: [],
+              serviceActivitiesList: [],
+              professionalDevelopmentList: [],
+              workload: 0,
+              office: "",
+              officeHours: ""
+          }));
+
+          setAiParsedData(hydrated);
+          setAiImportError(null);
+      } catch (e: any) {
+          setAiImportError("Lỗi đọc JSON: " + e.message);
+          setAiParsedData(null);
+      }
+  };
+
+  const handleConfirmAiImport = () => {
+      if (aiParsedData) {
+          setFaculties(prev => [...prev, ...aiParsedData]);
+          setAiParsedData(null);
+          setAiJsonInput('');
+          setIsAiImportModalOpen(false);
+          alert(`Đã nhập thành công ${aiParsedData.length} hồ sơ nhân sự!`);
       }
   };
 
@@ -620,6 +728,12 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
               {/* Actions - Only for Profiles Tab */}
               {mainTab === 'profiles' && (
                   <div className="flex gap-2">
+                      <button 
+                          onClick={() => { setIsAiImportModalOpen(true); setAiParsedData(null); setAiJsonInput(''); setAiImportError(null); }}
+                          className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-sm"
+                      >
+                          <Bot size={16} /> {t("AI Hỗ trợ tạo dữ liệu", "AI Data Support")}
+                      </button>
                       <input type="file" ref={jsonInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
                       <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import JSON")}</button>
                       <button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm Nhân sự", "Add Personnel")}</button>
@@ -683,6 +797,114 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
           {mainTab === 'stats' && <FacultyStatisticsModule faculties={filteredFaculties} courses={courses} language={language} />}
           {mainTab === 'categories' && renderCategories()}
       </div>
+
+      {/* AI Import Modal */}
+      {isAiImportModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50 rounded-t-xl">
+                      <h3 className="font-bold text-purple-900 flex items-center gap-2">
+                          <Bot size={20} className="text-purple-600"/> 
+                          AI Hỗ trợ tạo Hồ sơ Nhân sự
+                      </h3>
+                      <button onClick={() => setIsAiImportModalOpen(false)} className="text-purple-300 hover:text-purple-600">
+                          <X size={20}/>
+                      </button>
+                  </div>
+                  
+                  <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                      {/* Step 1: Copy Prompt */}
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                          <div className="flex justify-between items-center mb-2">
+                              <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">1</span> 
+                                  Sao chép Prompt mẫu
+                              </h4>
+                              <button 
+                                  onClick={handleCopyAiPrompt}
+                                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-purple-200 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-50 shadow-sm transition-all"
+                              >
+                                  <Copy size={14}/> Sao chép
+                              </button>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                              Copy prompt này và gửi cho AI (ChatGPT, Gemini) để tạo dữ liệu JSON hồ sơ nhân sự chuẩn xác (song ngữ, đầy đủ thông tin).
+                          </p>
+                      </div>
+
+                      {/* Step 2: Paste JSON */}
+                      <div>
+                          <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">2</span> 
+                              Dán kết quả JSON vào đây
+                          </h4>
+                          <textarea 
+                              className="w-full h-40 p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                              placeholder='[ { "name": { "vi": "Nguyễn Văn A", ... }, ... }, ... ]'
+                              value={aiJsonInput}
+                              onChange={(e) => setAiJsonInput(e.target.value)}
+                          />
+                          {aiImportError && (
+                              <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                                  {aiImportError}
+                              </div>
+                          )}
+                      </div>
+
+                      {/* Step 3: Preview */}
+                      {aiParsedData && (
+                          <div className="border-t border-slate-200 pt-4">
+                              <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">3</span> 
+                                  Xem trước ({aiParsedData.length} hồ sơ)
+                              </h4>
+                              <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
+                                  <table className="w-full text-xs text-left">
+                                      <thead className="bg-slate-100 sticky top-0">
+                                          <tr>
+                                              <th className="px-2 py-1">#</th>
+                                              <th className="px-2 py-1">Tên (VI)</th>
+                                              <th className="px-2 py-1">Học vị</th>
+                                              <th className="px-2 py-1">Email</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody>
+                                          {aiParsedData.map((row, idx) => (
+                                              <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                                  <td className="px-2 py-1 text-slate-400">{idx + 1}</td>
+                                                  <td className="px-2 py-1 font-bold">{row.name.vi}</td>
+                                                  <td className="px-2 py-1">{row.degree.vi}</td>
+                                                  <td className="px-2 py-1 text-slate-500 italic">{row.email}</td>
+                                              </tr>
+                                          ))}
+                                      </tbody>
+                                  </table>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-xl">
+                      {!aiParsedData ? (
+                          <button 
+                              onClick={handleParseAiJson} 
+                              disabled={!aiJsonInput}
+                              className="px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+                          >
+                              Phân tích & Xem trước <ArrowRight size={16}/>
+                          </button>
+                      ) : (
+                          <>
+                              <button onClick={() => setAiParsedData(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-bold">Hủy bỏ</button>
+                              <button onClick={handleConfirmAiImport} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-bold flex items-center gap-2">
+                                  <Check size={16}/> Xác nhận Nhập
+                              </button>
+                          </>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
