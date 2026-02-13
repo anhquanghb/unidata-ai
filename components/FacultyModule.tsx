@@ -155,6 +155,9 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
       experience: { vi: '0', en: '0' },
       careerStartYear: new Date().getFullYear(),
       workload: 0,
+      mobile: '',
+      office: '',
+      officeHours: '',
       educationList: [],
       academicExperienceList: [],
       nonAcademicExperienceList: [],
@@ -482,7 +485,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
                                       <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><User size={18} className="text-indigo-600"/> {editLanguage === 'vi' ? 'Thông tin cá nhân' : 'Personal Info'} ({editLanguage.toUpperCase()})</h4>
                                       <div className="grid grid-cols-1 gap-4">
                                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Họ và tên' : 'Full Name'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.name[editLanguage]} onChange={e => updateFacultyLang(faculty.id, 'name', editLanguage, e.target.value)} /></div>
-                                          <div className="grid grid-cols-3 gap-4">
+                                          <div className="grid grid-cols-2 gap-4">
                                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Chức danh' : 'Rank'}</label>
                                                   <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.rank.en} onChange={e => { const s = facultyTitles.ranks.find(r => r.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'rank', s.name); }}>
                                                       <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.ranks.map(r => <option key={r.id} value={r.name.en}>{r.name[editLanguage]}</option>)}
@@ -491,6 +494,11 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
                                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Học vị' : 'Degree'}</label>
                                                   <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.degree.en} onChange={e => { const s = facultyTitles.degrees.find(d => d.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'degree', s.name); }}>
                                                       <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.degrees.map(d => <option key={d.id} value={d.name.en}>{d.name[editLanguage]}</option>)}
+                                                  </select>
+                                              </div>
+                                              <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Học hàm' : 'Academic Title'}</label>
+                                                  <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.academicTitle.en} onChange={e => { const s = facultyTitles.academicTitles.find(t => t.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'academicTitle', s.name); }}>
+                                                      <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.academicTitles.map(t => <option key={t.id} value={t.name.en}>{t.name[editLanguage]}</option>)}
                                                   </select>
                                               </div>
                                                <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Vị trí công tác' : 'Position'}</label>
@@ -502,10 +510,13 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
                                       </div>
                                   </div>
                                   <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-                                      <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Phone size={18} className="text-emerald-600"/> {editLanguage === 'vi' ? 'Liên hệ' : 'Contact Info'}</h4>
+                                      <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Phone size={18} className="text-emerald-600"/> {editLanguage === 'vi' ? 'Liên hệ công tác' : 'Contact Info'}</h4>
                                       <div className="grid grid-cols-2 gap-4">
                                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Email</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.email || ''} onChange={e => updateFaculty(faculty.id, 'email', e.target.value)} /></div>
-                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Điện thoại' : 'Phone'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.tel || ''} onChange={e => updateFaculty(faculty.id, 'tel', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Điện thoại cơ quan' : 'Phone'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.tel || ''} onChange={e => updateFaculty(faculty.id, 'tel', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Di động' : 'Mobile'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.mobile || ''} onChange={e => updateFaculty(faculty.id, 'mobile', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Văn phòng' : 'Office'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.office || ''} onChange={e => updateFaculty(faculty.id, 'office', e.target.value)} /></div>
+                                          <div className="col-span-2"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Giờ ở văn phòng' : 'Office Hours'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.officeHours || ''} onChange={e => updateFaculty(faculty.id, 'officeHours', e.target.value)} /></div>
                                       </div>
                                   </div>
                               </div>
