@@ -5,11 +5,12 @@ interface SidebarProps {
   currentView: ViewState;
   onViewChange: (view: ViewState) => void;
   schoolName: string;
+  currentAcademicYear: string;
   isCollapsed: boolean;
   toggleSidebar: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, schoolName, isCollapsed, toggleSidebar }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, schoolName, currentAcademicYear, isCollapsed, toggleSidebar }) => {
   const menuItems: { id: ViewState; label: string; icon: React.ReactNode }[] = [
     {
       id: 'dashboard',
@@ -69,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, schoolName
           <div className="overflow-hidden">
              <h1 className="text-xl font-bold tracking-tight text-blue-400 whitespace-nowrap">UniData</h1>
              <p className="text-xs text-slate-400 mt-1 truncate" title={schoolName}>{schoolName}</p>
+             <h2 className="text-sm font-bold text-white mt-1">{currentAcademicYear}</h2>
           </div>
         )}
         <button 

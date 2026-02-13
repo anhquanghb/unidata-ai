@@ -212,6 +212,7 @@ const App: React.FC = () => {
         currentView={currentView}
         onViewChange={handleViewChange}
         schoolName={schoolInfo.school_name}
+        currentAcademicYear={settings.currentAcademicYear}
         isCollapsed={isSidebarCollapsed}
         toggleSidebar={handleToggleSidebar}
       />
