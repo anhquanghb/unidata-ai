@@ -225,6 +225,7 @@ export interface DataConfigGroup {
 export interface DynamicRecord {
   id: string;
   academicYear: string;
+  updatedAt?: string; // Timestamp for sync logic
   [key: string]: any;
 }
 

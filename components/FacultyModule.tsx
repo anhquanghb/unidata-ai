@@ -906,7 +906,7 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                           <Bot size={16} /> {t("AI Hỗ trợ", "AI Assist")}
                       </button>
                       <input type="file" ref={jsonInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
-                      <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập file JSON", "Import")}</button>
+                      <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import")}</button>
                       <button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm", "Add")}</button>
                   </div>
               )}
