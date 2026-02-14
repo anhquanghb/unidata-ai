@@ -129,6 +129,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const currentPermission = settings.permissionProfile || { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true };
+
   // Sync props to local state if changed externally
   useEffect(() => {
       setDriveFolderId(driveSession.folderId);
@@ -164,6 +166,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- REUSABLE SCAN LOGIC ---
   const performDriveScan = async (accessToken: string, clientId: string) => {
+      // ... (Same as before)
       try {
           // Set token for GAPI calls
           window.gapi.client.setToken({ access_token: accessToken });
@@ -192,8 +195,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           
           if (folderResp.result.files && folderResp.result.files.length > 0) {
               targetFolderId = folderResp.result.files[0].id;
-              console.log("Found existing folder:", targetFolderId);
-
+              
               // 2. If Found, Search for 'Data' Sub-folder
               const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
               const dataFolderResp = await window.gapi.client.drive.files.list({
@@ -265,17 +267,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- AUTHENTICATION CORE FUNCTION ---
   const authenticateDrive = async (clientId: string, promptType: string) => {
+    // ... (Same as before)
     if (!window.google || !window.gapi) {
         console.warn("Google libraries not loaded yet.");
         return;
     }
 
-    // Optimization: If we have a token and aren't forcing a prompt, try to reuse it directly
     if (driveSession.isConnected && driveSession.accessToken && promptType === '') {
-        console.log("Checking existing Drive session...");
         const success = await performDriveScan(driveSession.accessToken, clientId);
-        if (success) return; // Valid token, no need to popup
-        console.log("Existing token invalid or scan failed. Refreshing...");
+        if (success) return; 
     }
 
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -284,7 +284,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         callback: async (resp: any) => {
             if (resp.error) {
                 if (promptType === '' && (resp.error === 'immediate_failed' || resp.error === 'access_denied')) {
-                    console.log("Silent refresh failed or access denied. Clearing session.");
                     onUpdateDriveSession({
                         ...driveSession,
                         isConnected: false,
@@ -300,9 +299,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             if (resp.access_token) {
                 try {
                     await performDriveScan(resp.access_token, clientId);
-                    if (promptType.includes('select_account')) {
-                       // Optional: success feedback
-                    }
                 } catch (err: any) {
                     console.error("Auth Processing Error", err);
                     if (promptType !== '') alert("Lỗi khi xử lý thông tin tài khoản.");
@@ -311,7 +307,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         },
     });
 
-    // Request token
     tokenClient.requestAccessToken({ prompt: promptType });
   };
 
@@ -327,16 +322,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         const isExpired = (now - parsed.timestamp) >= TOKEN_EXPIRY_MS;
 
         if (!isExpired && parsed.config?.accessToken) {
-          // TOKEN VALID: Load immediately
-          console.log("Restoring valid Drive session...");
           window.gapi.client.setToken({ access_token: parsed.config.accessToken });
           onUpdateDriveSession(parsed.config); 
-          
-          // Trigger background scan to update UI status (found/not found)
           authenticateDrive(parsed.config.clientId || effectiveClientId, ''); 
         } else if (parsed.config?.clientId) {
-          // TOKEN EXPIRED: Try silent refresh
-          console.log("Session expired, attempting silent refresh...");
           authenticateDrive(parsed.config.clientId, '');
         }
       } catch (e) {
@@ -348,10 +337,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- MANUAL CREATE FOLDER HANDLER ---
   const handleCreateDefaultFolders = async () => {
+      // ... (Same as before)
       if (!driveSession.isConnected) return;
       setIsCreatingFolder(true);
       try {
-          // 1. Create Root Folder
           const fileMetadata = {
               name: DEFAULT_FOLDER_NAME,
               mimeType: 'application/vnd.google-apps.folder'
@@ -362,7 +351,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           });
           const newFolderId = createResp.result.id;
 
-          // 2. Create Data Subfolder
           const dataFolderMetadata = {
               name: 'Data',
               mimeType: 'application/vnd.google-apps.folder',
@@ -374,7 +362,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           });
           const newDataFolderId = createDataResp.result.id;
 
-          // 3. Update State
           setDriveFolderId(newFolderId);
           setScanStatus({
               foundFolder: true,
@@ -391,8 +378,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           };
 
           onUpdateDriveSession(updatedSession);
-          
-          // Update Persistence
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
               config: updatedSession,
               timestamp: Date.now()
@@ -414,39 +399,24 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         alert("Vui lòng nhập Google Client ID.");
         return;
     }
-    // FORCE 'select_account' to prevent auto-login to the previous account
     authenticateDrive(effectiveClientId, 'select_account consent');
   };
 
   const handleDisconnectDrive = () => {
+    // ... (Same as before)
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
-        // 1. Revoke Consent (Token revocation)
         if (driveSession.accessToken && window.google) {
             try {
-                window.google.accounts.oauth2.revoke(driveSession.accessToken, () => {
-                    console.log('Token revoked');
-                });
-            } catch (e) {
-                console.warn("Revoke failed (token might be invalid already)");
-            }
+                window.google.accounts.oauth2.revoke(driveSession.accessToken, () => { console.log('Token revoked'); });
+            } catch (e) { }
         }
-        
-        // 2. Clear GAPI client cache completely
-        if (window.gapi && window.gapi.client) {
-            window.gapi.client.setToken(null);
-        }
-
-        // 3. Clear Local Storage
-        localStorage.clear(); // Clears STORAGE_KEY and everything else
+        if (window.gapi && window.gapi.client) window.gapi.client.setToken(null);
+        localStorage.clear(); 
         sessionStorage.clear();
-
-        // 4. Reset local state immediately
         setDriveFolderId('');
         setExternalSourceFolderId('');
         setScanStatus({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
-
-        // 5. Reset Drive Session State explicitly to clear IDs
         onUpdateDriveSession({
             isConnected: false,
             clientId: effectiveClientId, 
@@ -457,24 +427,19 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             dataFolderId: '',
             externalSourceFolderId: ''
         });
-
-        // 6. Clear all application data
         onResetSystemData();
-        
         alert("Đã ngắt kết nối và xóa sạch phiên làm việc.");
     }
   };
 
   const handleSaveDriveConfigOnly = () => {
-      // Just saves Client ID and External Source ID to session state (runtime)
+      // ... (Same as before)
       const updated = {
           ...driveSession,
           clientId: manualClientId,
           externalSourceFolderId: externalSourceFolderId 
       };
       onUpdateDriveSession(updated);
-      
-      // Update storage if connected
       if (driveSession.isConnected) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
               config: updated,
@@ -486,50 +451,27 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
+    // ... (Same as before)
     if (!driveSession.isConnected || !driveSession.folderId) {
         alert("Chưa kết nối Google Drive hoặc chưa có thư mục lưu trữ.");
         return;
     }
-
-    // Restore token to GAPI if lost but exists in session
     if (!window.gapi?.client?.getToken() && driveSession.accessToken) {
         window.gapi.client.setToken({ access_token: driveSession.accessToken });
     }
-
-    // Double check token validity before upload
     const tokenObj = window.gapi?.client?.getToken();
     if (!tokenObj) {
-         // If still no token, assume session invalid
          alert("Phiên làm việc lỗi. Đang thử làm mới...");
-         handleConnectDrive(); // Re-trigger auth
+         handleConnectDrive(); 
          return;
     }
 
-    // SANITIZE SETTINGS: Remove driveConfig or any sensitive runtime keys
-    // We create a clean settings object that does NOT include drive state
     const { driveConfig: _ignored, ...safeSettings } = (settings as any);
-
     const data = {
-      units,
-      users,
-      settings: safeSettings, // Use cleaned settings
-      academicYears,
-      schoolInfo,
-      // Faculty Data
-      faculties,
-      facultyTitles,
-      humanResources,
-      // Records
-      scientificRecords,
-      trainingRecords,
-      personnelRecords,
-      admissionRecords,
-      classRecords,
-      departmentRecords,
-      businessRecords,
-      // Dynamic Data Config & STORE
-      dataConfigGroups,
-      dynamicDataStore,
+      units, users, settings: safeSettings, academicYears, schoolInfo,
+      faculties, facultyTitles, humanResources,
+      scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+      dataConfigGroups, dynamicDataStore,
       backupDate: new Date().toISOString(),
       version: "2.0.0"
     };
@@ -556,8 +498,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         });
         
         if (response.status === 401) {
-            console.log("401 Unauthorized during upload. Refreshing...");
-            authenticateDrive(effectiveClientId, ''); // Try silent refresh
+            authenticateDrive(effectiveClientId, ''); 
             alert("Phiên đăng nhập hết hạn. Hệ thống đang thử kết nối lại. Vui lòng thử lại sau giây lát.");
             return;
         }
@@ -566,51 +507,29 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         
         if (json.id) {
             alert(`Đã lưu bản mới lên Google Drive thành công!\nTên file: ${fileName}`);
-            // Re-scan to update count
             authenticateDrive(effectiveClientId, '');
         } else {
-            console.error("Drive Upload Error:", json);
             alert("Lỗi: Không thể lưu file lên Google Drive.");
         }
     } catch (error) {
-        console.error("Upload Request Error:", error);
         alert("Lỗi kết nối mạng khi tải lên Drive.");
     }
   };
 
   const handleExport = () => {
-    // SANITIZE SETTINGS: Remove driveConfig
+    // ... (Same as before)
     const { driveConfig: _ignored, ...safeSettings } = (settings as any);
-
     const data = {
-      units,
-      users,
-      settings: safeSettings, // Use cleaned settings
-      academicYears,
-      schoolInfo,
-      // Faculty Data
-      faculties,
-      facultyTitles,
-      humanResources,
-      // Records
-      scientificRecords,
-      trainingRecords,
-      personnelRecords,
-      admissionRecords,
-      classRecords,
-      departmentRecords,
-      businessRecords,
-      // Dynamic Data
-      dataConfigGroups,
-      dynamicDataStore,
+      units, users, settings: safeSettings, academicYears, schoolInfo,
+      faculties, facultyTitles, humanResources,
+      scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+      dataConfigGroups, dynamicDataStore,
       backupDate: new Date().toISOString(),
       version: "2.0.0"
     };
-    
     const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement('a');
     link.href = url;
     link.download = `unidata_backup_${new Date().toISOString().slice(0, 10)}.json`;
@@ -626,18 +545,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const json = JSON.parse(e.target?.result as string);
         if (window.confirm(`Bạn có chắc chắn muốn nhập dữ liệu từ file này? \nDữ liệu hiện tại sẽ bị thay thế.`)) {
             onImportData(json);
-            // alert("Nhập dữ liệu thành công!"); // Let the parent handle success message to avoid duplicate alerts if migration happens
         }
       } catch (error) {
         alert("Lỗi: File không hợp lệ hoặc bị lỗi định dạng JSON.");
-        console.error(error);
       }
     };
     reader.readAsText(file);
@@ -648,7 +564,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     onUpdateSettings({ ...settings, currentAcademicYear: code });
   };
 
-  const currentPermission = settings.permissionProfile || { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true };
+  // Define Tabs based on Permissions
+  const tabs = [
+      { id: 'backup', label: 'Dữ liệu & Backup' },
+      // Only show Users tab for School Admin
+      ...(currentPermission.role === 'school_admin' ? [{ id: 'users', label: 'Quản lý User' }] : []),
+      { id: 'data_config', label: 'Cấu hình Dữ liệu' },
+      { id: 'general', label: 'Cấu hình Chung' },
+  ];
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -658,12 +581,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       </div>
 
       <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit overflow-x-auto">
-        {[
-          { id: 'backup', label: 'Dữ liệu & Backup' },
-          { id: 'users', label: 'Quản lý User' },
-          { id: 'data_config', label: 'Cấu hình Dữ liệu' },
-          { id: 'general', label: 'Cấu hình Chung' },
-        ].map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}

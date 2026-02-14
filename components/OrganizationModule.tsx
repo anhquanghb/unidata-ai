@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Unit, Faculty, HumanResourceRecord, PermissionProfile } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check, Download, Lock } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check, Download, Lock, Shield } from 'lucide-react';
 
 interface OrganizationModuleProps {
   units: Unit[];
@@ -10,7 +10,7 @@ interface OrganizationModuleProps {
   humanResources: HumanResourceRecord[];
   onUpdateHumanResources: (records: HumanResourceRecord[]) => void;
   onExportUnitData?: (unitId: string) => void;
-  permission?: PermissionProfile; // NEW PROP
+  permission?: PermissionProfile; 
 }
 
 const OrganizationModule: React.FC<OrganizationModuleProps> = ({ 
@@ -35,16 +35,47 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   const [personSearchTerm, setPersonSearchTerm] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [joinDate, setJoinDate] = useState(new Date().toISOString().split('T')[0]);
-  const [isTransfer, setIsTransfer] = useState(false); // True: Move, False: Concurrent
+  const [isTransfer, setIsTransfer] = useState(false); 
 
   // Personnel Inline Editing State (Start Date)
   const [editingHrId, setEditingHrId] = useState<string | null>(null);
   const [editJoinDate, setEditJoinDate] = useState('');
 
-  // Permission Check Helpers
-  const canEditStructure = permission ? permission.canEditOrgStructure : true;
-  // If managedUnitId is set, restricted logic could be applied here (e.g. only select that unit)
-  // For now, we rely on the visual cues and button hiding.
+  // --- Permission Check Helpers ---
+  const role = permission?.role || 'school_admin';
+  const managedUnitId = permission?.managedUnitId;
+
+  // Helper to check if a unit is a descendant of another
+  const isDescendant = (targetId: string, rootId: string): boolean => {
+      const children = units.filter(u => u.unit_parentId === rootId);
+      if (children.some(c => c.unit_id === targetId)) return true;
+      return children.some(c => isDescendant(targetId, c.unit_id));
+  };
+
+  // Check if user can edit structure of a specific unit
+  const canEditTargetUnit = (unitId: string) => {
+      if (role === 'school_admin') return true;
+      if (role === 'unit_manager' && managedUnitId) {
+          // Cannot edit the managed root unit itself (e.g., delete/rename self)
+          if (unitId === managedUnitId) return false;
+          // Can edit if it is a descendant of managed unit
+          return isDescendant(unitId, managedUnitId);
+      }
+      return false;
+  };
+
+  // Check if user can add a child to a specific unit
+  const canAddChildToUnit = (unitId: string) => {
+      if (role === 'school_admin') return true;
+      if (role === 'unit_manager' && managedUnitId) {
+          // Can add child to managed root or its descendants
+          return unitId === managedUnitId || isDescendant(unitId, managedUnitId);
+      }
+      return false;
+  };
+
+  // Can Add Root/Sibling Unit? Only School Admin
+  const canAddRootUnit = role === 'school_admin';
 
   // --- Helpers ---
   const getFacultyCurrentUnit = (facultyId: string) => {
@@ -70,7 +101,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   // --- Unit Actions ---
   const handleDeleteUnit = (id: string) => {
-    if (!canEditStructure) return;
+    if (!canEditTargetUnit(id)) return;
     if (confirm("Bạn có chắc chắn muốn xóa đơn vị này? Các đơn vị con cũng sẽ bị xóa.")) {
       const idsToDelete = new Set<string>();
       const collectIds = (uid: string) => {
@@ -84,10 +115,20 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   };
 
   const handleSaveUnit = () => {
-    if (!canEditStructure) return;
+    // Verify permission again
+    if (!tempUnit.unit_parentId && !canAddRootUnit) {
+        alert("Bạn không có quyền thêm đơn vị cấp cao nhất.");
+        return;
+    }
+    if (tempUnit.unit_parentId && !canAddChildToUnit(tempUnit.unit_parentId)) {
+        alert("Bạn không có quyền thêm đơn vị vào trực thuộc đơn vị này.");
+        return;
+    }
+
     if (!tempUnit.unit_name || !tempUnit.unit_code) return;
     
     if (isEditingUnit && tempUnit.unit_id) {
+      if (!canEditTargetUnit(tempUnit.unit_id)) return;
       onUpdateUnits(units.map(u => u.unit_id === tempUnit.unit_id ? { ...u, ...tempUnit } as Unit : u));
     } else {
       const newUnit: Unit = {
@@ -175,6 +216,9 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     const isExpanded = expandedUnits.has(unit.unit_id);
     const isSelected = selectedUnitId === unit.unit_id;
 
+    // Auto expand if unit is managed unit
+    // if (managedUnitId === unit.unit_id && !expandedUnits.has(unit.unit_id)) toggleExpand(unit.unit_id);
+
     return (
       <div key={unit.unit_id} className="select-none">
         <div 
@@ -191,6 +235,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
           
           <Building size={16} className={`mr-2 ${unit.unit_type === 'school' ? 'text-indigo-600' : unit.unit_type === 'faculty' ? 'text-blue-600' : 'text-slate-500'}`} />
           <span className="text-sm font-medium truncate flex-1">{unit.unit_name}</span>
+          {managedUnitId === unit.unit_id && <span title="Managed Unit"><Shield size={12} className="text-amber-500 ml-1" /></span>}
         </div>
         
         {isExpanded && children.map(child => renderUnitNode(child, level + 1))}
@@ -221,10 +266,11 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
       <div className="w-1/3 border-r border-slate-200 flex flex-col bg-slate-50">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
           <h3 className="font-bold text-slate-800">Cơ cấu Tổ chức</h3>
-          {canEditStructure && (
+          {canAddRootUnit && (
               <button 
                 onClick={() => { setTempUnit({}); setIsAddingUnit(true); }}
                 className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                title="Thêm Đơn vị Gốc (Root)"
               >
                 <Plus size={16} />
               </button>
@@ -259,7 +305,21 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                             <Download size={14}/> Xuất JSON
                         </button>
                     )}
-                    {canEditStructure ? (
+                    {/* Add Sub-unit button logic */}
+                    {canAddChildToUnit(selectedUnit.unit_id) && (
+                        <button 
+                            onClick={() => { 
+                                setTempUnit({ unit_parentId: selectedUnit.unit_id }); 
+                                setIsAddingUnit(true); 
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-white border border-green-200 text-green-700 rounded text-sm font-medium hover:bg-green-50"
+                            title="Thêm đơn vị con trực thuộc"
+                        >
+                            <Plus size={14}/> Thêm Cấp dưới
+                        </button>
+                    )}
+
+                    {canEditTargetUnit(selectedUnit.unit_id) ? (
                         <>
                             <button 
                               onClick={() => { setTempUnit(selectedUnit); setIsEditingUnit(true); }}
@@ -275,8 +335,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                             </button>
                         </>
                     ) : (
-                        <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                            <Lock size={12}/> View Only
+                        <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100" title="Bạn không có quyền sửa đơn vị này">
+                            <Lock size={12}/> Locked
                         </span>
                     )}
                  </div>
@@ -366,8 +426,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         )}
       </div>
 
-      {/* Modal: Add/Edit Unit (Only if Permission) */}
-      {(isAddingUnit || isEditingUnit) && canEditStructure && (
+      {/* Modal: Add/Edit Unit */}
+      {(isAddingUnit || isEditingUnit) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
            <div className="bg-white rounded-xl shadow-xl p-6 w-96">
               <h3 className="font-bold text-lg mb-4">{isEditingUnit ? 'Cập nhật Đơn vị' : 'Thêm Đơn vị Mới'}</h3>
@@ -390,9 +450,22 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                  </div>
                  <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">Đơn vị cha</label>
-                    <select className="w-full p-2 border border-slate-300 rounded text-sm" value={tempUnit.unit_parentId || ''} onChange={e => setTempUnit({...tempUnit, unit_parentId: e.target.value || undefined})}>
+                    <select 
+                        className="w-full p-2 border border-slate-300 rounded text-sm" 
+                        value={tempUnit.unit_parentId || ''} 
+                        onChange={e => setTempUnit({...tempUnit, unit_parentId: e.target.value || undefined})}
+                        disabled={!!tempUnit.unit_parentId && isAddingUnit} // If adding specifically to a parent, lock it
+                    >
                        <option value="">-- Không (Gốc) --</option>
-                       {units.filter(u => u.unit_id !== tempUnit.unit_id).map(u => (
+                       {units.filter(u => {
+                           // Filter logic:
+                           // 1. Cannot be self (loop)
+                           if (u.unit_id === tempUnit.unit_id) return false;
+                           // 2. Unit Manager Constraint: Parent must be manageable
+                           if (!canAddChildToUnit(u.unit_id)) return false; 
+                           
+                           return true;
+                       }).map(u => (
                          <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
                        ))}
                     </select>

@@ -98,6 +98,9 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [shareEmailFile, setShareEmailFile] = useState('');
   const [isSharing, setIsSharing] = useState(false);
 
+  const permission = settings.permissionProfile || { role: 'school_admin' };
+  const isUnitManager = permission.role === 'unit_manager';
+
   const handleSaveGeneral = () => {
       onUpdateSettings({ ...settings, virtualAssistantUrl });
       alert("Đã lưu cấu hình chung!");
@@ -247,46 +250,50 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   return (
     <div className="space-y-8 animate-fade-in">
-        {/* SECTION 0: Role Simulation */}
-        <div className="bg-gradient-to-r from-slate-100 to-slate-200 p-4 rounded-lg border border-slate-300">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                <Shield size={16} className="text-indigo-600"/> Trạng thái Quyền hạn (System Permission Scope)
-            </h3>
-            <p className="text-xs text-slate-600 mb-3">
-                Thay đổi trạng thái này để kiểm thử giao diện của các cấp độ người dùng khác nhau.
-                Lưu ý: Khi nhập file JSON từ cấp khác, quyền hạn này sẽ tự động thay đổi theo file đó.
-            </p>
-            <div className="flex gap-2">
-                <button 
-                    onClick={() => handleToggleRole('school_admin')}
-                    className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'school_admin' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
-                >
-                    <CheckCircle size={16} className={settings.permissionProfile?.role === 'school_admin' ? 'opacity-100' : 'opacity-0'}/>
-                    Cấp Trường (Root Admin)
-                </button>
-                <button 
-                    onClick={() => handleToggleRole('unit_manager')}
-                    className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'unit_manager' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
-                >
-                    <CheckCircle size={16} className={settings.permissionProfile?.role === 'unit_manager' ? 'opacity-100' : 'opacity-0'}/>
-                    Cấp Đơn vị (Unit Manager)
-                </button>
+        {/* SECTION 0: Role Simulation - HIDE IF UNIT MANAGER */}
+        {!isUnitManager && (
+            <div className="bg-gradient-to-r from-slate-100 to-slate-200 p-4 rounded-lg border border-slate-300">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Shield size={16} className="text-indigo-600"/> Trạng thái Quyền hạn (System Permission Scope)
+                </h3>
+                <p className="text-xs text-slate-600 mb-3">
+                    Thay đổi trạng thái này để kiểm thử giao diện của các cấp độ người dùng khác nhau.
+                    Lưu ý: Khi nhập file JSON từ cấp khác, quyền hạn này sẽ tự động thay đổi theo file đó.
+                </p>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => handleToggleRole('school_admin')}
+                        className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'school_admin' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
+                    >
+                        <CheckCircle size={16} className={settings.permissionProfile?.role === 'school_admin' ? 'opacity-100' : 'opacity-0'}/>
+                        Cấp Trường (Root Admin)
+                    </button>
+                    <button 
+                        onClick={() => handleToggleRole('unit_manager')}
+                        className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'unit_manager' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
+                    >
+                        <CheckCircle size={16} className={settings.permissionProfile?.role === 'unit_manager' ? 'opacity-100' : 'opacity-0'}/>
+                        Cấp Đơn vị (Unit Manager)
+                    </button>
+                </div>
             </div>
-        </div>
+        )}
 
         {/* SECTION 1: School Info */}
         <div>
            <div className="flex justify-between items-center mb-4">
                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Thông tin Đơn vị Đào tạo</h3>
-               {!editingSchool ? (
+               {!editingSchool && !isUnitManager ? (
                    <button onClick={() => setEditingSchool(true)} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg transition-colors">
                        <Edit2 size={16} />
                    </button>
-               ) : (
+               ) : editingSchool && !isUnitManager ? (
                    <div className="flex gap-2">
                        <button onClick={() => setEditingSchool(false)} className="px-3 py-1 text-slate-500 hover:text-slate-700 text-xs font-bold">Hủy</button>
                        <button onClick={handleSaveSchoolInfo} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700">Lưu</button>
                    </div>
+               ) : (
+                   <span className="text-xs text-slate-400 italic bg-slate-100 px-2 py-1 rounded">Read-only</span>
                )}
            </div>
            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -326,7 +333,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                        {academicYears.map(year => (
                            <tr key={year.id} className="hover:bg-slate-50 transition-colors">
                                <td className="px-4 py-3 font-medium text-slate-800">
-                                   {editingYearId === year.id ? (
+                                   {editingYearId === year.id && !isUnitManager ? (
                                        <div className="flex gap-2">
                                            <input 
                                                className="w-24 px-2 py-1 border border-slate-300 rounded text-xs"
@@ -361,10 +368,12 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                </td>
                                <td className="px-4 py-3 text-right">
                                    <div className="flex justify-end gap-2">
-                                        {!year.isLocked && (
+                                        {!year.isLocked && !isUnitManager && (
                                             <button onClick={() => startEditingYear(year)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
                                         )}
-                                        <button onClick={() => onDeleteAcademicYear(year.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                        {!isUnitManager && (
+                                            <button onClick={() => onDeleteAcademicYear(year.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                        )}
                                    </div>
                                </td>
                            </tr>
@@ -372,27 +381,28 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    </tbody>
                </table>
            </div>
-           <div className="flex gap-2">
-               <input 
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập mã năm học mới (VD: 2024-2025)"
-                  value={newYearCode}
-                  onChange={(e) => setNewYearCode(e.target.value)}
-               />
-               <button 
-                  onClick={handleAddNewYear}
-                  disabled={!newYearCode}
-                  className={`px-4 py-2 rounded text-sm font-bold text-white transition-colors flex items-center gap-2 ${!newYearCode ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-               >
-                   <PlusCircle size={16} /> Thêm Năm học
-               </button>
-           </div>
+           
+           {!isUnitManager && (
+               <div className="flex gap-2">
+                   <input 
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập mã năm học mới (VD: 2024-2025)"
+                      value={newYearCode}
+                      onChange={(e) => setNewYearCode(e.target.value)}
+                   />
+                   <button 
+                      onClick={handleAddNewYear}
+                      disabled={!newYearCode}
+                      className={`px-4 py-2 rounded text-sm font-bold text-white transition-colors flex items-center gap-2 ${!newYearCode ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                   >
+                       <PlusCircle size={16} /> Thêm Năm học
+                   </button>
+               </div>
+           )}
        </div>
 
        {/* SECTION 3: Google Drive Config */}
        <div className="border-t border-slate-200 pt-6">
-           {/* ... Drive Config Content (Same as before) ... */}
-           {/* To save tokens, I'm abbreviating the Drive section as it was largely untouched except for layout context, assuming it remains same as previous version but inside the updated file */}
            <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide flex items-center gap-2">
                <Database size={16} className="text-blue-600"/> Cấu hình Google Drive
            </h3>
@@ -653,11 +663,14 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                <label className="block text-xs font-semibold text-slate-500 mb-1">URL Trợ lý ảo (Virtual Assistant)</label>
                <div className="flex gap-2">
                    <input 
-                       className="flex-1 p-2 border border-slate-300 rounded text-sm"
+                       className="flex-1 p-2 border border-slate-300 rounded text-sm disabled:bg-slate-100 disabled:text-slate-500"
                        value={virtualAssistantUrl}
                        onChange={(e) => setVirtualAssistantUrl(e.target.value)}
+                       disabled={isUnitManager}
                    />
-                   <button onClick={handleSaveGeneral} className="px-4 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700">Lưu</button>
+                   {!isUnitManager && (
+                        <button onClick={handleSaveGeneral} className="px-4 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700">Lưu</button>
+                   )}
                </div>
                <p className="text-[10px] text-slate-400 mt-1">
                    Mặc định: <code>https://gemini.google.com/app</code>. Dùng để mở nhanh từ giao diện nhập liệu.

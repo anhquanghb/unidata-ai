@@ -187,7 +187,7 @@ const App: React.FC = () => {
       const restrictedPermission: PermissionProfile = {
           role: 'unit_manager',
           canEditDataConfig: false, // Unit cannot edit schema
-          canEditOrgStructure: false, // Unit cannot edit structure
+          canEditOrgStructure: false, // Unit cannot edit structure (globally), but can edit children
           managedUnitId: targetUnit.unit_id // Locked to this unit
       };
 
@@ -199,8 +199,11 @@ const App: React.FC = () => {
           units: filteredUnits,
           humanResources: filteredHR,
           faculties: filteredFaculties,
+          facultyTitles: facultyTitles, // ALWAYS INCLUDE FACULTY TITLES
           dataConfigGroups: dataConfigGroups, 
           dynamicDataStore: filteredDynamicStore,
+          academicYears: academicYears, // Include Academic Years
+          schoolInfo: schoolInfo // Include School Info
       };
 
       // 5. Download File
@@ -408,6 +411,7 @@ const App: React.FC = () => {
              units={units}
              humanResources={humanResources}
              currentAcademicYear={settings.currentAcademicYear}
+             permission={currentPermission} // Pass Permission
           />;
       case 'organization':
         return <OrganizationModule 
@@ -479,7 +483,7 @@ const App: React.FC = () => {
         {/* Permission Banner */}
         {currentPermission.role === 'unit_manager' && (
             <div className="bg-amber-100 text-amber-800 px-4 py-1 text-xs font-bold text-center border-b border-amber-200">
-                CHẾ ĐỘ CẤP ĐƠN VỊ (UNIT MANAGER) - Một số tính năng cấu hình hệ thống đã bị khóa.
+                CHẾ ĐỘ CẤP ĐƠN VỊ (UNIT MANAGER) - {currentPermission.managedUnitId ? `Đang quản lý đơn vị ID: ${currentPermission.managedUnitId}` : ''} - Một số tính năng cấu hình hệ thống đã bị khóa.
             </div>
         )}
         <main className="flex-1 overflow-y-auto p-0">
