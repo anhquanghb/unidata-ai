@@ -20,48 +20,6 @@ interface FacultyModuleProps {
   currentAcademicYear?: string;
 }
 
-const AI_PROMPT_TEMPLATE = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập chuẩn hóa cho hệ thống UniData.
-Nhiệm vụ: Tạo mảng dữ liệu JSON chứa 3-5 hồ sơ giảng viên.
-
-QUAN TRỌNG - RÀNG BUỘC DỮ LIỆU (VALIDATION RULES):
-AI bắt buộc phải sử dụng chính xác các giá trị sau đây cho các trường tương ứng (chọn 1 cặp VI/EN phù hợp):
-
-1. Chức danh (Rank): [${validRanks}]
-2. Học vị (Degree): [${validDegrees}]
-3. Học hàm (Academic Title): [${validAcademicTitles}] (Nếu không có, để chuỗi rỗng)
-4. Vị trí (Position): [${validPositions}]
-
-CẤU TRÚC JSON YÊU CẦU:
-[
-  {
-    "name": { "vi": "Nguyễn Văn A", "en": "Nguyen Van A" },
-    "email": "email_duy_nhat@domain.com",
-    "rank": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
-    "degree": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
-    "academicTitle": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
-    "position": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
-    "experience": { "vi": "10", "en": "10" },
-    "careerStartYear": 2014,
-    "educationList": [
-      {
-        "id": "edu_1",
-        "year": "2010",
-        "degree": { "vi": "Cử nhân", "en": "Bachelor" },
-        "institution": { "vi": "Đại học Bách Khoa", "en": "Polytechnic University" }
-      }
-    ],
-    "publicationsList": [
-      {
-        "id": "pub_1",
-        "text": { "vi": "Tên bài báo...", "en": "Paper title..." }
-      }
-    ]
-  }
-]
-Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ, không thêm text giải thích.
-
-Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà tôi cần tạo.`;
-
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 
     facultyTitles, setFacultyTitles,
@@ -370,7 +328,54 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
 
   // --- AI IMPORT HANDLERS ---
   const handleCopyAiPrompt = () => {
-      navigator.clipboard.writeText(AI_PROMPT_TEMPLATE).then(() => {
+      const validRanks = facultyTitles.ranks.map(r => JSON.stringify(r.name)).join(', ');
+      const validDegrees = facultyTitles.degrees.map(r => JSON.stringify(r.name)).join(', ');
+      const validAcademicTitles = facultyTitles.academicTitles.map(r => JSON.stringify(r.name)).join(', ');
+      const validPositions = facultyTitles.positions.map(r => JSON.stringify(r.name)).join(', ');
+
+      const prompt = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập chuẩn hóa cho hệ thống UniData.
+Nhiệm vụ: Tạo mảng dữ liệu JSON chứa 3-5 hồ sơ giảng viên.
+
+QUAN TRỌNG - RÀNG BUỘC DỮ LIỆU (VALIDATION RULES):
+AI bắt buộc phải sử dụng chính xác các giá trị sau đây cho các trường tương ứng (chọn 1 cặp VI/EN phù hợp):
+
+1. Chức danh (Rank): [${validRanks}]
+2. Học vị (Degree): [${validDegrees}]
+3. Học hàm (Academic Title): [${validAcademicTitles}] (Nếu không có, để chuỗi rỗng)
+4. Vị trí (Position): [${validPositions}]
+
+CẤU TRÚC JSON YÊU CẦU:
+[
+  {
+    "name": { "vi": "Nguyễn Văn A", "en": "Nguyen Van A" },
+    "email": "email_duy_nhat@domain.com",
+    "rank": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "degree": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "academicTitle": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "position": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "experience": { "vi": "10", "en": "10" },
+    "careerStartYear": 2014,
+    "educationList": [
+      {
+        "id": "edu_random_string_1", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "year": "2010",
+        "degree": { "vi": "Cử nhân", "en": "Bachelor" },
+        "institution": { "vi": "Đại học Bách Khoa", "en": "Polytechnic University" }
+      }
+    ],
+    "publicationsList": [
+      {
+        "id": "pub_random_string_2", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "text": { "vi": "Tên bài báo...", "en": "Paper title..." }
+      }
+    ]
+  }
+]
+Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ, không thêm text giải thích.
+
+Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà tôi cần tạo.`;
+
+      navigator.clipboard.writeText(prompt).then(() => {
           alert("Đã sao chép Prompt vào bộ nhớ đệm! Hãy dán vào ChatGPT/Gemini.");
       });
   };
