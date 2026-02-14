@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Faculty, FacultyTitles, FacultyTitle, FacultyListItem, Language, Course, Unit, HumanResourceRecord, PermissionProfile } from '../types';
-import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building, Bot, Copy, ArrowRight, LayoutGrid, MoreHorizontal, MapPin } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building, Bot, Copy, ArrowRight, LayoutGrid, MoreHorizontal, MapPin, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { importFacultyFromPdf, translateContent } from '../services/geminiService';
 // import { exportFacultyCvPdf } from '../services/FacultyExportPDF'; // Removed as file not provided, replaced with dummy
 import AILoader from '../components/AILoader';
@@ -19,6 +19,13 @@ interface FacultyModuleProps {
   humanResources?: HumanResourceRecord[];
   currentAcademicYear?: string;
   permission?: PermissionProfile; // New prop
+}
+
+// Define structure for conflicts found during import
+interface ImportConflict {
+    field: keyof FacultyTitles; // 'ranks', 'degrees', etc.
+    label: string; // Display label like "Chức danh"
+    value: string; // The value found in JSON
 }
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
@@ -52,6 +59,10 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
   const [aiJsonInput, setAiJsonInput] = useState('');
   const [aiParsedData, setAiParsedData] = useState<Faculty[] | null>(null);
   const [aiImportError, setAiImportError] = useState<string | null>(null);
+  
+  // -- Import Conflicts & Mapping State --
+  const [detectedConflicts, setDetectedConflicts] = useState<ImportConflict[]>([]);
+  const [importMappings, setImportMappings] = useState<Record<string, string>>({}); // "field:value" -> "targetValue"
 
   // Refs for file inputs
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -177,7 +188,6 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
     }
   };
 
-  // ... (Keep existing ID Management Actions & Translate Profile functions) ...
   // --- ID Management Actions ---
   const handleStartEditId = (id: string) => {
       setEditingIdTarget(id);
@@ -326,7 +336,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
       const validPositions = facultyTitles.positions.map(r => JSON.stringify(r.name)).join(', ');
 
       const prompt = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập chuẩn hóa cho hệ thống UniData.
-Nhiệm vụ: Tạo mảng dữ liệu JSON chứa 3-5 hồ sơ giảng viên.
+Nhiệm vụ: Tạo mảng dữ liệu JSON hồ sơ giảng viên.
 
 QUAN TRỌNG - RÀNG BUỘC DỮ LIỆU (VALIDATION RULES):
 AI bắt buộc phải sử dụng chính xác các giá trị sau đây cho các trường tương ứng (chọn 1 cặp VI/EN phù hợp):
@@ -467,7 +477,6 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
           const parsed = JSON.parse(raw);
           if (!Array.isArray(parsed)) throw new Error("Dữ liệu phải là một mảng JSON (Array).");
           
-          // Hydrate with necessary fields
           const hydrated: Faculty[] = parsed.map((item: any) => ({
               id: `fac-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
               name: item.name || { vi: "No Name", en: "No Name" },
@@ -479,35 +488,109 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
               careerStartYear: item.careerStartYear || new Date().getFullYear(),
               email: item.email || "",
               mobile: item.mobile || "",
+              office: item.office || "",
+              officeHours: item.officeHours || "",
               educationList: Array.isArray(item.educationList) ? item.educationList : [],
               publicationsList: Array.isArray(item.publicationsList) ? item.publicationsList : [],
-              academicExperienceList: [],
-              nonAcademicExperienceList: [],
-              certificationsList: [],
-              membershipsList: [],
-              honorsList: [],
-              serviceActivitiesList: [],
-              professionalDevelopmentList: [],
+              academicExperienceList: Array.isArray(item.academicExperienceList) ? item.academicExperienceList : [],
+              nonAcademicExperienceList: Array.isArray(item.nonAcademicExperienceList) ? item.nonAcademicExperienceList : [],
+              certificationsList: Array.isArray(item.certificationsList) ? item.certificationsList : [],
+              membershipsList: Array.isArray(item.membershipsList) ? item.membershipsList : [],
+              honorsList: Array.isArray(item.honorsList) ? item.honorsList : [],
+              serviceActivitiesList: Array.isArray(item.serviceActivitiesList) ? item.serviceActivitiesList : [],
+              professionalDevelopmentList: Array.isArray(item.professionalDevelopmentList) ? item.professionalDevelopmentList : [],
               workload: 0,
-              office: "",
-              officeHours: ""
           }));
 
+          // --- ANALYZE CONFLICTS ---
+          const conflicts: ImportConflict[] = [];
+          const uniqueValues = new Set<string>();
+
+          const checkConflict = (category: keyof FacultyTitles, label: string, valueObj: {vi: string, en: string}) => {
+              // Only check VI for simplicity, or check both if available
+              const val = valueObj.vi?.trim() || valueObj.en?.trim();
+              if (!val) return;
+
+              // Check if value exists in existing titles
+              const exists = facultyTitles[category].some(t => 
+                  t.name.vi.toLowerCase() === val.toLowerCase() || 
+                  t.name.en.toLowerCase() === val.toLowerCase()
+              );
+
+              if (!exists) {
+                  const key = `${category}:${val}`;
+                  if (!uniqueValues.has(key)) {
+                      uniqueValues.add(key);
+                      conflicts.push({ field: category, label, value: val });
+                  }
+              }
+          };
+
+          hydrated.forEach(f => {
+              checkConflict('ranks', 'Chức danh', f.rank);
+              checkConflict('degrees', 'Học vị', f.degree);
+              checkConflict('academicTitles', 'Học hàm', f.academicTitle);
+              checkConflict('positions', 'Vị trí', f.position);
+          });
+
+          setDetectedConflicts(conflicts);
+          setImportMappings({}); // Reset mappings
           setAiParsedData(hydrated);
           setAiImportError(null);
       } catch (e: any) {
           setAiImportError("Lỗi đọc JSON: " + e.message);
           setAiParsedData(null);
+          setDetectedConflicts([]);
       }
+  };
+
+  const handleMappingChange = (field: string, value: string, targetValue: string) => {
+      setImportMappings(prev => ({
+          ...prev,
+          [`${field}:${value}`]: targetValue
+      }));
   };
 
   const handleConfirmAiImport = () => {
       if (aiParsedData) {
-          setFaculties(prev => [...prev, ...aiParsedData]);
+          // Apply mappings
+          const finalData = aiParsedData.map(f => {
+              const applyMap = (category: keyof FacultyTitles, originalObj: {vi: string, en: string}) => {
+                  const val = originalObj.vi?.trim() || originalObj.en?.trim();
+                  if (!val) return originalObj;
+                  
+                  const key = `${category}:${val}`;
+                  const mappedTo = importMappings[key];
+
+                  if (mappedTo === '__SKIP__') {
+                      return { vi: '', en: '' }; // Clear it
+                  }
+                  
+                  if (mappedTo) {
+                      // Find the full object from system titles
+                      const titleObj = facultyTitles[category].find(t => t.name.vi === mappedTo || t.name.en === mappedTo);
+                      if (titleObj) return titleObj.name;
+                  }
+                  
+                  return originalObj; // Keep original if no map or Keep selected
+              };
+
+              return {
+                  ...f,
+                  rank: applyMap('ranks', f.rank),
+                  degree: applyMap('degrees', f.degree),
+                  academicTitle: applyMap('academicTitles', f.academicTitle),
+                  position: applyMap('positions', f.position)
+              };
+          });
+
+          setFaculties(prev => [...prev, ...finalData]);
           setAiParsedData(null);
+          setDetectedConflicts([]);
+          setImportMappings({});
           setAiJsonInput('');
           setIsAiImportModalOpen(false);
-          alert(`Đã nhập thành công ${aiParsedData.length} hồ sơ nhân sự!`);
+          alert(`Đã nhập thành công ${finalData.length} hồ sơ nhân sự!`);
       }
   };
 
@@ -817,7 +900,7 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                           <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`} title="List View"><List size={16}/></button>
                       </div>
                       <button 
-                          onClick={() => { setIsAiImportModalOpen(true); setAiParsedData(null); setAiJsonInput(''); setAiImportError(null); }}
+                          onClick={() => { setIsAiImportModalOpen(true); setAiParsedData(null); setAiJsonInput(''); setAiImportError(null); setDetectedConflicts([]); setImportMappings({}); }}
                           className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-sm"
                       >
                           <Bot size={16} /> {t("AI Hỗ trợ", "AI Assist")}
@@ -1081,9 +1164,8 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
 
       {/* AI Import Modal */}
       {isAiImportModalOpen && (
-          // ... (Modal Content - Unchanged) ...
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
                   <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50 rounded-t-xl">
                       <h3 className="font-bold text-purple-900 flex items-center gap-2">
                           <Bot size={20} className="text-purple-600"/> 
@@ -1121,7 +1203,7 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                               Dán kết quả JSON vào đây
                           </h4>
                           <textarea 
-                              className="w-full h-40 p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                              className="w-full h-32 p-3 bg-slate-900 text-green-400 font-mono text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                               placeholder='[ { "name": { "vi": "Nguyễn Văn A", ... }, ... }, ... ]'
                               value={aiJsonInput}
                               onChange={(e) => setAiJsonInput(e.target.value)}
@@ -1133,20 +1215,58 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                           )}
                       </div>
 
-                      {/* Step 3: Preview */}
+                      {/* Step 3: Conflict Resolution & Preview */}
                       {aiParsedData && (
                           <div className="border-t border-slate-200 pt-4">
                               <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                                   <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">3</span> 
-                                  Xem trước ({aiParsedData.length} hồ sơ)
+                                  Kiểm tra & Chuẩn hóa Dữ liệu
                               </h4>
-                              <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
+
+                              {/* Conflicts Area */}
+                              {detectedConflicts.length > 0 && (
+                                  <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                      <div className="flex items-center gap-2 mb-3 text-amber-800">
+                                          <AlertTriangle size={16}/>
+                                          <span className="font-bold text-sm">Phát hiện {detectedConflicts.length} giá trị chưa khớp với hệ thống</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          {detectedConflicts.map((conflict, idx) => (
+                                              <div key={idx} className="bg-white p-3 rounded border border-amber-100 shadow-sm flex flex-col gap-2">
+                                                  <div className="flex justify-between text-xs">
+                                                      <span className="text-slate-500 font-bold uppercase">{conflict.label}</span>
+                                                      <span className="text-red-500 font-mono bg-red-50 px-1 rounded">"{conflict.value}"</span>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                      <ArrowRightLeft size={14} className="text-slate-400"/>
+                                                      <select 
+                                                          className="flex-1 text-xs border border-slate-300 rounded p-1.5 focus:border-indigo-500 outline-none"
+                                                          value={importMappings[`${conflict.field}:${conflict.value}`] || ''}
+                                                          onChange={(e) => handleMappingChange(conflict.field as string, conflict.value, e.target.value)}
+                                                      >
+                                                          <option value="">-- Chọn hành động --</option>
+                                                          <option value="__SKIP__">Bỏ qua (Để trống)</option>
+                                                          <optgroup label="Ghép vào danh mục có sẵn">
+                                                              {(facultyTitles[conflict.field] || []).map(opt => (
+                                                                  <option key={opt.id} value={opt.name.vi}>{opt.name.vi} / {opt.name.en}</option>
+                                                              ))}
+                                                          </optgroup>
+                                                      </select>
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
+
+                              <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
                                   <table className="w-full text-xs text-left">
                                       <thead className="bg-slate-100 sticky top-0">
                                           <tr>
                                               <th className="px-2 py-1">#</th>
                                               <th className="px-2 py-1">Tên (VI)</th>
-                                              <th className="px-2 py-1">Học vị</th>
+                                              <th className="px-2 py-1">Học vị (Degree)</th>
+                                              <th className="px-2 py-1">Chức danh (Rank)</th>
                                               <th className="px-2 py-1">Email</th>
                                           </tr>
                                       </thead>
@@ -1155,7 +1275,22 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                                               <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                                                   <td className="px-2 py-1 text-slate-400">{idx + 1}</td>
                                                   <td className="px-2 py-1 font-bold">{row.name.vi}</td>
-                                                  <td className="px-2 py-1">{row.degree.vi}</td>
+                                                  <td className="px-2 py-1">
+                                                      {row.degree.vi || row.degree.en}
+                                                      {importMappings[`degrees:${row.degree.vi || row.degree.en}`] && (
+                                                          <span className="ml-1 text-[9px] bg-green-100 text-green-700 px-1 rounded">
+                                                              → {importMappings[`degrees:${row.degree.vi || row.degree.en}`] === '__SKIP__' ? '(Xóa)' : importMappings[`degrees:${row.degree.vi || row.degree.en}`]}
+                                                          </span>
+                                                      )}
+                                                  </td>
+                                                  <td className="px-2 py-1">
+                                                      {row.rank.vi || row.rank.en}
+                                                      {importMappings[`ranks:${row.rank.vi || row.rank.en}`] && (
+                                                          <span className="ml-1 text-[9px] bg-green-100 text-green-700 px-1 rounded">
+                                                              → {importMappings[`ranks:${row.rank.vi || row.rank.en}`] === '__SKIP__' ? '(Xóa)' : importMappings[`ranks:${row.rank.vi || row.rank.en}`]}
+                                                          </span>
+                                                      )}
+                                                  </td>
                                                   <td className="px-2 py-1 text-slate-500 italic">{row.email}</td>
                                               </tr>
                                           ))}
@@ -1177,7 +1312,7 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                           </button>
                       ) : (
                           <>
-                              <button onClick={() => setAiParsedData(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-bold">Hủy bỏ</button>
+                              <button onClick={() => { setAiParsedData(null); setDetectedConflicts([]); }} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-bold">Hủy bỏ</button>
                               <button onClick={handleConfirmAiImport} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-bold flex items-center gap-2">
                                   <Check size={16}/> Xác nhận Nhập
                               </button>
