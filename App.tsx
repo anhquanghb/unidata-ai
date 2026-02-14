@@ -8,18 +8,27 @@ import AnalysisModule from './components/AnalysisModule';
 import DataStorageModule from './components/DataStorageModule';
 import SettingsModule from './components/SettingsModule';
 import VersionSelectorModal from './components/VersionSelectorModal'; // NEW IMPORT
-import { ViewState, Unit, Faculty, HumanResourceRecord, SystemSettings, GoogleDriveConfig, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, DynamicRecord, FacultyTitles } from './types';
+import { ViewState, Unit, Faculty, HumanResourceRecord, SystemSettings, GoogleDriveConfig, UserProfile, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, DynamicRecord, FacultyTitles, PermissionProfile } from './types';
 
 // Constants for Drive
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
+// Default Permissions (Root Admin)
+const defaultPermission: PermissionProfile = {
+    role: 'school_admin',
+    canEditDataConfig: true,
+    canEditOrgStructure: true,
+    managedUnitId: undefined
+};
 
 // Initial Data
 const initialSettings: SystemSettings = {
   currentAcademicYear: '2023-2024',
   extractionPrompt: '',
   analysisPrompt: '',
-  driveConfig: { isConnected: false }
+  driveConfig: { isConnected: false },
+  permissionProfile: defaultPermission
 };
 
 const initialDriveSession: GoogleDriveConfig = { isConnected: false };
@@ -135,14 +144,12 @@ const App: React.FC = () => {
       const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id));
 
       // 2. Identify Related Personnel
-      // Only include personnel belonging to the Exported Units (specifically the Target/Children subtree, parents usually don't need their personnel exported in this context, but adhering to "related to it" usually implies subtree. Let's keep it to all units in the hierarchy for completeness or just subtree? 
-      // Requirement: "Xuất hồ sơ nhân sự liên quan đến nó". Typically implies subtree.
+      // Only include personnel belonging to the Exported Units
       const filteredHR = humanResources.filter(hr => relatedUnitIds.has(hr.unitId));
       const relatedFacultyIds = new Set(filteredHR.map(hr => hr.facultyId));
       const filteredFaculties = faculties.filter(f => relatedFacultyIds.has(f.id));
 
       // 3. Identify Related Dynamic Data
-      // Filter records that reference any of the `relatedUnitIds` OR `relatedFacultyIds`
       const filteredDynamicStore: Record<string, DynamicRecord[]> = {};
       
       dataConfigGroups.forEach(group => {
@@ -152,7 +159,6 @@ const App: React.FC = () => {
           if (unitRefFields.length > 0 || facultyRefFields.length > 0) {
               const allRecords = dynamicDataStore[group.id] || [];
               const relevantRecords = allRecords.filter(record => {
-                  // Check Unit References
                   const hasUnitRef = unitRefFields.some(key => {
                       const val = record[key];
                       if (Array.isArray(val)) return val.some(v => relatedUnitIds.has(v));
@@ -160,7 +166,6 @@ const App: React.FC = () => {
                   });
                   if (hasUnitRef) return true;
 
-                  // Check Faculty References
                   const hasFacultyRef = facultyRefFields.some(key => {
                       const val = record[key];
                       if (Array.isArray(val)) return val.some(v => relatedFacultyIds.has(v));
@@ -175,21 +180,27 @@ const App: React.FC = () => {
           }
       });
 
-      // 4. Construct JSON Payload
+      // 4. Construct JSON Payload with Restricted Permissions
       const { driveConfig: _ignored, ...safeSettings } = (settings as any);
       
+      // CREATE RESTRICTED PERMISSION PROFILE FOR EXPORT
+      const restrictedPermission: PermissionProfile = {
+          role: 'unit_manager',
+          canEditDataConfig: false, // Unit cannot edit schema
+          canEditOrgStructure: false, // Unit cannot edit structure
+          managedUnitId: targetUnit.unit_id // Locked to this unit
+      };
+
       const exportData = {
           exportType: "UNIT_PARTIAL",
           rootUnitName: targetUnit.unit_name,
           exportDate: new Date().toISOString(),
-          settings: safeSettings,
+          settings: { ...safeSettings, permissionProfile: restrictedPermission }, // INJECT RESTRICTED PERMISSION
           units: filteredUnits,
           humanResources: filteredHR,
           faculties: filteredFaculties,
-          dataConfigGroups: dataConfigGroups, // Export all definitions so dynamic data makes sense
+          dataConfigGroups: dataConfigGroups, 
           dynamicDataStore: filteredDynamicStore,
-          // We assume static records (scientific, etc.) are legacy and not part of this specific "Dynamic" export request, unless added similarly. 
-          // If "Dynamic Information" implies the new module, we stick to dynamicDataStore.
       };
 
       // 5. Download File
@@ -198,7 +209,7 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Export_${targetUnit.unit_code || 'Unit'}_${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `UniData_Package_${targetUnit.unit_code || 'Unit'}_${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -220,11 +231,23 @@ const App: React.FC = () => {
           setBusinessRecords([]);
           setDataConfigGroups([]);
           setDynamicDataStore({});
-          setHasUnsavedChanges(false); // Reset implies clean slate
+          setSettings({ ...initialSettings }); // Reset to default permissions
+          setHasUnsavedChanges(false); 
           return;
       }
 
-      if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      // LOAD SETTINGS FIRST to apply Permissions
+      if (data.settings) {
+          // If the imported file has a permissionProfile, use it. Otherwise default to current or Root.
+          // IMPORTANT: If importing a "Unit Package", the permissionProfile inside data.settings will be 'unit_manager'
+          setSettings(prev => ({ 
+              ...prev, 
+              ...data.settings,
+              // If permissionProfile is missing in import (old format), keep existing or default to root
+              permissionProfile: data.settings.permissionProfile || prev.permissionProfile || defaultPermission
+          }));
+      }
+
       if (data.users) setUsers(data.users);
       if (data.units) setUnits(data.units);
       if (data.academicYears) setAcademicYears(data.academicYears);
@@ -245,7 +268,7 @@ const App: React.FC = () => {
       if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
       if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
       
-      setHasUnsavedChanges(true); // Imported data counts as "unsaved" until synced to cloud
+      setHasUnsavedChanges(true); 
   };
 
   // --- GOOGLE DRIVE LOGIC (GLOBAL) ---
@@ -276,7 +299,6 @@ const App: React.FC = () => {
           return;
       }
 
-      // Check token
       const tokenObj = window.gapi?.client?.getToken();
       if (!tokenObj && driveSession.accessToken) {
           window.gapi.client.setToken({ access_token: driveSession.accessToken });
@@ -347,9 +369,11 @@ const App: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      // Export does not clear dirty state usually, but user might want confirmation. We keep it dirty until cloud sync.
   };
   
+  // Get Current Permission
+  const currentPermission = settings.permissionProfile || defaultPermission;
+
   // Render Content
   const renderContent = () => {
     switch (currentView) {
@@ -393,6 +417,7 @@ const App: React.FC = () => {
             humanResources={humanResources}
             onUpdateHumanResources={handleUpdateHumanResources}
             onExportUnitData={handleExportUnitData}
+            permission={currentPermission} // Pass Permission
         />;
        case 'settings':
         return <SettingsModule 
@@ -429,7 +454,6 @@ const App: React.FC = () => {
             onResetSystemData={() => handleSystemDataImport('RESET')}
         />;
       default:
-         // Fallback for analysis and data storage or others
         if (currentView === 'analysis' as any) { 
              return <AnalysisModule reports={[]} customPrompt={settings.analysisPrompt} />;
         }
@@ -452,6 +476,12 @@ const App: React.FC = () => {
         isCloudConnected={driveSession.isConnected}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Permission Banner */}
+        {currentPermission.role === 'unit_manager' && (
+            <div className="bg-amber-100 text-amber-800 px-4 py-1 text-xs font-bold text-center border-b border-amber-200">
+                CHẾ ĐỘ CẤP ĐƠN VỊ (UNIT MANAGER) - Một số tính năng cấu hình hệ thống đã bị khóa.
+            </div>
+        )}
         <main className="flex-1 overflow-y-auto p-0">
           {renderContent()}
         </main>

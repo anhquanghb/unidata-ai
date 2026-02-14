@@ -267,12 +267,21 @@ export interface ExternalSource {
   addedAt: string;
 }
 
+// --- PERMISSION SYSTEM ---
+export interface PermissionProfile {
+  role: 'school_admin' | 'unit_manager'; // Define broad role
+  canEditDataConfig: boolean; // Can change Schema?
+  canEditOrgStructure: boolean; // Can add/delete Units?
+  managedUnitId?: string; // If set, restricted to this unit
+}
+
 export interface SystemSettings {
   currentAcademicYear: string;
   virtualAssistantUrl?: string;
   extractionPrompt: string;
   analysisPrompt: string;
   driveConfig?: GoogleDriveConfig;
+  permissionProfile?: PermissionProfile; // Embedded permission
 }
 
 export interface Course {

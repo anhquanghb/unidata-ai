@@ -648,6 +648,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     onUpdateSettings({ ...settings, currentAcademicYear: code });
   };
 
+  const currentPermission = settings.permissionProfile || { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true };
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-6">
@@ -704,6 +706,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
            <DataConfigModule 
               groups={dataConfigGroups}
               onUpdateGroups={onUpdateDataConfigGroups}
+              isReadOnly={!currentPermission.canEditDataConfig} // PASS READ-ONLY STATUS
            />
         )}
 

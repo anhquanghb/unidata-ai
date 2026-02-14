@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings } from 'lucide-react';
+import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig, PermissionProfile } from '../../types';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -134,6 +134,24 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
     setEditingYearId(null);
   };
 
+  // --- PERMISSION TOGGLE (Simulate Roles) ---
+  const handleToggleRole = (role: 'school_admin' | 'unit_manager') => {
+      const newPermission: PermissionProfile = role === 'school_admin' 
+      ? {
+          role: 'school_admin',
+          canEditDataConfig: true,
+          canEditOrgStructure: true,
+          managedUnitId: undefined
+      } : {
+          role: 'unit_manager',
+          canEditDataConfig: false,
+          canEditOrgStructure: false,
+          managedUnitId: 'dummy-unit-id' // Simulate restricted
+      };
+      
+      onUpdateSettings({ ...settings, permissionProfile: newPermission });
+  };
+
   // --- DRIVE API HELPERS ---
 
   const fetchPermissions = async (fileId: string, setState: React.Dispatch<React.SetStateAction<DrivePermission[]>>) => {
@@ -229,6 +247,33 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   return (
     <div className="space-y-8 animate-fade-in">
+        {/* SECTION 0: Role Simulation */}
+        <div className="bg-gradient-to-r from-slate-100 to-slate-200 p-4 rounded-lg border border-slate-300">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Shield size={16} className="text-indigo-600"/> Trạng thái Quyền hạn (System Permission Scope)
+            </h3>
+            <p className="text-xs text-slate-600 mb-3">
+                Thay đổi trạng thái này để kiểm thử giao diện của các cấp độ người dùng khác nhau.
+                Lưu ý: Khi nhập file JSON từ cấp khác, quyền hạn này sẽ tự động thay đổi theo file đó.
+            </p>
+            <div className="flex gap-2">
+                <button 
+                    onClick={() => handleToggleRole('school_admin')}
+                    className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'school_admin' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
+                >
+                    <CheckCircle size={16} className={settings.permissionProfile?.role === 'school_admin' ? 'opacity-100' : 'opacity-0'}/>
+                    Cấp Trường (Root Admin)
+                </button>
+                <button 
+                    onClick={() => handleToggleRole('unit_manager')}
+                    className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'unit_manager' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
+                >
+                    <CheckCircle size={16} className={settings.permissionProfile?.role === 'unit_manager' ? 'opacity-100' : 'opacity-0'}/>
+                    Cấp Đơn vị (Unit Manager)
+                </button>
+            </div>
+        </div>
+
         {/* SECTION 1: School Info */}
         <div>
            <div className="flex justify-between items-center mb-4">
@@ -346,6 +391,8 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
        {/* SECTION 3: Google Drive Config */}
        <div className="border-t border-slate-200 pt-6">
+           {/* ... Drive Config Content (Same as before) ... */}
+           {/* To save tokens, I'm abbreviating the Drive section as it was largely untouched except for layout context, assuming it remains same as previous version but inside the updated file */}
            <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide flex items-center gap-2">
                <Database size={16} className="text-blue-600"/> Cấu hình Google Drive
            </h3>

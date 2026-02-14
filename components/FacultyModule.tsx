@@ -21,7 +21,7 @@ interface FacultyModuleProps {
 }
 
 const AI_PROMPT_TEMPLATE = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập cho hệ thống quản lý nhân sự đại học (UniData).
-Hãy tạo một mảng dữ liệu JSON (JSON Array) chứa thông tin của nhân sự.
+Hãy tạo một mảng dữ liệu JSON (JSON Array) chứa thông tin của 3-5 giảng viên/nhân sự.
 
 Yêu cầu cấu trúc dữ liệu chính xác như sau (TypeScript Interface):
 
@@ -55,11 +55,7 @@ interface Faculty {
 Yêu cầu:
 1. Tạo dữ liệu mẫu tiếng Việt có ý nghĩa, sát thực tế (Ví dụ: Nguyễn Văn A, Tiến sĩ Khoa học máy tính...).
 2. Các trường song ngữ { vi, en } phải có đủ dữ liệu.
-3. CHỈ TRẢ VỀ JSON ARRAY. Không thêm bất kỳ lời dẫn hay giải thích nào (markdown json block là chấp nhận được).
-
-Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ (Object), không thêm text giải thích.
-Sau khi bạn hiểu yêu cầu trên, tôi sẽ nói về chủ đề dữ liệu mà tôi cần tạo.
-`;
+3. CHỈ TRẢ VỀ JSON ARRAY. Không thêm bất kỳ lời dẫn hay giải thích nào (markdown json block là chấp nhận được).`;
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 

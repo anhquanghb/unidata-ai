@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Unit, Faculty, HumanResourceRecord } from '../types';
+import { Unit, Faculty, HumanResourceRecord, PermissionProfile } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check, Download } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, ChevronDown, Building, User, Save, X, Search, Calendar, ArrowRight, Check, Download, Lock } from 'lucide-react';
 
 interface OrganizationModuleProps {
   units: Unit[];
@@ -10,6 +10,7 @@ interface OrganizationModuleProps {
   humanResources: HumanResourceRecord[];
   onUpdateHumanResources: (records: HumanResourceRecord[]) => void;
   onExportUnitData?: (unitId: string) => void;
+  permission?: PermissionProfile; // NEW PROP
 }
 
 const OrganizationModule: React.FC<OrganizationModuleProps> = ({ 
@@ -18,7 +19,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   faculties, 
   humanResources, 
   onUpdateHumanResources,
-  onExportUnitData
+  onExportUnitData,
+  permission
 }) => {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
@@ -38,6 +40,11 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   // Personnel Inline Editing State (Start Date)
   const [editingHrId, setEditingHrId] = useState<string | null>(null);
   const [editJoinDate, setEditJoinDate] = useState('');
+
+  // Permission Check Helpers
+  const canEditStructure = permission ? permission.canEditOrgStructure : true;
+  // If managedUnitId is set, restricted logic could be applied here (e.g. only select that unit)
+  // For now, we rely on the visual cues and button hiding.
 
   // --- Helpers ---
   const getFacultyCurrentUnit = (facultyId: string) => {
@@ -63,6 +70,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   // --- Unit Actions ---
   const handleDeleteUnit = (id: string) => {
+    if (!canEditStructure) return;
     if (confirm("Bạn có chắc chắn muốn xóa đơn vị này? Các đơn vị con cũng sẽ bị xóa.")) {
       const idsToDelete = new Set<string>();
       const collectIds = (uid: string) => {
@@ -76,6 +84,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   };
 
   const handleSaveUnit = () => {
+    if (!canEditStructure) return;
     if (!tempUnit.unit_name || !tempUnit.unit_code) return;
     
     if (isEditingUnit && tempUnit.unit_id) {
@@ -212,12 +221,14 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
       <div className="w-1/3 border-r border-slate-200 flex flex-col bg-slate-50">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
           <h3 className="font-bold text-slate-800">Cơ cấu Tổ chức</h3>
-          <button 
-            onClick={() => { setTempUnit({}); setIsAddingUnit(true); }}
-            className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            <Plus size={16} />
-          </button>
+          {canEditStructure && (
+              <button 
+                onClick={() => { setTempUnit({}); setIsAddingUnit(true); }}
+                className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                <Plus size={16} />
+              </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {getChildUnits(undefined).map(u => renderUnitNode(u))}
@@ -248,18 +259,26 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                             <Download size={14}/> Xuất JSON
                         </button>
                     )}
-                    <button 
-                      onClick={() => { setTempUnit(selectedUnit); setIsEditingUnit(true); }}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50"
-                    >
-                      <Edit2 size={14}/> Sửa
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteUnit(selectedUnit.unit_id)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50"
-                    >
-                      <Trash2 size={14}/> Xóa
-                    </button>
+                    {canEditStructure ? (
+                        <>
+                            <button 
+                              onClick={() => { setTempUnit(selectedUnit); setIsEditingUnit(true); }}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50"
+                            >
+                              <Edit2 size={14}/> Sửa
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteUnit(selectedUnit.unit_id)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50"
+                            >
+                              <Trash2 size={14}/> Xóa
+                            </button>
+                        </>
+                    ) : (
+                        <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                            <Lock size={12}/> View Only
+                        </span>
+                    )}
                  </div>
                </div>
             </div>
@@ -347,8 +366,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         )}
       </div>
 
-      {/* Modal: Add/Edit Unit */}
-      {(isAddingUnit || isEditingUnit) && (
+      {/* Modal: Add/Edit Unit (Only if Permission) */}
+      {(isAddingUnit || isEditingUnit) && canEditStructure && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
            <div className="bg-white rounded-xl shadow-xl p-6 w-96">
               <h3 className="font-bold text-lg mb-4">{isEditingUnit ? 'Cập nhật Đơn vị' : 'Thêm Đơn vị Mới'}</h3>
@@ -390,6 +409,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
       {/* Modal: Add Personnel (Searchable & Transfer Logic) */}
       {isAddingPerson && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+           {/* ... Personnel Modal content (same as before) ... */}
            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
               <h3 className="font-bold text-lg mb-4">Thêm Nhân sự vào {selectedUnit?.unit_name}</h3>
               

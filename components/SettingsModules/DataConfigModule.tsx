@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { DataConfigGroup, DataFieldDefinition, DataFieldType, DataFieldOption } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter, ArrowUp, ArrowDown, BookOpen, Briefcase, Users, GraduationCap, Award, Globe, Database, Activity, Star, Zap, Archive, Layout } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Settings, List, Type, CheckSquare, Calendar, Link, Bot, Copy, Check, ArrowRight, FileJson, FileText, Layers, Search, Filter, ArrowUp, ArrowDown, BookOpen, Briefcase, Users, GraduationCap, Award, Globe, Database, Activity, Star, Zap, Archive, Layout, Lock } from 'lucide-react';
 
 interface DataConfigModuleProps {
   groups: DataConfigGroup[];
   onUpdateGroups: (groups: DataConfigGroup[]) => void;
+  isReadOnly?: boolean; // New prop
 }
 
 // Available Icons for Selection
@@ -66,7 +67,7 @@ Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi 
 Sau khi bạn hiểu yêu cầu trên, tôi sẽ nói về chủ đề dữ liệu mà tôi cần tạo.
 `;
 
-const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGroups }) => {
+const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGroups, isReadOnly = false }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(groups.length > 0 ? groups[0].id : null);
   
   // Group Editing State
@@ -96,6 +97,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
 
   // --- Group Handlers ---
   const handleAddGroup = () => {
+      if (isReadOnly) return;
       const newGroup: DataConfigGroup = {
           id: uuidv4(),
           name: "Nhóm dữ liệu mới",
@@ -112,6 +114,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const handleDeleteGroup = (id: string) => {
+      if (isReadOnly) return;
       if (confirm("Xóa nhóm dữ liệu này?")) {
           onUpdateGroups(groups.filter(g => g.id !== id));
           if (selectedGroupId === id) setSelectedGroupId(null);
@@ -119,6 +122,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const startEditGroup = (group: DataConfigGroup) => {
+      if (isReadOnly) return;
       setIsEditingGroup(group.id);
       setEditGroupData({ 
           name: group.name, 
@@ -128,7 +132,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const saveEditGroup = () => {
-      if (!isEditingGroup) return;
+      if (!isEditingGroup || isReadOnly) return;
       onUpdateGroups(groups.map(g => g.id === isEditingGroup ? { 
           ...g, 
           name: editGroupData.name,
@@ -139,6 +143,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const moveGroup = (index: number, direction: 'up' | 'down') => {
+      if (isReadOnly) return;
       if (direction === 'up' && index === 0) return;
       if (direction === 'down' && index === groups.length - 1) return;
       
@@ -153,6 +158,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
 
   const handleAddField = () => {
+      if (isReadOnly) return;
       setTempField({
           id: uuidv4(),
           key: '',
@@ -169,12 +175,14 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const handleEditField = (field: DataFieldDefinition) => {
+      if (isReadOnly) return;
       setTempField({ ...field });
       setEditingFieldId(field.id);
       setIsEditingField(true);
   };
 
   const handleDeleteField = (fieldId: string) => {
+      if (isReadOnly) return;
       if (!selectedGroupId) return;
       if (confirm("Xóa trường dữ liệu này?")) {
           const updatedGroups = groups.map(g => {
@@ -188,6 +196,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const handleMoveField = (fieldId: string, direction: 'up' | 'down') => {
+      if (isReadOnly) return;
       if (!selectedGroup) return;
       
       const fieldIndex = selectedGroup.fields.findIndex(f => f.id === fieldId);
@@ -213,6 +222,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const handleSaveField = () => {
+      if (isReadOnly) return;
       if (!selectedGroupId || !tempField.key || !tempField.label) {
           alert("Vui lòng nhập Tên trường (Key) và Nhãn hiển thị (Label)");
           return;
@@ -318,6 +328,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
   };
 
   const handleConfirmImport = () => {
+      if (isReadOnly) return;
       if (!previewGroup) return;
       onUpdateGroups([...groups, previewGroup]);
       setSelectedGroupId(previewGroup.id);
@@ -331,19 +342,23 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
         {/* Sidebar: Groups */}
         <div className="w-full md:w-72 bg-slate-50 border-r border-slate-200 flex flex-col">
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
-                <h4 className="font-bold text-slate-700 text-sm">Nhóm Dữ liệu</h4>
-                <div className="flex gap-1">
-                    <button 
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded border border-purple-100"
-                        title="Tạo bằng AI (Import JSON)"
-                    >
-                        <Bot size={16} />
-                    </button>
-                    <button onClick={handleAddGroup} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded border border-blue-100" title="Thêm thủ công">
-                        <Plus size={16} />
-                    </button>
-                </div>
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-1">
+                    {isReadOnly && <Lock size={12} className="text-amber-600"/>} Nhóm Dữ liệu
+                </h4>
+                {!isReadOnly && (
+                    <div className="flex gap-1">
+                        <button 
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded border border-purple-100"
+                            title="Tạo bằng AI (Import JSON)"
+                        >
+                            <Bot size={16} />
+                        </button>
+                        <button onClick={handleAddGroup} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded border border-blue-100" title="Thêm thủ công">
+                            <Plus size={16} />
+                        </button>
+                    </div>
+                )}
             </div>
             
             {/* Groups List */}
@@ -402,20 +417,23 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     </div>
                                 </div>
                                 
-                                <div className="flex justify-between items-center mt-1 border-t border-slate-50 pt-1">
-                                    <div className="flex gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'up'); }} disabled={index === 0} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'down'); }} disabled={index === groups.length - 1} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowDown size={12} /></button>
+                                {!isReadOnly && (
+                                    <div className="flex justify-between items-center mt-1 border-t border-slate-50 pt-1">
+                                        <div className="flex gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'up'); }} disabled={index === 0} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowUp size={12} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); moveGroup(index, 'down'); }} disabled={index === groups.length - 1} className="text-slate-300 hover:text-slate-600 p-1 disabled:opacity-30"><ArrowDown size={12} /></button>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); startEditGroup(group); }} className="text-slate-400 hover:text-blue-600 p-1 bg-slate-50 rounded hover:bg-blue-50"><Edit2 size={12} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }} className="text-slate-400 hover:text-red-600 p-1 bg-slate-50 rounded hover:bg-red-50"><Trash2 size={12} /></button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); startEditGroup(group); }} className="text-slate-400 hover:text-blue-600 p-1 bg-slate-50 rounded hover:bg-blue-50"><Edit2 size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }} className="text-slate-400 hover:text-red-600 p-1 bg-slate-50 rounded hover:bg-red-50"><Trash2 size={12} /></button>
-                                    </div>
-                                </div>
+                                )}
                             </>
                         )}
                     </div>
                 ))}
+                {groups.length === 0 && <p className="text-center text-xs text-slate-400 p-4">Chưa có nhóm dữ liệu nào.</p>}
             </div>
         </div>
 
@@ -430,6 +448,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                             <button onClick={() => setIsEditingField(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                         </div>
                         
+                        {/* ... Existing Field Form Code (unchanged logic, just inside this block) ... */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Nhãn hiển thị (Label)</label>
@@ -529,10 +548,17 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                     <p className="text-xs text-slate-500">{selectedGroup.description || 'Không có mô tả'}</p>
                                 </div>
                             </div>
-                            <button onClick={handleAddField} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold flex items-center gap-1 hover:bg-blue-700 shadow-sm"><Plus size={14}/> Thêm Trường</button>
+                            {!isReadOnly && (
+                                <button onClick={handleAddField} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold flex items-center gap-1 hover:bg-blue-700 shadow-sm"><Plus size={14}/> Thêm Trường</button>
+                            )}
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-0">
+                            {isReadOnly && selectedGroup.fields.length > 0 && (
+                                <div className="p-2 bg-amber-50 text-amber-800 text-xs text-center border-b border-amber-100">
+                                    <Lock size={10} className="inline mr-1"/> Chế độ chỉ xem: Bạn không có quyền chỉnh sửa cấu trúc dữ liệu.
+                                </div>
+                            )}
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase sticky top-0 shadow-sm">
                                     <tr>
@@ -541,7 +567,7 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                         <th className="px-4 py-3">Loại (Type)</th>
                                         <th className="px-4 py-3 text-center">Bắt buộc</th>
                                         <th className="px-4 py-3 text-right">Thuộc tính</th>
-                                        <th className="px-4 py-3 text-right">Thao tác</th>
+                                        {!isReadOnly && <th className="px-4 py-3 text-right">Thao tác</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -572,33 +598,35 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <button 
-                                                    onClick={() => handleMoveField(field.id, 'up')} 
-                                                    disabled={index === 0}
-                                                    className={`p-1 mr-1 rounded ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
-                                                    title="Di chuyển lên"
-                                                >
-                                                    <ArrowUp size={14}/>
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleMoveField(field.id, 'down')} 
-                                                    disabled={index === selectedGroup.fields.length - 1}
-                                                    className={`p-1 mr-2 rounded ${index === selectedGroup.fields.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
-                                                    title="Di chuyển xuống"
-                                                >
-                                                    <ArrowDown size={14}/>
-                                                </button>
-                                                <button onClick={() => handleEditField(field)} className="text-blue-600 hover:text-blue-800 p-1 mr-1"><Edit2 size={14}/></button>
-                                                <button onClick={() => handleDeleteField(field.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button>
-                                            </td>
+                                            {!isReadOnly && (
+                                                <td className="px-4 py-3 text-right">
+                                                    <button 
+                                                        onClick={() => handleMoveField(field.id, 'up')} 
+                                                        disabled={index === 0}
+                                                        className={`p-1 mr-1 rounded ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
+                                                        title="Di chuyển lên"
+                                                    >
+                                                        <ArrowUp size={14}/>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleMoveField(field.id, 'down')} 
+                                                        disabled={index === selectedGroup.fields.length - 1}
+                                                        className={`p-1 mr-2 rounded ${index === selectedGroup.fields.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'}`}
+                                                        title="Di chuyển xuống"
+                                                    >
+                                                        <ArrowDown size={14}/>
+                                                    </button>
+                                                    <button onClick={() => handleEditField(field)} className="text-blue-600 hover:text-blue-800 p-1 mr-1"><Edit2 size={14}/></button>
+                                                    <button onClick={() => handleDeleteField(field.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                     {selectedGroup.fields.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                                                 <Settings size={32} className="mx-auto mb-2 opacity-20"/>
-                                                <p>Chưa có trường dữ liệu nào. Hãy nhấn "Thêm Trường" để bắt đầu.</p>
+                                                <p>Chưa có trường dữ liệu nào. {isReadOnly ? "" : "Hãy nhấn 'Thêm Trường' để bắt đầu."}</p>
                                             </td>
                                         </tr>
                                     )}
@@ -618,7 +646,9 @@ const DataConfigModule: React.FC<DataConfigModuleProps> = ({ groups, onUpdateGro
         {isImportModalOpen && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50 rounded-t-xl">
+                    {/* ... Existing Modal Content ... */}
+                    {/* Reusing existing code structure inside modal */}
+                     <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50 rounded-t-xl">
                         <h3 className="font-bold text-purple-900 flex items-center gap-2">
                             <Bot size={20} className="text-purple-600"/> 
                             AI Hỗ trợ Tạo Cấu hình
