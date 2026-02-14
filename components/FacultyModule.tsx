@@ -60,8 +60,7 @@ CẤU TRÚC JSON YÊU CẦU:
 ]
 Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ, không thêm text giải thích.
 
-Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà tôi cần tạo.
-`;
+Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà tôi cần tạo.`;
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 
