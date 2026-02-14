@@ -360,6 +360,84 @@ CẤU TRÚC JSON YÊU CẦU:
         "id": "pub_random_string_2", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
         "text": { "vi": "Tên bài báo...", "en": "Paper title..." }
       }
+    ],
+    "academicExperienceList": [
+      {
+        "id": "exp_random_string_3", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "institution": {
+          "vi": "", //Đơn vị mà người đó đã làm
+          "en": ""
+        },
+        "title": {
+          "vi": "Trợ giảng, giảng viên", //chức vụ
+          "en": ""
+        },
+        "period": "2001-2007", // thời gian làm việc
+        "isFullTime": true
+      }
+    ],
+    "nonAcademicExperienceList": [
+        {
+          "company": {
+            "vi": "",
+            "en": ""
+          },
+          "title": {
+            "vi": "",
+            "en": ""
+          },
+          "description": {
+            "vi": "",
+            "en": ""
+          },
+          "period": "", //Từ năm đến năm
+          "isFullTime": true //true or false
+        }
+      ],
+    "certificationsList": [
+      {
+        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "content": {
+          "vi": "",
+          "en": ""
+        }
+      }
+    ],
+    "honorsList": [
+      {
+        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "content": {
+          "vi": "",
+          "en": ""
+        }
+      }    
+    ],
+    "serviceActivitiesList": [
+      {
+        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "content": {
+          "vi": "",
+          "en": ""
+        }
+      }
+    ],
+    "professionalDevelopmentList": [
+      {
+        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "content": {
+          "vi": "",
+          "en": ""
+        }
+      }
+    ],
+    "membershipsList": [
+      {
+        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
+        "content": {
+          "vi": "",
+          "en": ""
+        }
+      }
     ]
   }
 ]
