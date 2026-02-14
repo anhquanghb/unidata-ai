@@ -355,6 +355,9 @@ CẤU TRÚC JSON YÊU CẦU:
         "institution": { "vi": "Đại học Bách Khoa", "en": "Polytechnic University" }
       }
     ],
+    "mobile": "", //Số điện thoại di động
+    "office": "", //Địa chỉ văn phòng
+    "officeHours": "", //Giờ có mặt tại văn phòng
     "publicationsList": [
       {
         "id": "pub_random_string_2", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
@@ -376,70 +379,70 @@ CẤU TRÚC JSON YÊU CẦU:
         "isFullTime": true
       }
     ],
-    "nonAcademicExperienceList": [
-        {
-          "company": {
-            "vi": "",
-            "en": ""
-          },
-          "title": {
-            "vi": "",
-            "en": ""
-          },
-          "description": {
-            "vi": "",
-            "en": ""
-          },
-          "period": "", //Từ năm đến năm
-          "isFullTime": true //true or false
-        }
-      ],
-    "certificationsList": [
+   "nonAcademicExperienceList": [
       {
-        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
-        "content": {
-          "vi": "",
+        "company": {
+          "vi": "", //Tên công ty
           "en": ""
-        }
+        },
+        "title": {
+          "vi": "", //Vị trí
+          "en": ""
+        },
+        "description": {
+          "vi": "", //Mô tả công việc
+          "en": ""
+        },
+        "period": "", //Thời gian làm việc từ năm - đến năm
+        "isFullTime": true //Toàn thời gian hoặc bán thời gian true or false
       }
     ],
-    "honorsList": [
-      {
-        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
-        "content": {
-          "vi": "",
-          "en": ""
-        }
-      }    
-    ],
-    "serviceActivitiesList": [
-      {
-        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
-        "content": {
-          "vi": "",
-          "en": ""
-        }
+  "certificationsList": [
+    {
+      "id": "1771067921508", //ID tự sinh
+      "content": {
+        "vi": "", //Thông tin về chứng chỉ được cấp bao gồm tên chứng chỉ, loại chứng chỉ, tổ chức cấp chứng chỉ, thời gian và thời hạn
+        "en": ""
       }
-    ],
-    "professionalDevelopmentList": [
-      {
-        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
-        "content": {
-          "vi": "",
-          "en": ""
-        }
+    }
+  ],
+  "membershipsList": [
+    {
+      "id": "1771067935935", //ID tự sinh
+      "content": {
+        "vi": "", //Thông tin về Hiệp hội Nghề nghiệp, tổ chức nghề nghiệp tham gia, thời gian và thời hạn
+        "en": ""
       }
-    ],
-    "membershipsList": [
-      {
-        "id": "mem_random_string", // AI hãy tự sinh chuỗi ngẫu nhiên duy nhất
-        "content": {
-          "vi": "",
-          "en": ""
-        }
+    }
+  ],
+  "honorsList": [
+    {
+      "id": "1771067907799", //ID tự sinh
+      "content": {
+        "vi": "", //Thông tin về Vinh danh & Giải thưởng, tổ chức cấp thưởng, thời gian
+        "en": ""
       }
-    ]
-  }
+    }
+  ],
+  "serviceActivitiesList": [
+    {
+      "id": "1771067928159", //ID tự sinh
+      "content": {
+        "vi": "", //Các Hoạt động Phục vụ cộng đồng
+        "en": ""
+      }
+    }
+  ],
+  "professionalDevelopmentList": [
+    {
+      "id": "1771067931384", //ID tự sinh
+      "content": {
+        "vi": "", //Thông tin về quá trình Phát triển Chuyên môn, ngày tháng năm và các thông tin khác nếu có
+        "en": ""
+      }
+    }
+  ]
+ }
 ]
 Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ, không thêm text giải thích.
 
