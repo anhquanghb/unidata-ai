@@ -20,42 +20,48 @@ interface FacultyModuleProps {
   currentAcademicYear?: string;
 }
 
-const AI_PROMPT_TEMPLATE = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập cho hệ thống quản lý nhân sự đại học (UniData).
-Hãy tạo một mảng dữ liệu JSON (JSON Array) chứa thông tin của 3-5 giảng viên/nhân sự.
+const AI_PROMPT_TEMPLATE = `Bạn đóng vai trò là công cụ tạo dữ liệu giả lập chuẩn hóa cho hệ thống UniData.
+Nhiệm vụ: Tạo mảng dữ liệu JSON chứa 3-5 hồ sơ giảng viên.
 
-Yêu cầu cấu trúc dữ liệu chính xác như sau (TypeScript Interface):
+QUAN TRỌNG - RÀNG BUỘC DỮ LIỆU (VALIDATION RULES):
+AI bắt buộc phải sử dụng chính xác các giá trị sau đây cho các trường tương ứng (chọn 1 cặp VI/EN phù hợp):
 
-interface Faculty {
-  name: { vi: string; en: string };          // Tên (Song ngữ)
-  email: string;                             // Email duy nhất
-  rank: { vi: string; en: string };          // Chức danh (Giảng viên, GV Chính, Phó Giáo sư, Giáo sư)
-  degree: { vi: string; en: string };        // Học vị (Cử nhân, Thạc sĩ, Tiến sĩ)
-  academicTitle: { vi: string; en: string }; // Học hàm (nếu có, hoặc rỗng)
-  position: { vi: string; en: string };      // Vị trí (Trưởng khoa, Phó khoa, Giảng viên)
-  experience: { vi: string; en: string };    // Số năm kinh nghiệm (dạng chuỗi)
-  careerStartYear: number;                   // Năm bắt đầu sự nghiệp
-  mobile?: string;
-  office?: string;                           // Phòng làm việc
-  
-  // Danh sách quá trình đào tạo
-  educationList: {
-    id: string; // Tự sinh ngẫu nhiên
-    year: string; // Năm tốt nghiệp
-    degree: { vi: string; en: string }; // Loại bằng
-    institution: { vi: string; en: string }; // Nơi đào tạo
-  }[];
+1. Chức danh (Rank): [${validRanks}]
+2. Học vị (Degree): [${validDegrees}]
+3. Học hàm (Academic Title): [${validAcademicTitles}] (Nếu không có, để chuỗi rỗng)
+4. Vị trí (Position): [${validPositions}]
 
-  // Danh sách công bố khoa học (chỉ cần text mô tả)
-  publicationsList: {
-    id: string;
-    text: { vi: string; en: string };
-  }[];
-}
+CẤU TRÚC JSON YÊU CẦU:
+[
+  {
+    "name": { "vi": "Nguyễn Văn A", "en": "Nguyen Van A" },
+    "email": "email_duy_nhat@domain.com",
+    "rank": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "degree": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "academicTitle": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "position": { "vi": "...", "en": "..." }, // Lấy từ danh sách trên
+    "experience": { "vi": "10", "en": "10" },
+    "careerStartYear": 2014,
+    "educationList": [
+      {
+        "id": "edu_1",
+        "year": "2010",
+        "degree": { "vi": "Cử nhân", "en": "Bachelor" },
+        "institution": { "vi": "Đại học Bách Khoa", "en": "Polytechnic University" }
+      }
+    ],
+    "publicationsList": [
+      {
+        "id": "pub_1",
+        "text": { "vi": "Tên bài báo...", "en": "Paper title..." }
+      }
+    ]
+  }
+]
+Hãy giải thích về dữ liệu mà bạn chuẩn bị tạo và hỏi tôi về việc tạo mã JSON. Nếu tôi đồng ý tạo mã JSON thì bạn chỉ trả về mã JSON hợp lệ, không thêm text giải thích.
 
-Yêu cầu:
-1. Tạo dữ liệu mẫu tiếng Việt có ý nghĩa, sát thực tế (Ví dụ: Nguyễn Văn A, Tiến sĩ Khoa học máy tính...).
-2. Các trường song ngữ { vi, en } phải có đủ dữ liệu.
-3. CHỈ TRẢ VỀ JSON ARRAY. Không thêm bất kỳ lời dẫn hay giải thích nào (markdown json block là chấp nhận được).`;
+Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà tôi cần tạo.
+`;
 
 const FacultyModule: React.FC<FacultyModuleProps> = ({ 
     faculties, setFaculties, 
