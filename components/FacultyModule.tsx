@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Faculty, FacultyTitles, FacultyTitle, FacultyListItem, Language, Course, Unit, HumanResourceRecord, PermissionProfile } from '../types';
-import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building, Bot, Copy, ArrowRight } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, User, GraduationCap, Briefcase, Award, BookOpen, Layers, Star, Activity, Sparkles, Loader2, Phone, X, Download, Upload, Filter, Clock, Check, Fingerprint, Mail, ScrollText, FileJson, List, BarChart3, Settings, Medal, Building, Bot, Copy, ArrowRight, LayoutGrid, MoreHorizontal, MapPin } from 'lucide-react';
 import { importFacultyFromPdf, translateContent } from '../services/geminiService';
 // import { exportFacultyCvPdf } from '../services/FacultyExportPDF'; // Removed as file not provided, replaced with dummy
 import AILoader from '../components/AILoader';
@@ -30,6 +30,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
 }) => {
   // UI Language State
   const [language, setLanguage] = useState<Language>('vi'); 
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid'); // New State for View Toggle
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null); // For the full Profile Modal
@@ -94,13 +95,9 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
         const personRecords = humanResources.filter(hr => hr.facultyId === f.id);
 
         // Determine if person is "Active" in the current academic year context
-        // Active = Has at least one record where (startDate <= currentYearEnd) AND (endDate is NULL OR endDate >= currentYearStart)
-        // For simplicity, we compare years.
         const isWorking = personRecords.some(hr => {
             const start = hr.startDate ? new Date(hr.startDate).getFullYear() : 0;
             const end = hr.endDate ? new Date(hr.endDate).getFullYear() : 9999;
-            // Overlap logic: Start <= 2024 AND End >= 2023 (assuming 2023-2024)
-            // Using simplified logic: End date must be >= currentYearStart or Null
             return end >= currentYearStart; 
         });
 
@@ -110,8 +107,6 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
 
         // Unit Filter
         if (selectedUnitFilter) {
-            // Find if any of their *Active* (or historical, depending on requirement) records match the unit
-            // Usually if filtering by unit, we want people *currently* in that unit or *was* in that unit depending on statusFilter
             const relevantRecords = statusFilter === 'working' 
                 ? personRecords.filter(hr => {
                     const end = hr.endDate ? new Date(hr.endDate).getFullYear() : 9999;
@@ -120,9 +115,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
                 : personRecords;
 
             const inUnit = relevantRecords.some(hr => {
-                // Check direct unit or children (if hierarchical) - Simple direct check for now
-                // Or better: get all descendant unit IDs
-                return hr.unitId === selectedUnitFilter; // Keep it simple: direct assignment
+                return hr.unitId === selectedUnitFilter; 
             });
             
             if (!inUnit) return false;
@@ -143,11 +136,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
         const lastNameA = partsA[partsA.length - 1]?.toLowerCase() || '';
         const lastNameB = partsB[partsB.length - 1]?.toLowerCase() || '';
 
-        // Compare last name first
-        const comparison = lastNameA.localeCompare(lastNameB, 'vi');
-        
-        // If last names are equal, compare the full string to ensure consistent order
-        return comparison !== 0 ? comparison : nameA.localeCompare(nameB, 'vi');
+        return lastNameA.localeCompare(lastNameB, 'vi') || nameA.localeCompare(nameB, 'vi');
     });
   }, [faculties, searchQuery, language, selectedUnitFilter, statusFilter, humanResources, currentYearStart]);
 
@@ -188,6 +177,7 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
     }
   };
 
+  // ... (Keep existing ID Management Actions & Translate Profile functions) ...
   // --- ID Management Actions ---
   const handleStartEditId = (id: string) => {
       setEditingIdTarget(id);
@@ -541,6 +531,7 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
   };
 
   const renderEditForm = () => {
+      // ... (Same logic as existing, hidden for brevity as requested to only show changes but needs to be included for full file replacement)
       const faculty = faculties.find(f => f.id === editingId);
       if (!faculty) return null;
 
@@ -599,26 +590,87 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
                       </div>
 
                       <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50/30">
-                          {/* ... Form contents ... */}
-                          {/* Existing Form Rendering Logic Here (Abbreviated for brevity as logic inside tabs is same) */}
                           {editFormTab === 'info' && (
                               <div className="space-y-6 max-w-3xl">
-                                  {/* Info Form Content */}
                                   <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
                                       <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><User size={18} className="text-indigo-600"/> {editLanguage === 'vi' ? 'Thông tin cá nhân' : 'Personal Info'} ({editLanguage.toUpperCase()})</h4>
-                                      {/* ... Inputs ... */}
                                        <div className="grid grid-cols-1 gap-4">
                                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Họ và tên' : 'Full Name'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.name[editLanguage]} onChange={e => updateFacultyLang(faculty.id, 'name', editLanguage, e.target.value)} /></div>
-                                          {/* ... Other inputs ... */}
+                                          <div className="grid grid-cols-2 gap-4">
+                                              <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Chức danh' : 'Rank'}</label>
+                                                  <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.rank.en} onChange={e => { const s = facultyTitles.ranks.find(r => r.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'rank', s.name); }}>
+                                                      <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.ranks.map(r => <option key={r.id} value={r.name.en}>{r.name[editLanguage]}</option>)}
+                                                  </select>
+                                              </div>
+                                              <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Học vị' : 'Degree'}</label>
+                                                  <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.degree.en} onChange={e => { const s = facultyTitles.degrees.find(d => d.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'degree', s.name); }}>
+                                                      <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.degrees.map(d => <option key={d.id} value={d.name.en}>{d.name[editLanguage]}</option>)}
+                                                  </select>
+                                              </div>
+                                              <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Học hàm' : 'Academic Title'}</label>
+                                                  <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.academicTitle.en} onChange={e => { const s = facultyTitles.academicTitles.find(t => t.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'academicTitle', s.name); }}>
+                                                      <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.academicTitles.map(t => <option key={t.id} value={t.name.en}>{t.name[editLanguage]}</option>)}
+                                                  </select>
+                                              </div>
+                                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Vị trí công tác' : 'Position'}</label>
+                                                  <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.position.en} onChange={e => { const s = facultyTitles.positions.find(p => p.name.en === e.target.value); if (s) updateFaculty(faculty.id, 'position', s.name); }}>
+                                                      <option value="">{editLanguage === 'vi' ? 'Chọn...' : 'Choose...'}</option>{facultyTitles.positions.map(p => <option key={p.id} value={p.name.en}>{p.name[editLanguage]}</option>)}
+                                                  </select>
+                                              </div>
+                                          </div>
                                       </div>
                                   </div>
-                                  {/* ... Contact Info ... */}
+                                  <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
+                                      <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Phone size={18} className="text-emerald-600"/> {editLanguage === 'vi' ? 'Liên hệ công tác' : 'Contact Info'}</h4>
+                                      <div className="grid grid-cols-2 gap-4">
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Email</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.email || ''} onChange={e => updateFaculty(faculty.id, 'email', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Điện thoại cơ quan' : 'Phone'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.tel || ''} onChange={e => updateFaculty(faculty.id, 'tel', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Di động' : 'Mobile'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.mobile || ''} onChange={e => updateFaculty(faculty.id, 'mobile', e.target.value)} /></div>
+                                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Văn phòng' : 'Office'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.office || ''} onChange={e => updateFaculty(faculty.id, 'office', e.target.value)} /></div>
+                                          <div className="col-span-2"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{editLanguage === 'vi' ? 'Giờ ở văn phòng' : 'Office Hours'}</label><input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" value={faculty.officeHours || ''} onChange={e => updateFaculty(faculty.id, 'officeHours', e.target.value)} /></div>
+                                      </div>
+                                  </div>
                               </div>
                           )}
-                          {/* Render other tabs normally ... */}
-                          {editFormTab === 'edu' && <div className="space-y-4">{/* ... Edu ... */}</div>}
-                          {editFormTab === 'exp' && <div className="space-y-8">{/* ... Exp ... */}</div>}
-                          {editFormTab === 'research' && <div className="space-y-4">{/* ... Research ... */}</div>}
+                          {editFormTab === 'edu' && (
+                              <div className="space-y-4">
+                                  {faculty.educationList.map((edu, idx) => (
+                                      <div key={idx} className="p-4 bg-white rounded-xl border border-slate-200 relative group shadow-sm">
+                                          <button onClick={() => updateFaculty(faculty.id, 'educationList', faculty.educationList.filter((_, i) => i !== idx))} className="absolute top-2 right-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                                          <div className="grid grid-cols-6 gap-4">
+                                              <div className="col-span-1"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Năm' : 'Year'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm bg-slate-50" value={edu.year} onChange={e => { const n = [...faculty.educationList]; n[idx].year = e.target.value; updateFaculty(faculty.id, 'educationList', n); }} /></div>
+                                              <div className="col-span-2"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Bằng cấp' : 'Degree'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm font-semibold" value={edu.degree[editLanguage]} onChange={e => { const n = [...faculty.educationList]; n[idx].degree = {...n[idx].degree, [editLanguage]: e.target.value}; updateFaculty(faculty.id, 'educationList', n); }} /></div>
+                                              <div className="col-span-3"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Nơi đào tạo' : 'Institution'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm" value={edu.institution[editLanguage]} onChange={e => { const n = [...faculty.educationList]; n[idx].institution = {...n[idx].institution, [editLanguage]: e.target.value}; updateFaculty(faculty.id, 'educationList', n); }} /></div>
+                                          </div>
+                                      </div>
+                                  ))}
+                                  <button onClick={() => updateFaculty(faculty.id, 'educationList', [...faculty.educationList, { id: Date.now().toString(), degree: { vi: '', en: '' }, discipline: { vi: '', en: '' }, institution: { vi: '', en: '' }, year: '' }])} className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-bold hover:border-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-2"><Plus size={16}/> {editLanguage === 'vi' ? 'Thêm quá trình đào tạo' : 'Add Education History'}</button>
+                              </div>
+                          )}
+                          {editFormTab === 'exp' && (
+                              <div className="space-y-8">
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200"><Clock size={18} className="text-amber-600"/> {editLanguage === 'vi' ? 'Tổng quan' : 'Overview'}</h4>
+                                      <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4 grid grid-cols-2 gap-6">
+                                          <div><label className="text-xs font-bold text-amber-800 uppercase mb-1 block">{editLanguage === 'vi' ? 'Năm bắt đầu sự nghiệp' : 'Career Start Year'}</label><input type="number" className="w-full p-2.5 bg-white border border-amber-200 rounded-lg font-bold text-amber-900" value={faculty.careerStartYear || ''} onChange={e => { const startYear = parseInt(e.target.value); const diff = Math.max(0, new Date().getFullYear() - startYear); updateFaculty(faculty.id, 'experience', { vi: diff.toString(), en: diff.toString() }); updateFaculty(faculty.id, 'careerStartYear', startYear); }} /></div>
+                                          <div className="flex flex-col justify-end pb-2"><span className="text-xs text-amber-700 font-medium">{editLanguage === 'vi' ? 'Kinh nghiệm:' : 'Experience:'}</span><span className="text-2xl font-black text-amber-900">{faculty.experience.vi || 0} {editLanguage === 'vi' ? 'năm' : 'years'}</span></div>
+                                      </div>
+                                  </div>
+                                  <div><h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200"><Briefcase size={18} className="text-indigo-600"/> {editLanguage === 'vi' ? 'Kinh nghiệm Học thuật' : 'Academic Experience'}</h4>
+                                      <div className="space-y-3">{faculty.academicExperienceList.map((exp, idx) => (
+                                          <div key={idx} className="p-4 bg-white rounded-xl border border-slate-200 relative group shadow-sm"><button onClick={() => updateFaculty(faculty.id, 'academicExperienceList', faculty.academicExperienceList.filter((_, i) => i !== idx))} className="absolute top-2 right-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button><div className="grid grid-cols-4 gap-3"><div><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Giai đoạn' : 'Period'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm bg-slate-50" value={exp.period} onChange={e => { const n = [...faculty.academicExperienceList]; n[idx].period = e.target.value; updateFaculty(faculty.id, 'academicExperienceList', n); }} /></div><div className="col-span-3 flex gap-2"><div className="flex-1"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Nơi công tác' : 'Institution'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm" value={exp.institution[editLanguage]} onChange={e => { const n = [...faculty.academicExperienceList]; n[idx].institution[editLanguage] = e.target.value; updateFaculty(faculty.id, 'academicExperienceList', n); }} /></div><div className="flex-1"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">{editLanguage === 'vi' ? 'Chức vụ' : 'Title'}</label><input className="w-full p-2 border border-slate-200 rounded text-sm" value={exp.title[editLanguage]} onChange={e => { const n = [...faculty.academicExperienceList]; n[idx].title[editLanguage] = e.target.value; updateFaculty(faculty.id, 'academicExperienceList', n); }} /></div></div></div></div>
+                                      ))}<button onClick={() => updateFaculty(faculty.id, 'academicExperienceList', [...faculty.academicExperienceList, { id: Date.now().toString(), institution: { vi: '', en: '' }, rank: { vi: '', en: '' }, title: { vi: '', en: '' }, period: '', isFullTime: true }])} className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"><Plus size={14}/> {editLanguage === 'vi' ? 'Thêm Kinh nghiệm' : 'Add Experience'}</button></div>
+                                  </div>
+                              </div>
+                          )}
+                          {editFormTab === 'research' && (
+                              <div className="space-y-4">
+                                  <div className="flex justify-between items-center border-b border-slate-100 pb-2"><h4 className="font-bold text-slate-700 flex items-center gap-2"><BookOpen size={18} className="text-indigo-600"/> {editLanguage === 'vi' ? 'Công bố Khoa học' : 'Publications'}</h4><button onClick={() => updateFaculty(faculty.id, 'publicationsList', [...(faculty.publicationsList || []), { id: Date.now().toString(), text: { vi: '', en: '' } }])} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-indigo-100"><Plus size={14}/> {editLanguage === 'vi' ? 'Thêm' : 'Add'}</button></div>
+                                  <div className="space-y-2">{(faculty.publicationsList || []).map((pub, idx) => (
+                                      <div key={idx} className="flex gap-2 items-start group"><span className="text-xs font-bold text-slate-400 mt-2 w-6 text-right">{idx + 1}.</span><div className="flex-1 relative"><textarea className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm shadow-sm" rows={2} value={pub.text[editLanguage]} onChange={e => { const n = [...(faculty.publicationsList || [])]; n[idx].text[editLanguage] = e.target.value; updateFaculty(faculty.id, 'publicationsList', n); }} /><div className="absolute right-2 top-2">{pub.text[editLanguage === 'vi' ? 'en' : 'vi'] ? <span className="w-2 h-2 rounded-full bg-emerald-400 block"></span> : <span className="w-2 h-2 rounded-full bg-amber-400 block"></span>}</div></div><button onClick={() => updateFaculty(faculty.id, 'publicationsList', faculty.publicationsList!.filter((_, i) => i !== idx))} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1"><Trash2 size={16}/></button></div>
+                                  ))}</div>
+                              </div>
+                          )}
                           {editFormTab === 'achievements' && <div className="space-y-8"><RenderDynamicList title={editLanguage === 'vi' ? 'Vinh danh & Giải thưởng' : 'Honors & Awards'} items={faculty.honorsList || []} field="honorsList" icon={Star} iconColor="text-amber-500" /><RenderDynamicList title={editLanguage === 'vi' ? 'Chứng chỉ' : 'Certifications'} items={faculty.certificationsList || []} field="certificationsList" icon={Medal} iconColor="text-emerald-500" /></div>}
                           {editFormTab === 'activities' && <div className="space-y-8"><RenderDynamicList title={editLanguage === 'vi' ? 'Hoạt động Phục vụ' : 'Service Activities'} items={faculty.serviceActivitiesList || []} field="serviceActivitiesList" icon={Layers} iconColor="text-blue-500" /><RenderDynamicList title={editLanguage === 'vi' ? 'Phát triển Chuyên môn' : 'Professional Development'} items={faculty.professionalDevelopmentList || []} field="professionalDevelopmentList" icon={Briefcase} iconColor="text-purple-500" /><RenderDynamicList title={editLanguage === 'vi' ? 'Hiệp hội Nghề nghiệp' : 'Memberships'} items={faculty.membershipsList || []} field="membershipsList" icon={User} iconColor="text-slate-500" /></div>}
                       </div>
@@ -679,15 +731,19 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
               {/* Actions - Only for Profiles Tab */}
               {mainTab === 'profiles' && (
                   <div className="flex gap-2">
+                      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
+                          <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`} title="Grid View"><LayoutGrid size={16}/></button>
+                          <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`} title="List View"><List size={16}/></button>
+                      </div>
                       <button 
                           onClick={() => { setIsAiImportModalOpen(true); setAiParsedData(null); setAiJsonInput(''); setAiImportError(null); }}
                           className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-purple-700 shadow-sm"
                       >
-                          <Bot size={16} /> {t("AI Hỗ trợ tạo dữ liệu", "AI Data Support")}
+                          <Bot size={16} /> {t("AI Hỗ trợ", "AI Assist")}
                       </button>
                       <input type="file" ref={jsonInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
-                      <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import JSON")}</button>
-                      <button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm Nhân sự", "Add Personnel")}</button>
+                      <button onClick={() => jsonInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50"><Upload size={16} /> {t("Nhập JSON", "Import")}</button>
+                      <button onClick={handleAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm"><Plus size={16} /> {t("Thêm", "Add")}</button>
                   </div>
               )}
           </div>
@@ -699,56 +755,67 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
       </div>
   );
 
-  const renderProfiles = () => (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-6">
-          {filteredFaculties.map(faculty => (
-              <div key={faculty.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all p-5 flex flex-col relative group">
-                  <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl font-bold text-slate-500 uppercase">
-                              {faculty.name.vi.charAt(0)}
-                          </div>
-                          <div>
-                              <h4 className="font-bold text-slate-800 text-sm line-clamp-1" title={faculty.name[language]}>{faculty.name[language]}</h4>
-                              <p className="text-xs text-slate-500">{faculty.email || t("Chưa có email", "No email")}</p>
-                          </div>
-                      </div>
-                      <div className="flex gap-1">
-                          <button onClick={() => setEditingId(faculty.id)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit2 size={16}/></button>
-                          <button onClick={() => handleDelete(faculty.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
-                      </div>
-                  </div>
+  const renderGridView = () => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-6">
+          {filteredFaculties.map(faculty => {
+              const rank = faculty.rank[language] || '';
+              const degree = faculty.degree[language] || '';
+              
+              return (
+              <div key={faculty.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col relative group overflow-hidden">
+                  {/* Decorative Header */}
+                  <div className={`h-2 w-full ${rank ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
                   
-                  <div className="space-y-2 mb-4 flex-1">
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <GraduationCap size={14} className="text-slate-400"/>
-                          <span className="truncate">{faculty.degree[language] || t("Chưa cập nhật", "N/A")}</span>
+                  <div className="p-5 flex flex-col h-full">
+                      <div className="flex justify-between items-start mb-4">
+                          <div className="flex gap-3">
+                              <div className="w-14 h-14 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-xl font-bold text-slate-500 uppercase flex-shrink-0">
+                                  {faculty.name[language]?.charAt(0)}
+                              </div>
+                              <div className="flex flex-col justify-center">
+                                  <h4 className="font-bold text-slate-800 text-sm line-clamp-1" title={faculty.name[language]}>{faculty.name[language]}</h4>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                      {rank && <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{rank}</span>}
+                                      {degree && <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{degree}</span>}
+                                  </div>
+                              </div>
+                          </div>
+                          
+                          {/* Actions on hover */}
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4 bg-white/90 p-1 rounded-lg shadow-sm border border-slate-100">
+                              <button onClick={() => { setEditingId(faculty.id); setEditFormTab('info'); }} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit2 size={14}/></button>
+                              <button onClick={() => handleDelete(faculty.id)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+                          </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Briefcase size={14} className="text-slate-400"/>
-                          <span className="truncate">{faculty.rank[language] || t("Chưa cập nhật", "N/A")}</span>
+                      
+                      <div className="space-y-2 mb-4 flex-1">
+                          <div className="flex items-center gap-2 text-xs text-slate-600" title="Đơn vị/Vị trí">
+                              <Building size={14} className="text-slate-400 flex-shrink-0"/>
+                              <span className="truncate">{faculty.position[language] || t("Chưa cập nhật", "N/A")}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-600" title="Email liên hệ">
+                              <Mail size={14} className="text-slate-400 flex-shrink-0"/>
+                              <span className="truncate">{faculty.email || t("Chưa có email", "No email")}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-600" title="Điện thoại">
+                              <Phone size={14} className="text-slate-400 flex-shrink-0"/>
+                              <span className="truncate">{faculty.mobile || faculty.tel || t("Chưa có SĐT", "No phone")}</span>
+                          </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Building size={14} className="text-slate-400"/>
-                          <span className="truncate">
-                              {/* Simple logic to find unit name if possible, otherwise position */}
-                              {faculty.position[language] || t("Giảng viên", "Lecturer")}
-                          </span>
-                      </div>
-                  </div>
-                  
-                  <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
-                      <div className="flex-1 text-center bg-slate-50 rounded py-1.5">
-                          <span className="block text-xs font-bold text-slate-700">{faculty.publicationsList?.length || 0}</span>
-                          <span className="block text-[10px] text-slate-500 uppercase">{t("Công bố", "Papers")}</span>
-                      </div>
-                      <div className="flex-1 text-center bg-slate-50 rounded py-1.5">
-                          <span className="block text-xs font-bold text-slate-700">{new Date().getFullYear() - (faculty.careerStartYear || new Date().getFullYear())}</span>
-                          <span className="block text-[10px] text-slate-500 uppercase">{t("Năm KN", "Yrs Exp")}</span>
+                      
+                      <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
+                          <div className="flex-1 text-center bg-slate-50 rounded-lg py-2 border border-slate-100">
+                              <span className="block text-sm font-bold text-slate-800">{faculty.publicationsList?.length || 0}</span>
+                              <span className="block text-[10px] text-slate-500 uppercase font-medium">{t("Công bố", "Papers")}</span>
+                          </div>
+                          <div className="flex-1 text-center bg-slate-50 rounded-lg py-2 border border-slate-100">
+                              <span className="block text-sm font-bold text-slate-800">{new Date().getFullYear() - (faculty.careerStartYear || new Date().getFullYear())}</span>
+                              <span className="block text-[10px] text-slate-500 uppercase font-medium">{t("Năm KN", "Yrs Exp")}</span>
+                          </div>
                       </div>
                   </div>
               </div>
-          ))}
+          )})}
           {filteredFaculties.length === 0 && (
               <div className="col-span-full py-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   <User size={48} className="mx-auto mb-4 opacity-20"/>
@@ -757,6 +824,78 @@ Sau khi bạn hiểu yêu cầu trên, tôi sẽ cung cấp nội dung CV mà t�
           )}
       </div>
   );
+
+  const renderListView = () => (
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                      <th className="px-4 py-3">Họ và tên</th>
+                      <th className="px-4 py-3">Mã/ID</th>
+                      <th className="px-4 py-3">Học hàm/Học vị</th>
+                      <th className="px-4 py-3">Đơn vị/Vị trí</th>
+                      <th className="px-4 py-3">Liên hệ</th>
+                      <th className="px-4 py-3 text-center">Thống kê</th>
+                      <th className="px-4 py-3 text-right">Thao tác</th>
+                  </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                  {filteredFaculties.map(faculty => (
+                      <tr key={faculty.id} className="hover:bg-slate-50 group transition-colors">
+                          <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
+                                      {faculty.name[language]?.charAt(0)}
+                                  </div>
+                                  <div className="font-bold text-slate-800">{faculty.name[language]}</div>
+                              </div>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-500">{faculty.id}</td>
+                          <td className="px-4 py-3">
+                              <div className="flex flex-col text-xs">
+                                  <span className="font-medium text-indigo-700">{faculty.rank[language]}</span>
+                                  <span className="text-slate-500">{faculty.degree[language]}</span>
+                              </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 text-xs max-w-[200px] truncate" title={faculty.position[language]}>
+                              {faculty.position[language] || '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                              <div className="flex flex-col text-xs">
+                                  <span className="text-slate-700 flex items-center gap-1"><Mail size={10}/> {faculty.email}</span>
+                                  <span className="text-slate-500 flex items-center gap-1"><Phone size={10}/> {faculty.mobile || faculty.tel}</span>
+                              </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                              <div className="inline-flex gap-2">
+                                  <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-200" title="Số bài báo">
+                                      {faculty.publicationsList?.length || 0} Pubs
+                                  </span>
+                                  <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-200" title="Năm kinh nghiệm">
+                                      {new Date().getFullYear() - (faculty.careerStartYear || new Date().getFullYear())} Yrs
+                                  </span>
+                              </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => { setEditingId(faculty.id); setEditFormTab('info'); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded bg-white border border-slate-200 shadow-sm" title="Sửa"><Edit2 size={14}/></button>
+                                  <button onClick={() => handleDelete(faculty.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded bg-white border border-slate-200 shadow-sm" title="Xóa"><Trash2 size={14}/></button>
+                              </div>
+                          </td>
+                      </tr>
+                  ))}
+                  {filteredFaculties.length === 0 && (
+                      <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400 italic">Không tìm thấy dữ liệu.</td></tr>
+                  )}
+              </tbody>
+          </table>
+      </div>
+  );
+
+  const renderProfiles = () => {
+      if (viewMode === 'list') return renderListView();
+      return renderGridView();
+  };
 
   const renderCategories = () => (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
