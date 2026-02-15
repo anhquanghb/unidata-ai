@@ -57,7 +57,13 @@ interface SettingsModuleProps {
 // Updated SCOPES to include readonly access for restoring backups
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'; 
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const DEFAULT_FOLDER_NAME = 'UniData_Backups'; // HARDCODED FOLDER NAME
+
+// --- FOLDER STRUCTURE CONSTANTS ---
+const ROOT_FOLDER_NAME = 'UniData_Store'; // Level 0
+const ZONE_A_NAME = 'UniData_Private';    // Level 1: Owner Only
+const ZONE_B_NAME = 'UniData_System';     // Level 1: Limited Share (System Data)
+const ZONE_C_NAME = 'UniData_Public';     // Level 1: Public Read-only
+
 const STORAGE_KEY = 'UNIDATA_DRIVE_SESSION';
 const TOKEN_EXPIRY_MS = 3500 * 1000; // ~58 minutes safety buffer
 
@@ -112,16 +118,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const effectiveClientId = envClientId || manualClientId;
 
   // Local state for Drive (RUNTIME ONLY, NOT SAVED TO SETTINGS/DISK)
-  const [driveFolderId, setDriveFolderId] = useState(driveSession.folderId || '');
+  const [driveFolderId, setDriveFolderId] = useState(driveSession.rootFolderId || '');
   const [externalSourceFolderId, setExternalSourceFolderId] = useState(driveSession.externalSourceFolderId || '');
 
   // UI States for Scanning
   const [scanStatus, setScanStatus] = useState<{
-      foundFolder: boolean;
-      foundDataFolder: boolean;
-      foundConfig: boolean;
+      foundFolder: boolean;      // Found UniData_Store
+      foundZoneA: boolean;       // Found UniData_Private
+      foundZoneB: boolean;       // Found UniData_System
+      foundZoneC: boolean;       // Found UniData_Public
       backupCount: number;
-  }>({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
+  }>({ foundFolder: false, foundZoneA: false, foundZoneB: false, foundZoneC: false, backupCount: 0 });
 
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
@@ -133,7 +140,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // Sync props to local state if changed externally
   useEffect(() => {
-      setDriveFolderId(driveSession.folderId);
+      setDriveFolderId(driveSession.rootFolderId);
       setExternalSourceFolderId(driveSession.externalSourceFolderId || '');
   }, [driveSession]);
 
@@ -166,7 +173,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- REUSABLE SCAN LOGIC ---
   const performDriveScan = async (accessToken: string, clientId: string) => {
-      // ... (Same as before)
       try {
           // Set token for GAPI calls
           window.gapi.client.setToken({ access_token: accessToken });
@@ -179,14 +185,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           const userName = userInfo.result.user.displayName;
 
           // --- STRICT SCAN LOGIC ---
-          let targetFolderId = '';
-          let dataFolderId = '';
-          let foundConfig = false;
+          let rootId = '';
+          let zoneA = '';
+          let zoneB = ''; // UniData_System (Default for System Data)
+          let zoneC = '';
           let backupCount = 0;
 
-          // 1. Search for Root Backup Folder (UniData_Backups) OWNED BY ME
-          // STRICT QUERY: Must be owned by 'me'
-          const q = `mimeType='application/vnd.google-apps.folder' and name='${DEFAULT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
+          // 1. Search for Root Folder (UniData_Store) OWNED BY ME
+          const q = `mimeType='application/vnd.google-apps.folder' and name='${ROOT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
           const folderResp = await window.gapi.client.drive.files.list({
               q: q,
               fields: 'files(id, name)',
@@ -194,46 +200,43 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           });
           
           if (folderResp.result.files && folderResp.result.files.length > 0) {
-              targetFolderId = folderResp.result.files[0].id;
+              rootId = folderResp.result.files[0].id;
               
-              // 2. If Found, Search for 'Data' Sub-folder
-              const qData = `mimeType='application/vnd.google-apps.folder' and name='Data' and '${targetFolderId}' in parents and trashed=false`;
-              const dataFolderResp = await window.gapi.client.drive.files.list({
-                  q: qData,
+              // 2. If Root Found, Search for Zones inside it
+              const qZones = `mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`;
+              const zonesResp = await window.gapi.client.drive.files.list({
+                  q: qZones,
                   fields: 'files(id, name)',
                   spaces: 'drive',
               });
 
-              if (dataFolderResp.result.files && dataFolderResp.result.files.length > 0) {
-                  dataFolderId = dataFolderResp.result.files[0].id;
+              if (zonesResp.result.files) {
+                  zonesResp.result.files.forEach((file: any) => {
+                      if (file.name === ZONE_A_NAME) zoneA = file.id;
+                      if (file.name === ZONE_B_NAME) zoneB = file.id;
+                      if (file.name === ZONE_C_NAME) zoneC = file.id;
+                  });
               }
 
-              // 3. Search for Configuration File (external.txt)
-              const qConfig = `name = 'external.txt' and '${targetFolderId}' in parents and trashed=false`;
-              const configResp = await window.gapi.client.drive.files.list({
-                  q: qConfig,
-                  fields: 'files(id, name)',
-              });
-              if (configResp.result.files && configResp.result.files.length > 0) {
-                  foundConfig = true;
+              // 3. Count Backups (JSON files) inside Zone B (System)
+              if (zoneB) {
+                  const qBackups = `mimeType = 'application/json' and '${zoneB}' in parents and trashed=false and name != 'external.txt'`;
+                  const backupResp = await window.gapi.client.drive.files.list({
+                      q: qBackups,
+                      pageSize: 100,
+                      fields: 'files(id)',
+                  });
+                  backupCount = backupResp.result.files ? backupResp.result.files.length : 0;
               }
-
-              // 4. Count Backups (JSON files)
-              const qBackups = `mimeType = 'application/json' and '${targetFolderId}' in parents and trashed=false and name != 'external.txt'`;
-              const backupResp = await window.gapi.client.drive.files.list({
-                  q: qBackups,
-                  pageSize: 100, // Limit check
-                  fields: 'files(id)',
-              });
-              backupCount = backupResp.result.files ? backupResp.result.files.length : 0;
           }
 
           // Update local state UI
-          setDriveFolderId(targetFolderId);
+          setDriveFolderId(rootId);
           setScanStatus({
-              foundFolder: !!targetFolderId,
-              foundDataFolder: !!dataFolderId,
-              foundConfig: foundConfig,
+              foundFolder: !!rootId,
+              foundZoneA: !!zoneA,
+              foundZoneB: !!zoneB,
+              foundZoneC: !!zoneC,
               backupCount: backupCount
           });
 
@@ -242,9 +245,18 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              clientId: clientId,
              accessToken: accessToken,
              accountName: `${userName} (${userEmail})`,
-             folderId: targetFolderId, 
-             folderName: DEFAULT_FOLDER_NAME,
-             dataFolderId: dataFolderId, 
+             
+             // Structure IDs
+             rootFolderId: rootId,
+             zoneAId: zoneA,
+             zoneBId: zoneB,
+             zoneCId: zoneC,
+
+             // Legacy Support (Map 'folderId' to Zone B for system ops)
+             folderId: zoneB || rootId, 
+             folderName: ZONE_B_NAME,
+             dataFolderId: zoneB, // Store data directly in Zone B or subfolder (simplified for now)
+             
              externalSourceFolderId: externalSourceFolderId,
              lastSync: new Date().toISOString()
           };
@@ -335,46 +347,72 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     }
   }, [isGisLoaded, isGapiLoaded]);
 
-  // --- MANUAL CREATE FOLDER HANDLER ---
+  // --- MANUAL CREATE FOLDER HANDLER (UPDATED FOR ZONES) ---
   const handleCreateDefaultFolders = async () => {
-      // ... (Same as before)
       if (!driveSession.isConnected) return;
       setIsCreatingFolder(true);
       try {
-          const fileMetadata = {
-              name: DEFAULT_FOLDER_NAME,
+          // 1. Create Root: UniData_Store
+          const rootMetadata = {
+              name: ROOT_FOLDER_NAME,
               mimeType: 'application/vnd.google-apps.folder'
           };
-          const createResp = await window.gapi.client.drive.files.create({
-              resource: fileMetadata,
+          const rootResp = await window.gapi.client.drive.files.create({
+              resource: rootMetadata,
               fields: 'id'
           });
-          const newFolderId = createResp.result.id;
+          const newRootId = rootResp.result.id;
 
-          const dataFolderMetadata = {
-              name: 'Data',
-              mimeType: 'application/vnd.google-apps.folder',
-              parents: [newFolderId]
+          // 2. Helper to create child folder
+          const createChild = async (name: string) => {
+              const meta = {
+                  name: name,
+                  mimeType: 'application/vnd.google-apps.folder',
+                  parents: [newRootId]
+              };
+              const resp = await window.gapi.client.drive.files.create({
+                  resource: meta,
+                  fields: 'id'
+              });
+              return resp.result.id;
           };
-          const createDataResp = await window.gapi.client.drive.files.create({
-              resource: dataFolderMetadata,
-              fields: 'id'
-          });
-          const newDataFolderId = createDataResp.result.id;
 
-          setDriveFolderId(newFolderId);
+          // 3. Create Zones concurrently
+          const [zoneAId, zoneBId, zoneCId] = await Promise.all([
+              createChild(ZONE_A_NAME), // Private
+              createChild(ZONE_B_NAME), // System
+              createChild(ZONE_C_NAME), // Public
+          ]);
+
+          // 4. Set Public Permission for Zone C
+          await window.gapi.client.drive.permissions.create({
+              fileId: zoneCId,
+              resource: {
+                  role: 'reader',
+                  type: 'anyone'
+              }
+          });
+
+          // Update State
+          setDriveFolderId(newRootId);
           setScanStatus({
               foundFolder: true,
-              foundDataFolder: true,
-              foundConfig: false,
+              foundZoneA: true,
+              foundZoneB: true,
+              foundZoneC: true,
               backupCount: 0
           });
 
           const updatedSession = {
               ...driveSession,
-              folderId: newFolderId,
-              dataFolderId: newDataFolderId,
-              folderName: DEFAULT_FOLDER_NAME
+              rootFolderId: newRootId,
+              zoneAId: zoneAId,
+              zoneBId: zoneBId,
+              zoneCId: zoneCId,
+              // Map System logic to Zone B
+              folderId: zoneBId,
+              folderName: ZONE_B_NAME,
+              dataFolderId: zoneBId 
           };
 
           onUpdateDriveSession(updatedSession);
@@ -383,11 +421,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               timestamp: Date.now()
           }));
 
-          alert(`Đã khởi tạo thành công:\n- Thư mục gốc: ${DEFAULT_FOLDER_NAME}\n- Thư mục con: Data`);
+          alert(`Đã khởi tạo cấu trúc thành công:\n- Root: ${ROOT_FOLDER_NAME}\n- Zones: A (Private), B (System), C (Public)`);
 
       } catch (e: any) {
           console.error("Create folder error", e);
-          alert("Lỗi khi tạo thư mục: " + e.message);
+          alert("Lỗi khi tạo cấu trúc thư mục: " + e.message);
       } finally {
           setIsCreatingFolder(false);
       }
@@ -403,7 +441,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleDisconnectDrive = () => {
-    // ... (Same as before)
     const confirm = window.confirm("Bạn có chắc muốn ngắt kết nối?\nHệ thống sẽ xóa toàn bộ dữ liệu đang lưu cục bộ để đảm bảo an toàn.");
     if (confirm) {
         if (driveSession.accessToken && window.google) {
@@ -416,15 +453,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         sessionStorage.clear();
         setDriveFolderId('');
         setExternalSourceFolderId('');
-        setScanStatus({ foundFolder: false, foundDataFolder: false, foundConfig: false, backupCount: 0 });
+        setScanStatus({ foundFolder: false, foundZoneA: false, foundZoneB: false, foundZoneC: false, backupCount: 0 });
         onUpdateDriveSession({
             isConnected: false,
             clientId: effectiveClientId, 
             accessToken: undefined,
             accountName: undefined,
             folderId: '',
-            folderName: DEFAULT_FOLDER_NAME,
-            dataFolderId: '',
+            rootFolderId: '',
+            folderName: ZONE_B_NAME,
             externalSourceFolderId: ''
         });
         onResetSystemData();
@@ -433,7 +470,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
 
   const handleSaveDriveConfigOnly = () => {
-      // ... (Same as before)
       const updated = {
           ...driveSession,
           clientId: manualClientId,
@@ -451,9 +487,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
-    // ... (Same as before)
-    if (!driveSession.isConnected || !driveSession.folderId) {
-        alert("Chưa kết nối Google Drive hoặc chưa có thư mục lưu trữ.");
+    // Save to Zone B (System)
+    if (!driveSession.isConnected || !driveSession.zoneBId) {
+        alert("Chưa kết nối Google Drive hoặc chưa có thư mục Zone B (System).");
         return;
     }
     if (!window.gapi?.client?.getToken() && driveSession.accessToken) {
@@ -480,10 +516,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
     const fileContent = JSON.stringify(data, null, 2);
     const file = new Blob([fileContent], {type: 'application/json'});
     
+    // Save to Zone B
     const metadata = {
         name: fileName,
         mimeType: 'application/json',
-        parents: [driveSession.folderId]
+        parents: [driveSession.zoneBId]
     };
 
     const form = new FormData();
@@ -506,7 +543,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         const json = await response.json();
         
         if (json.id) {
-            alert(`Đã lưu bản mới lên Google Drive thành công!\nTên file: ${fileName}`);
+            alert(`Đã lưu bản mới lên Google Drive thành công!\nVị trí: UniData_Store > ${ZONE_B_NAME}\nTên file: ${fileName}`);
             authenticateDrive(effectiveClientId, '');
         } else {
             alert("Lỗi: Không thể lưu file lên Google Drive.");
@@ -645,7 +682,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              // Drive Props
              manualClientId={manualClientId}
              setManualClientId={setManualClientId}
-             driveFolderId={driveFolderId} // Runtime ID
+             driveFolderId={driveFolderId} // Runtime ID (Root)
              setDriveFolderId={setDriveFolderId}
              
              // New Props for Creating Folder

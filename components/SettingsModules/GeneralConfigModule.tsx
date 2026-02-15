@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig, PermissionProfile } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield } from 'lucide-react';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield, Globe, HardDrive } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -25,8 +25,9 @@ interface GeneralConfigModuleProps {
   isCreatingFolder: boolean;
   scanStatus?: {
       foundFolder: boolean;
-      foundDataFolder: boolean;
-      foundConfig: boolean;
+      foundZoneA: boolean;
+      foundZoneB: boolean;
+      foundZoneC: boolean;
       backupCount: number;
   };
 
@@ -174,11 +175,13 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   };
 
   const fetchFolderContent = async () => {
-      if (!driveFolderId || !driveSession.isConnected) return;
+      // Fetch from Zone B (System) as default
+      const targetFolderId = driveSession.zoneBId || driveSession.rootFolderId;
+      if (!targetFolderId || !driveSession.isConnected) return;
       try {
           setIsLoadingContent(true);
           const response = await window.gapi.client.drive.files.list({
-              q: `'${driveFolderId}' in parents and trashed = false`,
+              q: `'${targetFolderId}' in parents and trashed = false`,
               fields: 'files(id, name, mimeType)',
               pageSize: 50
           });
@@ -206,7 +209,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                   type: 'user',
                   emailAddress: email
               },
-              emailMessage: `UniData System: Bạn đã được cấp quyền ĐỌC cho ${fileId === driveFolderId ? 'thư mục hệ thống' : 'tệp tin'}.`
+              emailMessage: `UniData System: Bạn đã được cấp quyền ĐỌC cho tài nguyên hệ thống.`
           });
           alert(`Đã chia sẻ thành công với ${email}`);
           callback(); // Reload permissions
@@ -235,11 +238,13 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   // --- EFFECTS FOR SHARING TAB ---
   useEffect(() => {
-      if (driveFolderId && driveSession.isConnected) {
-          fetchPermissions(driveFolderId, setRootPermissions);
+      // Use Zone B as default for sharing management
+      const targetId = driveSession.zoneBId;
+      if (targetId && driveSession.isConnected) {
+          fetchPermissions(targetId, setRootPermissions);
           fetchFolderContent();
       }
-  }, [driveFolderId, driveSession.isConnected]);
+  }, [driveSession.zoneBId, driveSession.isConnected]);
 
   useEffect(() => {
       if (selectedFile) {
@@ -433,7 +438,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    <div>
                        <p className="text-sm font-bold text-slate-700">Trạng thái kết nối</p>
                        <div className="flex items-center gap-2 mt-1">
-                           <span className={`w-3 h-3 rounded-full ${driveSession.isConnected ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                           <span className={`w-3 h-3 rounded-full ${driveSession.isConnected ? 'bg-green-50' : 'bg-slate-300'}`}></span>
                            <span className="text-sm text-slate-600">{driveSession.isConnected ? `Đã kết nối: ${driveSession.accountName}` : 'Chưa kết nối'}</span>
                        </div>
                    </div>
@@ -449,28 +454,60 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    )}
                </div>
 
-               {/* Folder Management */}
+               {/* Folder Management Tree View */}
                {driveSession.isConnected && (
                    <div className="border-t border-slate-200 pt-6">
-                       <h4 className="text-sm font-bold text-slate-700 mb-4">Quản lý Thư mục Hệ thống</h4>
+                       <h4 className="text-sm font-bold text-slate-700 mb-4">Cấu trúc Thư mục Hệ thống</h4>
                        
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className={`p-4 rounded-lg border flex items-center gap-3 ${scanStatus?.foundFolder ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                <Folder size={24} className={scanStatus?.foundFolder ? 'text-green-600' : 'text-red-500'} />
-                                <div>
-                                    <p className="text-sm font-bold text-slate-800">Thư mục gốc (UniData_Backups)</p>
-                                    <p className={`text-xs ${scanStatus?.foundFolder ? 'text-green-700' : 'text-red-600'}`}>
-                                        {scanStatus?.foundFolder ? 'Đã tìm thấy' : 'Chưa tìm thấy'}
-                                    </p>
+                       <div className="space-y-2 mb-4 font-mono text-sm">
+                            {/* ROOT */}
+                            <div className={`p-3 rounded-lg border flex items-center gap-3 ${scanStatus?.foundFolder ? 'bg-white border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <Folder size={20} className={scanStatus?.foundFolder ? 'text-green-600' : 'text-red-500'} />
+                                <div className="flex-1">
+                                    <div className="flex justify-between">
+                                        <span className="font-bold text-slate-800">Root: UniData_Store (Level 0)</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded ${scanStatus?.foundFolder ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{scanStatus?.foundFolder ? 'Found' : 'Missing'}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500">Container chính (Owner Only)</p>
                                 </div>
                             </div>
-                            <div className={`p-4 rounded-lg border flex items-center gap-3 ${scanStatus?.foundDataFolder ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-                                <Database size={24} className={scanStatus?.foundDataFolder ? 'text-green-600' : 'text-orange-500'} />
-                                <div>
-                                    <p className="text-sm font-bold text-slate-800">Thư mục dữ liệu (Data)</p>
-                                    <p className={`text-xs ${scanStatus?.foundDataFolder ? 'text-green-700' : 'text-orange-700'}`}>
-                                        {scanStatus?.foundDataFolder ? 'Đã tìm thấy' : 'Chưa tìm thấy (Dữ liệu đính kèm sẽ không hoạt động)'}
-                                    </p>
+
+                            {/* ZONES */}
+                            <div className="pl-8 space-y-2 border-l-2 border-slate-200 ml-4">
+                                {/* Zone A */}
+                                <div className={`p-2 rounded border flex items-center gap-3 ${scanStatus?.foundZoneA ? 'bg-white border-slate-200' : 'bg-slate-100 border-slate-200'}`}>
+                                    <Lock size={16} className="text-slate-500" />
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold text-slate-700">Zone A: UniData_Private</span>
+                                            {scanStatus?.foundZoneA && <CheckCircle size={14} className="text-green-500"/>}
+                                        </div>
+                                        <p className="text-[10px] text-slate-500">Dữ liệu nhạy cảm (Lương, Nháp)</p>
+                                    </div>
+                                </div>
+
+                                {/* Zone B */}
+                                <div className={`p-2 rounded border flex items-center gap-3 ${scanStatus?.foundZoneB ? 'bg-blue-50 border-blue-200' : 'bg-slate-100 border-slate-200'}`}>
+                                    <HardDrive size={16} className="text-blue-600" />
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold text-blue-800">Zone B: UniData_System</span>
+                                            {scanStatus?.foundZoneB && <CheckCircle size={14} className="text-green-500"/>}
+                                        </div>
+                                        <p className="text-[10px] text-blue-600">Cấu hình, Báo cáo (Shared Limit)</p>
+                                    </div>
+                                </div>
+
+                                {/* Zone C */}
+                                <div className={`p-2 rounded border flex items-center gap-3 ${scanStatus?.foundZoneC ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
+                                    <Globe size={16} className="text-green-600" />
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold text-green-800">Zone C: UniData_Public</span>
+                                            {scanStatus?.foundZoneC && <CheckCircle size={14} className="text-green-500"/>}
+                                        </div>
+                                        <p className="text-[10px] text-green-600">Công khai (Public Read-only)</p>
+                                    </div>
                                 </div>
                             </div>
                        </div>
@@ -483,7 +520,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
                                >
                                    {isCreatingFolder ? <Loader2 size={16} className="animate-spin"/> : <PlusCircle size={16}/>}
-                                   Khởi tạo Cấu trúc Thư mục Mặc định
+                                   Khởi tạo Cấu trúc Chuẩn (Root & Zones)
                                </button>
                            </div>
                        )}
@@ -513,19 +550,19 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                            </div>
                        </div>
                        
-                       {/* Sharing Manager */}
-                        {driveFolderId && (
+                       {/* Sharing Manager - Targeted to Zone B (System) */}
+                        {driveSession.zoneBId && (
                            <div className="mt-6 pt-6 border-t border-slate-200">
                                <h5 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                    <Users size={16} className="text-indigo-600"/>
-                                   Quản lý Chia sẻ (Quyền truy cập)
+                                   Quản lý Chia sẻ (Zone B: System)
                                </h5>
                                
                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                    {/* Root Permissions */}
                                    <div className="bg-white p-4 rounded-lg border border-slate-200">
                                        <div className="flex justify-between items-center mb-3">
-                                            <span className="text-xs font-bold uppercase text-slate-500">Thư mục Hệ thống</span>
+                                            <span className="text-xs font-bold uppercase text-slate-500">Thư mục Hệ thống (Zone B)</span>
                                             <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-500">{rootPermissions.length} users</span>
                                        </div>
                                        
@@ -538,9 +575,9 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                                 onChange={(e) => setShareEmailRoot(e.target.value)}
                                             />
                                             <button 
-                                                onClick={() => addPermission(driveFolderId, shareEmailRoot, () => {
+                                                onClick={() => addPermission(driveSession.zoneBId!, shareEmailRoot, () => {
                                                     setShareEmailRoot('');
-                                                    fetchPermissions(driveFolderId, setRootPermissions);
+                                                    fetchPermissions(driveSession.zoneBId!, setRootPermissions);
                                                 })}
                                                 disabled={isSharing || !shareEmailRoot}
                                                 className="px-2 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:bg-slate-300"
@@ -563,7 +600,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                                        <span className="text-[9px] uppercase font-bold text-slate-400 bg-white px-1 rounded border">{perm.role}</span>
                                                        {perm.role !== 'owner' && (
                                                            <button 
-                                                               onClick={() => removePermission(driveFolderId, perm.id, () => fetchPermissions(driveFolderId, setRootPermissions))}
+                                                               onClick={() => removePermission(driveSession.zoneBId!, perm.id, () => fetchPermissions(driveSession.zoneBId!, setRootPermissions))}
                                                                className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                                            >
                                                                <Trash2 size={12}/>
@@ -592,7 +629,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                                 }}
                                                 value={selectedFile?.id || ''}
                                             >
-                                                <option value="">-- Chọn file để quản lý quyền --</option>
+                                                <option value="">-- Chọn file trong Zone B --</option>
                                                 {folderContents.map(f => (
                                                     <option key={f.id} value={f.id}>{f.name}</option>
                                                 ))}

@@ -234,9 +234,17 @@ export interface GoogleDriveConfig {
   clientId?: string;
   accessToken?: string;
   accountName?: string;
-  folderId?: string;
-  folderName?: string;
-  dataFolderId?: string;
+  
+  // Folder Structure
+  rootFolderId?: string; // UniData_Store (Level 0)
+  zoneAId?: string;      // UniData_Private (Level 1)
+  zoneBId?: string;      // UniData_System (Level 1) - Default Write Target
+  zoneCId?: string;      // UniData_Public (Level 1)
+  
+  folderId?: string;     // Legacy support (points to Zone B usually)
+  folderName?: string;   // Legacy/Display name
+  dataFolderId?: string; // Legacy/Data subfolder inside Zone B
+  
   externalSourceFolderId?: string;
   lastSync?: string;
 }

@@ -26,7 +26,7 @@ const BackupDataModule: React.FC<BackupDataModuleProps> = ({
        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
           <h3 className="font-semibold text-indigo-900 mb-2">1. Chọn dữ liệu từ đám mây (Google Drive)</h3>
           <p className="text-sm text-indigo-700 mb-4">
-              Khôi phục hoặc đồng bộ dữ liệu từ các phiên bản sao lưu đã được lưu trữ trong thư mục <strong>{driveSession.folderName || 'UniData_Backups'}</strong>.
+              Khôi phục hoặc đồng bộ dữ liệu từ các phiên bản sao lưu đã được lưu trữ trong thư mục <strong>{driveSession.folderName || 'Unidata_System'}</strong>.
           </p>
           <button 
               onClick={onShowVersions}
@@ -44,7 +44,7 @@ const BackupDataModule: React.FC<BackupDataModuleProps> = ({
        <div className="bg-green-50 p-4 rounded-lg border border-green-100">
           <h3 className="font-semibold text-green-900 mb-2">2. Lưu trữ đám mây (Google Drive)</h3>
           <p className="text-sm text-green-700 mb-4">
-              Tải bản sao lưu hiện tại lên thư mục <strong>{driveSession.folderName || 'UniData_Backups'}</strong> trên Google Drive.
+              Tải bản sao lưu hiện tại lên thư mục <strong>{driveSession.folderName || 'Unidata_System'}</strong> trên Google Drive.
           </p>
           <button 
               onClick={onSaveToDrive}
