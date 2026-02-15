@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig, PermissionProfile } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield, Globe, HardDrive } from 'lucide-react';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield, Globe, HardDrive, Copy } from 'lucide-react';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -86,6 +86,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [editingSchool, setEditingSchool] = useState(false);
   const [editSchoolName, setEditSchoolName] = useState(schoolInfo.school_name);
   const [editSchoolCode, setEditSchoolCode] = useState(schoolInfo.school_code);
+  const [editPublicDriveId, setEditPublicDriveId] = useState(schoolInfo.publicDriveId || '');
 
   // --- DRIVE SHARING STATE ---
   const [rootPermissions, setRootPermissions] = useState<DrivePermission[]>([]);
@@ -118,7 +119,11 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   };
 
   const handleSaveSchoolInfo = () => {
-      onUpdateSchoolInfo({ school_name: editSchoolName, school_code: editSchoolCode });
+      onUpdateSchoolInfo({ 
+          school_name: editSchoolName, 
+          school_code: editSchoolCode,
+          publicDriveId: editPublicDriveId
+      });
       setEditingSchool(false);
   }
 
@@ -236,6 +241,19 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
       }
   };
 
+  const handleCopyId = (id: string) => {
+      navigator.clipboard.writeText(id).then(() => {
+          alert("Đã sao chép ID thư mục vào bộ nhớ đệm!");
+      });
+  };
+
+  // Sync SchoolInfo state
+  useEffect(() => {
+      setEditSchoolName(schoolInfo.school_name);
+      setEditSchoolCode(schoolInfo.school_code);
+      setEditPublicDriveId(schoolInfo.publicDriveId || '');
+  }, [schoolInfo]);
+
   // --- EFFECTS FOR SHARING TAB ---
   useEffect(() => {
       // Use Zone B as default for sharing management
@@ -317,6 +335,32 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    ) : (
                        <div className="text-sm font-mono font-bold text-slate-600">{schoolInfo.school_code}</div>
                    )}
+               </div>
+               <div className="md:col-span-2">
+                   <label className="block text-xs font-semibold text-slate-500 mb-1 flex items-center gap-2">
+                       Public Drive ID (Zone C) 
+                       <Globe size={12} className="text-green-500"/>
+                   </label>
+                   {editingSchool ? (
+                       <input 
+                           className="w-full p-2 border border-slate-300 rounded text-sm font-mono text-slate-600 bg-slate-100" 
+                           value={editPublicDriveId} 
+                           onChange={(e) => setEditPublicDriveId(e.target.value)} 
+                           placeholder="Tự động cập nhật khi kết nối Drive..."
+                       />
+                   ) : (
+                       <div className="flex items-center gap-2">
+                           <div className={`text-xs font-mono font-bold px-2 py-1 rounded border ${schoolInfo.publicDriveId ? 'bg-white border-green-200 text-green-700' : 'bg-slate-200 text-slate-400 border-transparent'}`}>
+                               {schoolInfo.publicDriveId || 'Chưa định nghĩa'}
+                           </div>
+                           {schoolInfo.publicDriveId && (
+                               <button onClick={() => handleCopyId(schoolInfo.publicDriveId!)} className="text-slate-400 hover:text-green-600">
+                                   <Copy size={14}/>
+                               </button>
+                           )}
+                       </div>
+                   )}
+                   <p className="text-[10px] text-slate-400 mt-1 italic">ID thư mục dùng để chia sẻ dữ liệu công khai cho các đơn vị khác.</p>
                </div>
            </div>
        </div>
@@ -499,15 +543,30 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                 </div>
 
                                 {/* Zone C */}
-                                <div className={`p-2 rounded border flex items-center gap-3 ${scanStatus?.foundZoneC ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
-                                    <Globe size={16} className="text-green-600" />
-                                    <div className="flex-1">
-                                        <div className="flex justify-between">
-                                            <span className="font-bold text-green-800">Zone C: UniData_Public</span>
-                                            {scanStatus?.foundZoneC && <CheckCircle size={14} className="text-green-500"/>}
+                                <div className={`p-2 rounded border flex flex-col gap-2 ${scanStatus?.foundZoneC ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <Globe size={16} className="text-green-600" />
+                                        <div className="flex-1">
+                                            <div className="flex justify-between">
+                                                <span className="font-bold text-green-800">Zone C: UniData_Public</span>
+                                                {scanStatus?.foundZoneC && <CheckCircle size={14} className="text-green-500"/>}
+                                            </div>
+                                            <p className="text-[10px] text-green-600">Công khai (Public Read-only)</p>
                                         </div>
-                                        <p className="text-[10px] text-green-600">Công khai (Public Read-only)</p>
                                     </div>
+                                    {/* ID Display & Copy Button */}
+                                    {scanStatus?.foundZoneC && driveSession.zoneCId && (
+                                        <div className="ml-7 flex items-center gap-2 bg-white/60 p-1.5 rounded border border-green-100">
+                                            <span className="text-[10px] text-green-700 font-mono flex-1 truncate">ID: {driveSession.zoneCId}</span>
+                                            <button 
+                                                onClick={() => handleCopyId(driveSession.zoneCId!)}
+                                                className="p-1 hover:bg-green-200 rounded text-green-700 transition-colors"
+                                                title="Sao chép ID để chia sẻ"
+                                            >
+                                                <Copy size={12}/>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                        </div>

@@ -5,6 +5,7 @@ export interface Unit {
   unit_code: string;
   unit_type: 'school' | 'faculty' | 'department';
   unit_parentId?: string;
+  publicDriveId?: string; // ID của Zone C (UniData_Public) của đơn vị này
 }
 
 export interface HumanResourceRecord {
@@ -123,6 +124,7 @@ export interface Faculty {
 export interface SchoolInfo {
   school_name: string;
   school_code: string;
+  publicDriveId?: string; // ID của Zone C (UniData_Public) của hệ thống hiện tại
 }
 
 export interface TrainingRecord {

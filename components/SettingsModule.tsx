@@ -240,6 +240,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               backupCount: backupCount
           });
 
+          // **AUTO-UPDATE SCHOOL PUBLIC DRIVE ID**
+          if (zoneC && schoolInfo.publicDriveId !== zoneC) {
+              onUpdateSchoolInfo({ ...schoolInfo, publicDriveId: zoneC });
+          }
+
           const newSession: GoogleDriveConfig = {
              isConnected: true,
              clientId: clientId,
@@ -402,6 +407,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               foundZoneC: true,
               backupCount: 0
           });
+
+          // **AUTO-UPDATE SCHOOL PUBLIC DRIVE ID**
+          onUpdateSchoolInfo({ ...schoolInfo, publicDriveId: zoneCId });
 
           const updatedSession = {
               ...driveSession,
