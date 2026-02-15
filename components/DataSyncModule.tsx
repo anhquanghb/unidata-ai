@@ -97,14 +97,29 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
           });
         } else {
           // Modification Check
+          let isModified = false;
+          let msg = '';
+          
           if (localU.unit_name !== extU.unit_name) {
+              isModified = true;
+              msg = 'Tên đơn vị khác biệt';
+          }
+          
+          // CRITICAL: Check Public Drive ID (Zone C)
+          if (localU.publicDriveId !== extU.publicDriveId && extU.publicDriveId) {
+              isModified = true;
+              msg = msg ? `${msg}, Zone C ID mới` : 'Cập nhật Zone C ID (Kết nối)';
+          }
+
+          if (isModified) {
             uDiffs.push({
               id: extU.unit_id,
               local: localU,
               external: extU,
               status: 'modified',
-              action: 'keep_local', // Default safety
-              message: 'Tên đơn vị khác biệt'
+              // If only Drive ID Changed, prefer external to establish link
+              action: (localU.unit_name === extU.unit_name && localU.publicDriveId !== extU.publicDriveId) ? 'take_external' : 'keep_local',
+              message: msg
             });
           }
         }
@@ -262,7 +277,10 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
           // 1. Commit Units
           unitDiffs.forEach(diff => {
               if (diff.action === 'take_external' && diff.external) {
-                  finalData.units.push(diff.external);
+                  // If exists, replace (for updates like Drive ID). If not, push.
+                  const idx = finalData.units.findIndex((u: Unit) => u.unit_id === diff.id);
+                  if (idx !== -1) finalData.units[idx] = diff.external;
+                  else finalData.units.push(diff.external);
               } else if (diff.action === 'merge' && diff.external) {
                   const idx = finalData.units.findIndex((u: Unit) => u.unit_id === diff.id);
                   if (idx !== -1) finalData.units[idx] = diff.external; 
@@ -402,6 +420,12 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
                                     <span className="font-bold text-slate-700">{diff.external?.unit_name || diff.local?.unit_name}</span>
                                 </div>
                                 <p className="text-xs text-slate-500">{diff.message} (ID: {diff.id})</p>
+                                {(diff.status === 'modified' && diff.local && diff.external && diff.local.publicDriveId !== diff.external.publicDriveId) && (
+                                    <div className="mt-1 text-[10px] grid grid-cols-2 gap-2 bg-slate-50 p-1.5 rounded">
+                                        <div className="text-slate-500">Local ID: {diff.local.publicDriveId || '(Trống)'}</div>
+                                        <div className="text-green-600 font-bold">New ID: {diff.external.publicDriveId || '(Trống)'}</div>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex gap-2">
                                 {diff.status === 'new' ? (
@@ -412,7 +436,12 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
                                 ) : (
                                     <>
                                         <button onClick={() => handleUnitAction(diff.id, 'keep_local')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'keep_local' ? 'bg-blue-600 text-white' : 'bg-white border text-blue-600'}`}>Giữ cũ</button>
-                                        <button onClick={() => handleUnitAction(diff.id, 'merge')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'merge' ? 'bg-orange-600 text-white' : 'bg-white border text-orange-600'}`}>Thay tên</button>
+                                        <button onClick={() => handleUnitAction(diff.id, 'take_external')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'take_external' ? 'bg-green-600 text-white' : 'bg-white border text-green-600'}`}>
+                                            {diff.local?.publicDriveId !== diff.external?.publicDriveId ? 'Cập nhật ID' : 'Lấy Mới'}
+                                        </button>
+                                        {diff.local?.unit_name !== diff.external?.unit_name && (
+                                            <button onClick={() => handleUnitAction(diff.id, 'merge')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'merge' ? 'bg-orange-600 text-white' : 'bg-white border text-orange-600'}`}>Thay tên</button>
+                                        )}
                                     </>
                                 )}
                             </div>

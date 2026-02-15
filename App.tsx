@@ -217,7 +217,15 @@ const App: React.FC = () => {
           currentParentId = parent ? parent.unit_parentId : undefined;
       }
 
-      const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id));
+      // **CRITICAL UPDATE: Inject System's Public Drive ID into the Target Unit Record**
+      // When a child system exports data, it marks its "Self" Unit with the actual publicDriveId of the child system.
+      // The Parent system will receive this ID attached to the Unit record, not the SchoolInfo.
+      const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id)).map(u => {
+          if (u.unit_id === unitId && schoolInfo.publicDriveId) {
+              return { ...u, publicDriveId: schoolInfo.publicDriveId };
+          }
+          return u;
+      });
 
       // 2. Identify Related Personnel
       // Only include personnel belonging to the Exported Units
@@ -279,7 +287,7 @@ const App: React.FC = () => {
           dataConfigGroups: dataConfigGroups, 
           dynamicDataStore: filteredDynamicStore,
           academicYears: academicYears, // Include Academic Years
-          schoolInfo: schoolInfo // Include School Info
+          schoolInfo: schoolInfo // School Info is included for context but publicDriveId here is ignored by parent sync
       };
 
       // 5. Download File

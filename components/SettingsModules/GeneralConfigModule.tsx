@@ -35,6 +35,10 @@ interface GeneralConfigModuleProps {
   externalSourceFolderId?: string;
   setExternalSourceFolderId?: (val: string) => void;
 
+  // New props for Registry Update
+  onUpdatePublicRegistry?: () => void;
+  isUpdatingRegistry?: boolean;
+
   envClientId: string;
   effectiveClientId: string;
   onConnectDrive: () => void;
@@ -73,7 +77,8 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   manualClientId, setManualClientId,
   driveFolderId, setDriveFolderId,
   onCreateDefaultFolders, isCreatingFolder, scanStatus,
-  externalSourceFolderId, setExternalSourceFolderId, 
+  externalSourceFolderId, setExternalSourceFolderId,
+  onUpdatePublicRegistry, isUpdatingRegistry,
   envClientId, effectiveClientId,
   onConnectDrive, onDisconnectDrive, onSaveDriveConfigOnly,
   onSetCurrentYear
@@ -556,15 +561,27 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                     </div>
                                     {/* ID Display & Copy Button */}
                                     {scanStatus?.foundZoneC && driveSession.zoneCId && (
-                                        <div className="ml-7 flex items-center gap-2 bg-white/60 p-1.5 rounded border border-green-100">
-                                            <span className="text-[10px] text-green-700 font-mono flex-1 truncate">ID: {driveSession.zoneCId}</span>
-                                            <button 
-                                                onClick={() => handleCopyId(driveSession.zoneCId!)}
-                                                className="p-1 hover:bg-green-200 rounded text-green-700 transition-colors"
-                                                title="Sao chép ID để chia sẻ"
-                                            >
-                                                <Copy size={12}/>
-                                            </button>
+                                        <div className="ml-7 flex flex-col gap-2">
+                                            <div className="flex items-center gap-2 bg-white/60 p-1.5 rounded border border-green-100">
+                                                <span className="text-[10px] text-green-700 font-mono flex-1 truncate">ID: {driveSession.zoneCId}</span>
+                                                <button 
+                                                    onClick={() => handleCopyId(driveSession.zoneCId!)}
+                                                    className="p-1 hover:bg-green-200 rounded text-green-700 transition-colors"
+                                                    title="Sao chép ID để chia sẻ"
+                                                >
+                                                    <Copy size={12}/>
+                                                </button>
+                                            </div>
+                                            {onUpdatePublicRegistry && !isUnitManager && (
+                                                <button 
+                                                    onClick={onUpdatePublicRegistry}
+                                                    disabled={isUpdatingRegistry}
+                                                    className="w-full bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold border border-green-200 hover:bg-green-200 flex items-center justify-center gap-1"
+                                                >
+                                                    {isUpdatingRegistry ? <Loader2 size={10} className="animate-spin"/> : <Share2 size={10}/>}
+                                                    Cập nhật Registry (Zone_C.json)
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>

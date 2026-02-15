@@ -133,6 +133,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [isUpdatingRegistry, setIsUpdatingRegistry] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -439,6 +440,74 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       }
   };
 
+  // --- UPDATE PUBLIC REGISTRY (Zone_C.json) ---
+  const handleUpdatePublicRegistry = async () => {
+      if (!driveSession.isConnected || !driveSession.zoneCId) {
+          alert("Chưa kết nối Google Drive hoặc chưa có thư mục Zone C (Public).");
+          return;
+      }
+      
+      setIsUpdatingRegistry(true);
+      try {
+          // 1. Generate Registry Data
+          const registryData = units
+              .filter(u => u.publicDriveId)
+              .map(u => ({
+                  unit_id: u.unit_id,
+                  unit_name: u.unit_name,
+                  publicDriveId: u.publicDriveId
+              }));
+
+          const content = JSON.stringify(registryData, null, 2);
+          const blob = new Blob([content], { type: 'application/json' });
+          const fileName = 'Zone_C.json';
+
+          // 2. Check if file exists
+          const listResp = await window.gapi.client.drive.files.list({
+              q: `name = '${fileName}' and '${driveSession.zoneCId}' in parents and trashed = false`,
+              fields: 'files(id)'
+          });
+
+          const existingFileId = listResp.result.files?.[0]?.id;
+
+          // 3. Update or Create
+          if (existingFileId) {
+              const form = new FormData();
+              form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+              form.append('file', blob);
+
+              await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
+                  method: 'PATCH',
+                  headers: { 'Authorization': `Bearer ${driveSession.accessToken}` },
+                  body: form
+              });
+          } else {
+              const metadata = {
+                  name: fileName,
+                  mimeType: 'application/json',
+                  parents: [driveSession.zoneCId]
+              };
+              const form = new FormData();
+              form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+              form.append('file', blob);
+
+              await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${driveSession.accessToken}` },
+                  body: form
+              });
+          }
+
+          alert(`Đã cập nhật Registry (${registryData.length} đơn vị) vào Zone C thành công!`);
+
+      } catch (e: any) {
+          console.error("Registry update error", e);
+          alert("Lỗi khi cập nhật Registry: " + e.message);
+      } finally {
+          setIsUpdatingRegistry(false);
+      }
+  };
+
   // --- USER HANDLER ---
   const handleConnectDrive = () => {
     if (!effectiveClientId) {
@@ -701,6 +770,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
              // External Read-Only Source Prop
              externalSourceFolderId={externalSourceFolderId}
              setExternalSourceFolderId={setExternalSourceFolderId}
+
+             // Registry Update Props
+             onUpdatePublicRegistry={handleUpdatePublicRegistry}
+             isUpdatingRegistry={isUpdatingRegistry}
 
              envClientId={envClientId}
              effectiveClientId={effectiveClientId}
