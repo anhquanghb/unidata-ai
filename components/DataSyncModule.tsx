@@ -249,66 +249,76 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
 
   // --- COMMIT LOGIC ---
   const executeCommit = () => {
-      // Clone Local Data
-      const finalData = JSON.parse(JSON.stringify(localData));
+      try {
+          // Clone Local Data
+          const finalData = JSON.parse(JSON.stringify(localData));
 
-      // 1. Commit Units
-      unitDiffs.forEach(diff => {
-          if (diff.action === 'take_external' && diff.external) {
-              finalData.units.push(diff.external);
-          } else if (diff.action === 'merge' && diff.external) {
-              const idx = finalData.units.findIndex((u: Unit) => u.unit_id === diff.id);
-              if (idx !== -1) finalData.units[idx] = diff.external; 
-          }
-      });
+          // Ensure arrays exist to avoid push errors
+          if (!finalData.units) finalData.units = [];
+          if (!finalData.faculties) finalData.faculties = [];
+          if (!finalData.humanResources) finalData.humanResources = [];
+          if (!finalData.dynamicDataStore) finalData.dynamicDataStore = {};
 
-      // 2. Commit Dynamic Data
-      Object.keys(dynamicDiffs).forEach(groupId => {
-          const groupDiffs = dynamicDiffs[groupId];
-          if (!finalData.dynamicDataStore[groupId]) finalData.dynamicDataStore[groupId] = [];
-          
-          groupDiffs.forEach(diff => {
+          // 1. Commit Units
+          unitDiffs.forEach(diff => {
               if (diff.action === 'take_external' && diff.external) {
-                  const idx = finalData.dynamicDataStore[groupId].findIndex((r: any) => r.id === diff.id);
-                  if (idx !== -1) finalData.dynamicDataStore[groupId][idx] = { ...diff.external, updatedAt: new Date().toISOString() };
-                  else finalData.dynamicDataStore[groupId].push({ ...diff.external, updatedAt: new Date().toISOString() });
+                  finalData.units.push(diff.external);
+              } else if (diff.action === 'merge' && diff.external) {
+                  const idx = finalData.units.findIndex((u: Unit) => u.unit_id === diff.id);
+                  if (idx !== -1) finalData.units[idx] = diff.external; 
               }
           });
-      });
 
-      // 3. Commit Faculty
-      facultyDiffs.forEach(diff => {
-          if (diff.action === 'take_external' && diff.external) {
-              finalData.faculties.push(diff.external);
-          } else if ((diff.action === 'merge' || diff.action === 'take_external') && diff.matchId && diff.external) {
-              const idx = finalData.faculties.findIndex((f: Faculty) => f.id === diff.matchId);
-              if (idx !== -1) finalData.faculties[idx] = { ...diff.external, id: diff.matchId };
-          }
-      });
+          // 2. Commit Dynamic Data
+          Object.keys(dynamicDiffs).forEach(groupId => {
+              const groupDiffs = dynamicDiffs[groupId];
+              if (!finalData.dynamicDataStore[groupId]) finalData.dynamicDataStore[groupId] = [];
+              
+              groupDiffs.forEach(diff => {
+                  if (diff.action === 'take_external' && diff.external) {
+                      const idx = finalData.dynamicDataStore[groupId].findIndex((r: any) => r.id === diff.id);
+                      if (idx !== -1) finalData.dynamicDataStore[groupId][idx] = { ...diff.external, updatedAt: new Date().toISOString() };
+                      else finalData.dynamicDataStore[groupId].push({ ...diff.external, updatedAt: new Date().toISOString() });
+                  }
+              });
+          });
 
-      // 4. Commit HR Assignments
-      hrDiffs.forEach(diff => {
-          if (diff.action === 'take_external' && diff.external) {
-              // Add new assignment
-              finalData.humanResources.push(diff.external);
-          } else if (diff.action === 'merge' && diff.local && diff.external) {
-              // Merge is tricky for link tables, usually implied update
-              // Update existing assignment
-              const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
-              if (idx !== -1) {
-                  finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id }; // Keep local ID but update fields
+          // 3. Commit Faculty
+          facultyDiffs.forEach(diff => {
+              if (diff.action === 'take_external' && diff.external) {
+                  finalData.faculties.push(diff.external);
+              } else if ((diff.action === 'merge' || diff.action === 'take_external') && diff.matchId && diff.external) {
+                  const idx = finalData.faculties.findIndex((f: Faculty) => f.id === diff.matchId);
+                  if (idx !== -1) finalData.faculties[idx] = { ...diff.external, id: diff.matchId };
               }
-          } else if (diff.status === 'modified' && diff.action === 'take_external' && diff.local && diff.external) {
-               // Update existing assignment (Take External Content)
-               const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
-               if (idx !== -1) {
-                   finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id };
-               }
-          }
-      });
+          });
 
-      setIsConfirming(false);
-      onCommit(finalData);
+          // 4. Commit HR Assignments
+          hrDiffs.forEach(diff => {
+              if (diff.action === 'take_external' && diff.external) {
+                  // Add new assignment
+                  finalData.humanResources.push(diff.external);
+              } else if (diff.action === 'merge' && diff.local && diff.external) {
+                  // Update existing assignment
+                  const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
+                  if (idx !== -1) {
+                      finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id }; 
+                  }
+              } else if (diff.status === 'modified' && diff.action === 'take_external' && diff.local && diff.external) {
+                  // Update existing assignment (Take External Content)
+                  const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
+                  if (idx !== -1) {
+                      finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id };
+                  }
+              }
+          });
+
+          setIsConfirming(false);
+          onCommit(finalData);
+      } catch (error) {
+          console.error("Sync Commit Error:", error);
+          alert("Lỗi khi đồng bộ dữ liệu. Vui lòng thử lại.");
+      }
   };
 
   const handlePreCommit = () => {
@@ -548,7 +558,7 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
 
         {/* Confirmation Modal */}
         {isConfirming && (
-            <div className="absolute inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 border border-slate-200 animate-in zoom-in-95">
                     <div className="flex flex-col items-center text-center mb-6">
                         <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
