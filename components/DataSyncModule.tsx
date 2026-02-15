@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Unit, Faculty, DynamicRecord, DataConfigGroup } from '../types';
-import { ArrowRight, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, RefreshCw, GitMerge, FilePlus, FileDiff, UserPlus, Users, Database } from 'lucide-react';
+import { Unit, Faculty, DynamicRecord, DataConfigGroup, HumanResourceRecord } from '../types';
+import { ArrowRight, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, RefreshCw, GitMerge, FilePlus, FileDiff, UserPlus, Users, Database, Briefcase } from 'lucide-react';
 
 interface DataSyncModuleProps {
   localData: any;
@@ -43,12 +42,24 @@ interface FacultyDiffItem {
   message?: string;
 }
 
+interface HrDiffItem {
+  id: string;
+  local?: HumanResourceRecord;
+  external?: HumanResourceRecord;
+  status: DiffStatus;
+  action: ActionType;
+  message?: string;
+  personName: string;
+  unitName: string;
+}
+
 const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData, onCommit, onCancel }) => {
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<'units' | 'dynamic' | 'faculty'>('units');
+  const [activeTab, setActiveTab] = useState<'units' | 'dynamic' | 'faculty' | 'hr'>('units');
   const [unitDiffs, setUnitDiffs] = useState<UnitDiffItem[]>([]);
   const [dynamicDiffs, setDynamicDiffs] = useState<Record<string, DynamicDiffItem[]>>({});
   const [facultyDiffs, setFacultyDiffs] = useState<FacultyDiffItem[]>([]);
+  const [hrDiffs, setHrDiffs] = useState<HrDiffItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(true);
 
   // --- HELPERS ---
@@ -60,10 +71,15 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
     setTimeout(() => {
       // 1. UNIT DIFF LOGIC
       const uDiffs: UnitDiffItem[] = [];
-      // Explicitly type and safely access local units
       const localUnitsRaw = (Array.isArray(localData.units) ? localData.units : []) as Unit[];
       const localUnitsMap = new Map<string, Unit>(localUnitsRaw.map((u) => [u.unit_id, u]));
       const externalUnits: Unit[] = externalData.units || [];
+
+      // Helper for names
+      const getUnitName = (id: string) => {
+          const u = localUnitsMap.get(id) || externalUnits.find(eu => eu.unit_id === id);
+          return u?.unit_name || id;
+      };
 
       externalUnits.forEach(extU => {
         const localU = localUnitsMap.get(extU.unit_id);
@@ -88,12 +104,11 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
               message: 'Tên đơn vị khác biệt'
             });
           }
-          // Remove from map to check for deletions later if needed (Skipped for Import mode)
         }
       });
       setUnitDiffs(uDiffs);
 
-      // 2. DYNAMIC DATA DIFF LOGIC (Schema Guard & Row Resolution)
+      // 2. DYNAMIC DATA DIFF LOGIC
       const dDiffs: Record<string, DynamicDiffItem[]> = {};
       const localGroups: DataConfigGroup[] = localData.dataConfigGroups || [];
       const externalStore = externalData.dynamicDataStore || {};
@@ -104,69 +119,31 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
         const locRecords: DynamicRecord[] = localStore[group.id] || [];
         const groupDiffs: DynamicDiffItem[] = [];
         const validFields = group.fields.map(f => f.key);
-
-        // Map local records by ID
         const locMap = new Map(locRecords.map(r => [r.id, r]));
 
         extRecords.forEach(extRec => {
-          // SCHEMA GUARD: Filter external record
           const cleanExtRec: any = { id: extRec.id, academicYear: extRec.academicYear, updatedAt: extRec.updatedAt };
-          validFields.forEach(key => {
-            if (extRec[key] !== undefined) cleanExtRec[key] = extRec[key];
-          });
-
+          validFields.forEach(key => { if (extRec[key] !== undefined) cleanExtRec[key] = extRec[key]; });
           const locRec = locMap.get(extRec.id);
-          
-          // Generate Display Value (First text field)
           const displayField = group.fields.find(f => f.type === 'text')?.key || group.fields[0]?.key;
           const displayValue = String(cleanExtRec[displayField] || 'Record');
 
           if (!locRec) {
-            groupDiffs.push({
-              id: extRec.id,
-              external: cleanExtRec,
-              status: 'new',
-              action: 'take_external',
-              displayValue,
-              message: 'Dữ liệu mới'
-            });
+            groupDiffs.push({ id: extRec.id, external: cleanExtRec, status: 'new', action: 'take_external', displayValue, message: 'Dữ liệu mới' });
           } else {
-            // Compare content (excluding system fields)
             let isDifferent = false;
-            validFields.forEach(key => {
-              if (JSON.stringify(locRec[key]) !== JSON.stringify(cleanExtRec[key])) isDifferent = true;
-            });
+            validFields.forEach(key => { if (JSON.stringify(locRec[key]) !== JSON.stringify(cleanExtRec[key])) isDifferent = true; });
 
             if (isDifferent) {
-              // Time-based Logic
               const timeLoc = locRec.updatedAt ? new Date(locRec.updatedAt).getTime() : 0;
               const timeExt = extRec.updatedAt ? new Date(extRec.updatedAt).getTime() : 0;
               
               if (timeExt > timeLoc) {
-                 groupDiffs.push({
-                    id: extRec.id,
-                    local: locRec,
-                    external: cleanExtRec,
-                    status: 'modified',
-                    action: 'take_external',
-                    displayValue,
-                    message: 'Có bản cập nhật mới hơn'
-                 });
+                 groupDiffs.push({ id: extRec.id, local: locRec, external: cleanExtRec, status: 'modified', action: 'take_external', displayValue, message: 'Có bản cập nhật mới hơn' });
               } else if (timeLoc > timeExt) {
-                 // Local is newer, ignore external silently or show as stale? 
-                 // Staging area usually ignores stale unless user wants to revert.
-                 // For now: Skip
+                 // Skip stale
               } else {
-                 // No timestamp or equal time but different content -> Conflict
-                 groupDiffs.push({
-                    id: extRec.id,
-                    local: locRec,
-                    external: cleanExtRec,
-                    status: 'conflict',
-                    action: 'keep_local',
-                    displayValue,
-                    message: 'Xung đột dữ liệu'
-                 });
+                 groupDiffs.push({ id: extRec.id, local: locRec, external: cleanExtRec, status: 'conflict', action: 'keep_local', displayValue, message: 'Xung đột dữ liệu' });
               }
             }
           }
@@ -175,94 +152,97 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
       });
       setDynamicDiffs(dDiffs);
 
-      // 3. FACULTY DIFF LOGIC (Fuzzy Match)
+      // 3. FACULTY DIFF LOGIC
       const fDiffs: FacultyDiffItem[] = [];
       const localFacs: Faculty[] = localData.faculties || [];
       const extFacs: Faculty[] = externalData.faculties || [];
-
-      // Indexes for fast lookup
       const localIdMap = new Map(localFacs.map(f => [f.id, f]));
       const localEmailMap = new Map(localFacs.filter(f => f.email).map(f => [normalizeStr(f.email!), f]));
       
+      // Helper to get faculty name
+      const getFacultyName = (id: string) => {
+          const f = localIdMap.get(id) || extFacs.find(ef => ef.id === id);
+          return f?.name.vi || id;
+      };
+
       extFacs.forEach(extF => {
-        // Priority 1: Match by ID
         if (localIdMap.has(extF.id)) {
            const locF = localIdMap.get(extF.id)!;
-           // Check content diff (simplified check on name/rank/degree)
            if (JSON.stringify(extF) !== JSON.stringify(locF)) {
-               fDiffs.push({
-                   id: extF.id,
-                   matchId: locF.id,
-                   local: locF,
-                   external: extF,
-                   status: 'modified',
-                   action: 'keep_local',
-                   message: 'Thông tin thay đổi'
-               });
+               fDiffs.push({ id: extF.id, matchId: locF.id, local: locF, external: extF, status: 'modified', action: 'keep_local', message: 'Thông tin thay đổi' });
            }
            return;
         }
-
-        // Priority 2: Match by Email
         if (extF.email && localEmailMap.has(normalizeStr(extF.email))) {
             const locF = localEmailMap.get(normalizeStr(extF.email))!;
-            fDiffs.push({
-                id: extF.id,
-                matchId: locF.id,
-                local: locF,
-                external: extF,
-                status: 'conflict', // ID diff but Email same -> Merge candidate?
-                action: 'merge', // Custom action to update local ID record with external data? Or just update fields
-                message: 'Trùng Email (ID khác nhau)'
-            });
+            fDiffs.push({ id: extF.id, matchId: locF.id, local: locF, external: extF, status: 'conflict', action: 'merge', message: 'Trùng Email (ID khác nhau)' });
             return;
         }
-
-        // Priority 3: Suspect (Name match)
         const nameMatch = localFacs.find(l => normalizeStr(l.name.vi) === normalizeStr(extF.name.vi));
         if (nameMatch) {
-            fDiffs.push({
-                id: extF.id,
-                matchId: nameMatch.id,
-                local: nameMatch,
-                external: extF,
-                status: 'suspect',
-                action: 'keep_local', // Safe default
-                message: 'Trùng tên (Cần xác nhận)'
-            });
+            fDiffs.push({ id: extF.id, matchId: nameMatch.id, local: nameMatch, external: extF, status: 'suspect', action: 'keep_local', message: 'Trùng tên (Cần xác nhận)' });
             return;
         }
-
-        // New
-        fDiffs.push({
-            id: extF.id,
-            external: extF,
-            status: 'new',
-            action: 'take_external',
-            message: 'Nhân sự mới'
-        });
+        fDiffs.push({ id: extF.id, external: extF, status: 'new', action: 'take_external', message: 'Nhân sự mới' });
       });
       setFacultyDiffs(fDiffs);
 
+      // 4. HUMAN RESOURCES (ASSIGNMENT) DIFF LOGIC
+      const hDiffs: HrDiffItem[] = [];
+      const localHR: HumanResourceRecord[] = localData.humanResources || [];
+      const extHR: HumanResourceRecord[] = externalData.humanResources || [];
+
+      // Create a map for quick lookup of existing assignments in local: "facultyId_unitId"
+      const localAssignmentMap = new Map(localHR.map(hr => [`${hr.facultyId}_${hr.unitId}`, hr]));
+
+      extHR.forEach(extRec => {
+          const key = `${extRec.facultyId}_${extRec.unitId}`;
+          const locRec = localAssignmentMap.get(key);
+          const personName = getFacultyName(extRec.facultyId);
+          const unitName = getUnitName(extRec.unitId);
+
+          if (!locRec) {
+              // Assignment doesn't exist in local (New Assignment)
+              hDiffs.push({
+                  id: extRec.id,
+                  external: extRec,
+                  status: 'new',
+                  action: 'take_external',
+                  message: 'Phân công mới',
+                  personName,
+                  unitName
+              });
+          } else {
+              // Assignment exists, check for changes (Role, Dates)
+              const isDiff = locRec.role !== extRec.role || 
+                             locRec.startDate !== extRec.startDate || 
+                             locRec.endDate !== extRec.endDate;
+              
+              if (isDiff) {
+                  hDiffs.push({
+                      id: extRec.id,
+                      local: locRec,
+                      external: extRec,
+                      status: 'modified',
+                      action: 'keep_local', // Safe default
+                      message: 'Thay đổi thông tin phân công',
+                      personName,
+                      unitName
+                  });
+              }
+          }
+      });
+      setHrDiffs(hDiffs);
+
       setIsProcessing(false);
-    }, 500); // Simulate processing time
+    }, 500); 
   }, [localData, externalData]);
 
   // --- ACTIONS ---
-  const handleUnitAction = (id: string, action: ActionType) => {
-      setUnitDiffs(prev => prev.map(u => u.id === id ? { ...u, action } : u));
-  };
-
-  const handleDynamicAction = (groupId: string, id: string, action: ActionType) => {
-      setDynamicDiffs(prev => ({
-          ...prev,
-          [groupId]: prev[groupId].map(d => d.id === id ? { ...d, action } : d)
-      }));
-  };
-
-  const handleFacultyAction = (id: string, action: ActionType) => {
-      setFacultyDiffs(prev => prev.map(f => f.id === id ? { ...f, action } : f));
-  };
+  const handleUnitAction = (id: string, action: ActionType) => setUnitDiffs(prev => prev.map(u => u.id === id ? { ...u, action } : u));
+  const handleDynamicAction = (groupId: string, id: string, action: ActionType) => setDynamicDiffs(prev => ({ ...prev, [groupId]: prev[groupId].map(d => d.id === id ? { ...d, action } : d) }));
+  const handleFacultyAction = (id: string, action: ActionType) => setFacultyDiffs(prev => prev.map(f => f.id === id ? { ...f, action } : f));
+  const handleHrAction = (id: string, action: ActionType) => setHrDiffs(prev => prev.map(h => h.id === id ? { ...h, action } : h));
 
   const handleCommit = () => {
       if (!confirm("Bạn có chắc chắn muốn thực hiện các thay đổi đã chọn?")) return;
@@ -276,7 +256,7 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
               finalData.units.push(diff.external);
           } else if (diff.action === 'merge' && diff.external) {
               const idx = finalData.units.findIndex((u: Unit) => u.unit_id === diff.id);
-              if (idx !== -1) finalData.units[idx] = diff.external; // Simple replace for rename
+              if (idx !== -1) finalData.units[idx] = diff.external; 
           }
       });
 
@@ -287,13 +267,9 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
           
           groupDiffs.forEach(diff => {
               if (diff.action === 'take_external' && diff.external) {
-                  // If exists, replace. If not, push.
                   const idx = finalData.dynamicDataStore[groupId].findIndex((r: any) => r.id === diff.id);
-                  if (idx !== -1) {
-                      finalData.dynamicDataStore[groupId][idx] = { ...diff.external, updatedAt: new Date().toISOString() };
-                  } else {
-                      finalData.dynamicDataStore[groupId].push({ ...diff.external, updatedAt: new Date().toISOString() });
-                  }
+                  if (idx !== -1) finalData.dynamicDataStore[groupId][idx] = { ...diff.external, updatedAt: new Date().toISOString() };
+                  else finalData.dynamicDataStore[groupId].push({ ...diff.external, updatedAt: new Date().toISOString() });
               }
           });
       });
@@ -303,12 +279,29 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
           if (diff.action === 'take_external' && diff.external) {
               finalData.faculties.push(diff.external);
           } else if ((diff.action === 'merge' || diff.action === 'take_external') && diff.matchId && diff.external) {
-              // Update existing faculty (matched by ID or Email)
               const idx = finalData.faculties.findIndex((f: Faculty) => f.id === diff.matchId);
+              if (idx !== -1) finalData.faculties[idx] = { ...diff.external, id: diff.matchId };
+          }
+      });
+
+      // 4. Commit HR Assignments
+      hrDiffs.forEach(diff => {
+          if (diff.action === 'take_external' && diff.external) {
+              // Add new assignment
+              finalData.humanResources.push(diff.external);
+          } else if (diff.action === 'merge' && diff.local && diff.external) {
+              // Merge is tricky for link tables, usually implied update
+              // Update existing assignment
+              const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
               if (idx !== -1) {
-                  // Merge logic: Keep ID of local, take content of external
-                  finalData.faculties[idx] = { ...diff.external, id: diff.matchId };
+                  finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id }; // Keep local ID but update fields
               }
+          } else if (diff.status === 'modified' && diff.action === 'take_external' && diff.local && diff.external) {
+               // Update existing assignment (Take External Content)
+               const idx = finalData.humanResources.findIndex((hr: HumanResourceRecord) => hr.id === diff.local!.id);
+               if (idx !== -1) {
+                   finalData.humanResources[idx] = { ...diff.external, id: diff.local!.id };
+               }
           }
       });
 
@@ -335,7 +328,7 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
       );
   }
 
-  const hasChanges = unitDiffs.length > 0 || Object.keys(dynamicDiffs).length > 0 || facultyDiffs.length > 0;
+  const hasChanges = unitDiffs.length > 0 || Object.keys(dynamicDiffs).length > 0 || facultyDiffs.length > 0 || hrDiffs.length > 0;
 
   if (!hasChanges) {
       return (
@@ -351,24 +344,30 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
   return (
     <div className="flex flex-col h-full bg-slate-50">
         {/* Header Tabs */}
-        <div className="flex border-b border-slate-200 bg-white px-4">
+        <div className="flex border-b border-slate-200 bg-white px-4 overflow-x-auto">
             <button 
                 onClick={() => setActiveTab('units')}
-                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'units' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'units' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
                 <Database size={16}/> Cơ cấu Tổ chức ({unitDiffs.length})
             </button>
             <button 
                 onClick={() => setActiveTab('dynamic')}
-                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dynamic' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'dynamic' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
                 <FileDiff size={16}/> Dữ liệu Động ({Object.values(dynamicDiffs).flat().length})
             </button>
             <button 
                 onClick={() => setActiveTab('faculty')}
-                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'faculty' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'faculty' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
                 <Users size={16}/> Nhân sự ({facultyDiffs.length})
+            </button>
+            <button 
+                onClick={() => setActiveTab('hr')}
+                className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'hr' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+                <Briefcase size={16}/> Phân công ({hrDiffs.length})
             </button>
         </div>
 
@@ -485,6 +484,48 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
                         </div>
                     ))}
                     {facultyDiffs.length === 0 && <p className="text-center text-slate-400 mt-10">Không có thay đổi về nhân sự.</p>}
+                </div>
+            )}
+
+            {/* HUMAN RESOURCES (ASSIGNMENT) TAB */}
+            {activeTab === 'hr' && (
+                <div className="space-y-3">
+                    {hrDiffs.map(diff => (
+                        <div key={diff.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex justify-between items-center">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    {renderStatusBadge(diff.status)}
+                                    <span className="font-bold text-slate-700">{diff.personName}</span>
+                                    <ArrowRight size={14} className="text-slate-400"/>
+                                    <span className="font-bold text-indigo-700">{diff.unitName}</span>
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                    {diff.message} <br/>
+                                    {diff.external?.role} (Start: {diff.external?.startDate || 'N/A'})
+                                </div>
+                                {diff.status === 'modified' && diff.local && diff.external && (
+                                    <div className="mt-1 text-[10px] bg-slate-50 p-1 rounded grid grid-cols-2 gap-2">
+                                        <div className="text-slate-500">Local: {diff.local.role} ({diff.local.startDate})</div>
+                                        <div className="text-green-600">Ext: {diff.external.role} ({diff.external.startDate})</div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                {diff.status === 'new' ? (
+                                    <>
+                                        <button onClick={() => handleHrAction(diff.id, 'skip')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'skip' ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:bg-slate-50'}`}>Bỏ qua</button>
+                                        <button onClick={() => handleHrAction(diff.id, 'take_external')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'take_external' ? 'bg-green-600 text-white' : 'bg-white border text-green-600'}`}>Thêm phân công</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => handleHrAction(diff.id, 'keep_local')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'keep_local' ? 'bg-blue-600 text-white' : 'bg-white border text-blue-600'}`}>Giữ cũ</button>
+                                        <button onClick={() => handleHrAction(diff.id, 'take_external')} className={`px-3 py-1.5 rounded text-xs font-bold ${diff.action === 'take_external' ? 'bg-green-600 text-white' : 'bg-white border text-green-600'}`}>Cập nhật</button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {hrDiffs.length === 0 && <p className="text-center text-slate-400 mt-10">Không có thay đổi về phân công nhân sự.</p>}
                 </div>
             )}
         </div>
