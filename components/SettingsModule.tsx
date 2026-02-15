@@ -451,11 +451,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       try {
           // 1. Generate Registry Data
           const registryData = units
-              .filter(u => u.publicDriveId)
+              .filter(u => u.unit_publicDriveId)
               .map(u => ({
                   unit_id: u.unit_id,
                   unit_name: u.unit_name,
-                  publicDriveId: u.publicDriveId
+                  unit_publicDriveId: u.unit_publicDriveId
               }));
 
           const content = JSON.stringify(registryData, null, 2);

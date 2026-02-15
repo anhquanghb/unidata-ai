@@ -137,7 +137,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         unit_code: tempUnit.unit_code,
         unit_type: tempUnit.unit_type || 'department',
         unit_parentId: tempUnit.unit_parentId,
-        publicDriveId: tempUnit.publicDriveId
+        unit_publicDriveId: tempUnit.unit_publicDriveId
       };
       onUpdateUnits([...units, newUnit]);
     }
@@ -295,9 +295,9 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                       <span>Mã: <code className="bg-slate-100 px-1 rounded">{selectedUnit.unit_code}</code></span>
                       <span className="capitalize">Loại: {selectedUnit.unit_type}</span>
                     </div>
-                    {selectedUnit.publicDriveId && (
+                    {selectedUnit.unit_publicDriveId && (
                         <div className="mt-2 text-xs flex items-center gap-1 text-green-600 bg-green-50 w-fit px-2 py-1 rounded border border-green-100">
-                            <Globe size={12}/> Public ID: <span className="font-mono">{selectedUnit.publicDriveId}</span>
+                            <Globe size={12}/> Public ID: <span className="font-mono">{selectedUnit.unit_publicDriveId}</span>
                         </div>
                     )}
                  </div>
@@ -482,8 +482,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                     </label>
                     <input 
                         className="w-full p-2 border border-slate-300 rounded text-sm font-mono text-slate-600" 
-                        value={tempUnit.publicDriveId || ''} 
-                        onChange={e => setTempUnit({...tempUnit, publicDriveId: e.target.value})} 
+                        value={tempUnit.unit_publicDriveId || ''} 
+                        onChange={e => setTempUnit({...tempUnit, unit_publicDriveId: e.target.value})} 
                         placeholder="ID thư mục công khai của đơn vị..."
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Dùng để liên kết dữ liệu chia sẻ từ đơn vị này.</p>

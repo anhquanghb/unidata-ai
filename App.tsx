@@ -222,7 +222,7 @@ const App: React.FC = () => {
       // The Parent system will receive this ID attached to the Unit record, not the SchoolInfo.
       const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id)).map(u => {
           if (u.unit_id === unitId && schoolInfo.publicDriveId) {
-              return { ...u, publicDriveId: schoolInfo.publicDriveId };
+              return { ...u, unit_publicDriveId: schoolInfo.publicDriveId };
           }
           return u;
       });
