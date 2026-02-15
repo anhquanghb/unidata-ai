@@ -452,6 +452,11 @@ const App: React.FC = () => {
   
   // Get Current Permission
   const currentPermission = settings.permissionProfile || defaultPermission;
+  
+  // Resolve Managed Unit Name
+  const managedUnit = currentPermission.role === 'unit_manager' && currentPermission.managedUnitId 
+      ? units.find(u => u.unit_id === currentPermission.managedUnitId)
+      : null;
 
   // Render Content
   const renderContent = () => {
@@ -560,7 +565,7 @@ const App: React.FC = () => {
         {/* Permission Banner */}
         {currentPermission.role === 'unit_manager' && (
             <div className="bg-amber-100 text-amber-800 px-4 py-1 text-xs font-bold text-center border-b border-amber-200">
-                CHẾ ĐỘ CẤP ĐƠN VỊ (UNIT MANAGER) - {currentPermission.managedUnitId ? `Đang quản lý đơn vị ID: ${currentPermission.managedUnitId}` : ''} - Một số tính năng cấu hình hệ thống đã bị khóa.
+                {managedUnit ? managedUnit.unit_name.toUpperCase() : 'CHẾ ĐỘ CẤP ĐƠN VỊ'} - ID: {currentPermission.managedUnitId}.
             </div>
         )}
         <main className="flex-1 overflow-y-auto p-0">
