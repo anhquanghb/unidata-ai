@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Unit, Faculty, DynamicRecord, DataConfigGroup, HumanResourceRecord } from '../types';
-import { ArrowRight, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, RefreshCw, GitMerge, FilePlus, FileDiff, UserPlus, Users, Database, Briefcase } from 'lucide-react';
+import { ArrowRight, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, RefreshCw, GitMerge, FilePlus, FileDiff, UserPlus, Users, Database, Briefcase, AlertOctagon } from 'lucide-react';
 
 interface DataSyncModuleProps {
   localData: any;
@@ -61,6 +61,9 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
   const [facultyDiffs, setFacultyDiffs] = useState<FacultyDiffItem[]>([]);
   const [hrDiffs, setHrDiffs] = useState<HrDiffItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(true);
+  
+  // Confirmation Modal State
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // --- HELPERS ---
   const normalizeStr = (str: string = '') => str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -244,9 +247,8 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
   const handleFacultyAction = (id: string, action: ActionType) => setFacultyDiffs(prev => prev.map(f => f.id === id ? { ...f, action } : f));
   const handleHrAction = (id: string, action: ActionType) => setHrDiffs(prev => prev.map(h => h.id === id ? { ...h, action } : h));
 
-  const handleCommit = () => {
-      if (!confirm("Bạn có chắc chắn muốn thực hiện các thay đổi đã chọn?")) return;
-
+  // --- COMMIT LOGIC ---
+  const executeCommit = () => {
       // Clone Local Data
       const finalData = JSON.parse(JSON.stringify(localData));
 
@@ -305,7 +307,13 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
           }
       });
 
+      setIsConfirming(false);
       onCommit(finalData);
+  };
+
+  const handlePreCommit = () => {
+      // Show Confirmation Modal
+      setIsConfirming(true);
   };
 
   // --- RENDERING ---
@@ -342,7 +350,7 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50 relative">
         {/* Header Tabs */}
         <div className="flex border-b border-slate-200 bg-white px-4 overflow-x-auto">
             <button 
@@ -533,10 +541,43 @@ const DataSyncModule: React.FC<DataSyncModuleProps> = ({ localData, externalData
         {/* Footer */}
         <div className="bg-slate-100 p-4 border-t border-slate-200 flex justify-end gap-3">
             <button onClick={onCancel} className="px-4 py-2 bg-white border border-slate-300 rounded text-slate-700 font-bold text-sm hover:bg-slate-50">Hủy bỏ</button>
-            <button onClick={handleCommit} className="px-6 py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 shadow flex items-center gap-2">
+            <button onClick={handlePreCommit} className="px-6 py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 shadow flex items-center gap-2">
                 <RefreshCw size={16}/> Xác nhận Đồng bộ
             </button>
         </div>
+
+        {/* Confirmation Modal */}
+        {isConfirming && (
+            <div className="absolute inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 border border-slate-200 animate-in zoom-in-95">
+                    <div className="flex flex-col items-center text-center mb-6">
+                        <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+                            <AlertOctagon size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800">Cảnh báo Đồng bộ</h3>
+                        <p className="text-slate-600 mt-2 text-sm">
+                            Hệ thống sẽ thực hiện các thay đổi dựa trên lựa chọn của bạn. 
+                            <br/><br/>
+                            <strong>Vui lòng kiểm tra kỹ lại các lựa chọn trong TẤT CẢ các thẻ</strong> (Cơ cấu, Dữ liệu động, Nhân sự, Phân công) trước khi tiếp tục.
+                        </p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setIsConfirming(false)}
+                            className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors"
+                        >
+                            Xem lại
+                        </button>
+                        <button 
+                            onClick={executeCommit}
+                            className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-bold text-sm hover:bg-amber-700 shadow-md transition-colors"
+                        >
+                            Đồng ý
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

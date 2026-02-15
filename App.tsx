@@ -115,6 +115,82 @@ const App: React.FC = () => {
       markDirty();
   };
 
+  // --- SYSTEM INTEGRITY: CASCADE ID UPDATES ---
+  const handleCascadeFacultyIdChange = (oldId: string, newId: string) => {
+      let changeCount = 0;
+
+      // 1. Update Human Resources (Assignment Table)
+      const updatedHR = humanResources.map(hr => {
+          if (hr.facultyId === oldId) {
+              changeCount++;
+              return { ...hr, facultyId: newId };
+          }
+          return hr;
+      });
+      if (JSON.stringify(updatedHR) !== JSON.stringify(humanResources)) {
+          setHumanResources(updatedHR);
+      }
+
+      // 2. Update Dynamic Data Store (Lookups)
+      let storeChanged = false;
+      const newStore = { ...dynamicDataStore };
+
+      dataConfigGroups.forEach(group => {
+          // Find fields that reference 'faculties'
+          const refFields = group.fields.filter(f => 
+              (f.type === 'reference' || f.type === 'reference_multiple') && 
+              f.referenceTarget === 'faculties'
+          );
+
+          if (refFields.length > 0) {
+              const groupData = newStore[group.id] || [];
+              let groupChanged = false;
+              
+              const newGroupData = groupData.map(record => {
+                  let recordChanged = false;
+                  const newRecord = { ...record };
+
+                  refFields.forEach(field => {
+                      const val = record[field.key];
+                      // Single Reference
+                      if (field.type === 'reference' && val === oldId) {
+                          newRecord[field.key] = newId;
+                          recordChanged = true;
+                          changeCount++;
+                      } 
+                      // Multiple Reference
+                      else if (field.type === 'reference_multiple' && Array.isArray(val) && val.includes(oldId)) {
+                          newRecord[field.key] = val.map((v: string) => v === oldId ? newId : v);
+                          recordChanged = true;
+                          changeCount++;
+                      }
+                  });
+
+                  if (recordChanged) {
+                      groupChanged = true;
+                      return newRecord;
+                  }
+                  return record;
+              });
+
+              if (groupChanged) {
+                  newStore[group.id] = newGroupData;
+                  storeChanged = true;
+              }
+          }
+      });
+
+      if (storeChanged) {
+          setDynamicDataStore(newStore);
+      }
+
+      if (changeCount > 0) {
+          markDirty();
+          // Optional: Add toast notification here
+          console.log(`Updated ${changeCount} references for Faculty ID change from ${oldId} to ${newId}`);
+      }
+  };
+
   // --- UNIT SPECIFIC EXPORT LOGIC ---
   const handleExportUnitData = (unitId: string) => {
       const targetUnit = units.find(u => u.unit_id === unitId);
@@ -412,6 +488,7 @@ const App: React.FC = () => {
              humanResources={humanResources}
              currentAcademicYear={settings.currentAcademicYear}
              permission={currentPermission} // Pass Permission
+             onCascadeIdChange={handleCascadeFacultyIdChange} // PASS CASCADE HANDLER
           />;
       case 'organization':
         return <OrganizationModule 

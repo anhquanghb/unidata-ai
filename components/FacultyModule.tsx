@@ -19,6 +19,9 @@ interface FacultyModuleProps {
   humanResources?: HumanResourceRecord[];
   currentAcademicYear?: string;
   permission?: PermissionProfile; // New prop
+  
+  // System Integrity
+  onCascadeIdChange?: (oldId: string, newId: string) => void;
 }
 
 // Define structure for conflicts found during import
@@ -33,7 +36,8 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
     facultyTitles, setFacultyTitles,
     courses, geminiConfig,
     units = [], humanResources = [], currentAcademicYear = '',
-    permission
+    permission,
+    onCascadeIdChange
 }) => {
   // UI Language State
   const [language, setLanguage] = useState<Language>('vi'); 
@@ -211,11 +215,18 @@ const FacultyModule: React.FC<FacultyModuleProps> = ({
           }
 
           if (confirm(language === 'vi' 
-              ? `Bạn có chắc muốn đổi ID từ "${oldId}" sang "${newId}"?`
-              : `Are you sure you want to change ID from "${oldId}" to "${newId}"?`)) {
+              ? `Bạn có chắc muốn đổi ID từ "${oldId}" sang "${newId}"? \nHệ thống sẽ tự động cập nhật ID này trong các dữ liệu liên quan.`
+              : `Are you sure you want to change ID from "${oldId}" to "${newId}"? \nSystem will auto-update this ID in related records.`)) {
               
+              // 1. Update Faculty State
               setFaculties(prev => prev.map(f => f.id === oldId ? { ...f, id: newId } : f));
               
+              // 2. Cascade Update to System
+              if (onCascadeIdChange) {
+                  onCascadeIdChange(oldId, newId);
+              }
+
+              // 3. Update UI state if editing
               if (editingId === oldId) {
                   setEditingId(newId);
               }
