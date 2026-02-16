@@ -624,4 +624,42 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden font-sans text-slate-900">
       <Sidebar 
-        currentView={currentView
+        currentView={currentView}
+        onViewChange={handleViewChange}
+        schoolName={schoolInfo.school_name}
+        currentAcademicYear={settings.currentAcademicYear}
+        isCollapsed={isSidebarCollapsed}
+        toggleSidebar={handleToggleSidebar}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSaveToCloud={handleSaveToCloud}
+        onExportData={handleExportData}
+        isCloudConnected={driveSession.isConnected}
+      />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Permission Banner */}
+        {activePermission.role === 'unit_manager' && (
+            <div className="bg-amber-100 text-amber-800 px-4 py-1 text-xs font-bold text-center border-b border-amber-200">
+                {managedUnit ? managedUnit.unit_name.toUpperCase() : 'CHẾ ĐỘ CẤP ĐƠN VỊ'} - ID: {activePermission.managedUnitId} {currentUser?.isPrimary ? '(PRIMARY)' : '(SECONDARY)'}.
+            </div>
+        )}
+        <main className="flex-1 overflow-y-auto p-0">
+          {renderContent()}
+        </main>
+      </div>
+
+      {/* GLOBAL MODALS */}
+      <VersionSelectorModal 
+        isOpen={showVersionModal}
+        driveConfig={driveSession}
+        onImportData={handleSystemDataImport}
+        onClose={() => setShowVersionModal(false)}
+        currentData={{
+            units, faculties, scientificRecords, trainingRecords, 
+            personnelRecords, admissionRecords, dataConfigGroups, dynamicDataStore
+        }}
+      />
+    </div>
+  );
+};
+
+export default App;
