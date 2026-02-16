@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardModule from './components/DashboardModule';
 import IngestionModule from './components/IngestionModule';
@@ -48,6 +48,21 @@ const App: React.FC = () => {
       { id: 'administrator', username: 'admin', fullName: 'System Administrator', role: 'school_admin', isPrimary: true, email: '' }
   ]);
   
+  // Derive Current User based on Drive Email
+  const currentUser = useMemo(() => {
+      if (!driveSession.isConnected || !driveSession.userEmail) {
+          // If no drive connected, maybe fallback to the default admin or null?
+          // For now, let's assume the first primary admin is the fallback for "offline" mode or return null to restrict features
+          return users.find(u => u.isPrimary && u.role === 'school_admin') || users[0];
+      }
+      const found = users.find(u => u.email === driveSession.userEmail);
+      if (found) return found;
+      
+      // If email not found in system but connected, treat as unauthorized or fallback?
+      // For safety, return undefined if strictly enforcing email matching.
+      return undefined; 
+  }, [driveSession.isConnected, driveSession.userEmail, users]);
+
   const [units, setUnits] = useState<Unit[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([{id: 'ay-1', code: '2023-2024', isLocked: false}]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({ school_name: 'Đại học Duy Tân', school_code: 'DTU' });
@@ -125,26 +140,26 @@ const App: React.FC = () => {
       if (!driveSession.isConnected || !driveSession.zoneCId || !driveSession.userEmail) return;
 
       // 1. Identify the current logged-in user within the system
-      const currentUser = users.find(u => u.email === driveSession.userEmail);
+      const matchedUser = users.find(u => u.email === driveSession.userEmail);
 
-      if (!currentUser) {
+      if (!matchedUser) {
           console.warn(`Drive Email ${driveSession.userEmail} does not match any system user.`);
           return;
       }
 
       // 2. Only proceed if this user is designated as "Primary" for their role
-      if (currentUser.isPrimary) {
+      if (matchedUser.isPrimary) {
           
-          if (currentUser.role === 'school_admin') {
+          if (matchedUser.role === 'school_admin') {
               // PRIMARY SCHOOL ADMIN: Updates School Public ID
               if (schoolInfo.publicDriveId !== driveSession.zoneCId) {
                   console.log("Auto-updating School Public Drive ID (Primary School Admin)");
                   setSchoolInfo(prev => ({ ...prev, publicDriveId: driveSession.zoneCId }));
                   markDirty();
               }
-          } else if (currentUser.role === 'unit_manager' && currentUser.managedUnitId) {
+          } else if (matchedUser.role === 'unit_manager' && matchedUser.managedUnitId) {
               // PRIMARY UNIT MANAGER: Updates Specific Unit Public ID
-              const managedId = currentUser.managedUnitId;
+              const managedId = matchedUser.managedUnitId;
               const targetUnit = units.find(u => u.unit_id === managedId);
               
               if (targetUnit && targetUnit.unit_publicDriveId !== driveSession.zoneCId) {
@@ -499,12 +514,20 @@ const App: React.FC = () => {
       document.body.removeChild(link);
   };
   
-  // Get Current Permission
-  const currentPermission = settings.permissionProfile || defaultPermission;
+  // Get Current Permission based on the identified User
+  // Fallback to default permissions if no user is found/connected
+  const activePermission = currentUser 
+      ? { 
+          role: currentUser.role, 
+          canEditDataConfig: currentUser.role === 'school_admin' || (currentUser.role === 'unit_manager' && currentUser.isPrimary), // Logic can be refined
+          canEditOrgStructure: true,
+          managedUnitId: currentUser.managedUnitId
+        }
+      : (settings.permissionProfile || defaultPermission);
   
   // Resolve Managed Unit Name
-  const managedUnit = currentPermission.role === 'unit_manager' && currentPermission.managedUnitId 
-      ? units.find(u => u.unit_id === currentPermission.managedUnitId)
+  const managedUnit = activePermission.role === 'unit_manager' && activePermission.managedUnitId 
+      ? units.find(u => u.unit_id === activePermission.managedUnitId)
       : null;
 
   // Render Content
@@ -541,7 +564,7 @@ const App: React.FC = () => {
              units={units}
              humanResources={humanResources}
              currentAcademicYear={settings.currentAcademicYear}
-             permission={currentPermission} // Pass Permission
+             permission={activePermission} // Pass Permission
              onCascadeIdChange={handleCascadeFacultyIdChange} // PASS CASCADE HANDLER
           />;
       case 'organization':
@@ -552,13 +575,14 @@ const App: React.FC = () => {
             humanResources={humanResources}
             onUpdateHumanResources={handleUpdateHumanResources}
             onExportUnitData={handleExportUnitData}
-            permission={currentPermission} // Pass Permission
+            permission={activePermission} // Pass Permission
         />;
        case 'settings':
         return <SettingsModule 
             settings={settings}
             driveSession={driveSession}
             users={users}
+            currentUser={currentUser} // Pass identified user
             units={units}
             academicYears={academicYears}
             schoolInfo={schoolInfo}
@@ -600,42 +624,4 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden font-sans text-slate-900">
       <Sidebar 
-        currentView={currentView}
-        onViewChange={handleViewChange}
-        schoolName={schoolInfo.school_name}
-        currentAcademicYear={settings.currentAcademicYear}
-        isCollapsed={isSidebarCollapsed}
-        toggleSidebar={handleToggleSidebar}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onSaveToCloud={handleSaveToCloud}
-        onExportData={handleExportData}
-        isCloudConnected={driveSession.isConnected}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Permission Banner */}
-        {currentPermission.role === 'unit_manager' && (
-            <div className="bg-amber-100 text-amber-800 px-4 py-1 text-xs font-bold text-center border-b border-amber-200">
-                {managedUnit ? managedUnit.unit_name.toUpperCase() : 'CHẾ ĐỘ CẤP ĐƠN VỊ'} - ID: {currentPermission.managedUnitId}.
-            </div>
-        )}
-        <main className="flex-1 overflow-y-auto p-0">
-          {renderContent()}
-        </main>
-      </div>
-
-      {/* GLOBAL MODALS */}
-      <VersionSelectorModal 
-        isOpen={showVersionModal}
-        driveConfig={driveSession}
-        onImportData={handleSystemDataImport}
-        onClose={() => setShowVersionModal(false)}
-        currentData={{
-            units, faculties, scientificRecords, trainingRecords, 
-            personnelRecords, admissionRecords, dataConfigGroups, dynamicDataStore
-        }}
-      />
-    </div>
-  );
-};
-
-export default App;
+        currentView={currentView

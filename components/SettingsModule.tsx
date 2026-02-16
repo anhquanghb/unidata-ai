@@ -17,6 +17,7 @@ interface SettingsModuleProps {
   settings: SystemSettings;
   driveSession: GoogleDriveConfig; // Separated Session State
   users: UserProfile[];
+  currentUser?: UserProfile; // Added: The currently logged-in/identified user
   units: Unit[];
   academicYears: AcademicYear[];
   schoolInfo: SchoolInfo;
@@ -71,7 +72,8 @@ const TOKEN_EXPIRY_MS = 3500 * 1000; // ~58 minutes safety buffer
 const SettingsModule: React.FC<SettingsModuleProps> = ({ 
   settings, 
   driveSession,
-  users, 
+  users,
+  currentUser,
   units, 
   academicYears,
   schoolInfo,
@@ -681,8 +683,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // Define Tabs based on Permissions
   const tabs = [
       { id: 'backup', label: 'Dữ liệu & Backup' },
-      // Only show Users tab for School Admin
-      ...(currentPermission.role === 'school_admin' ? [{ id: 'users', label: 'Quản lý User' }] : []),
+      // Only show Users tab for School Admin or if you are a manager who can add sub-users
+      { id: 'users', label: 'Quản lý User' },
       { id: 'data_config', label: 'Cấu hình Dữ liệu' },
       { id: 'general', label: 'Cấu hình Chung' },
   ];
@@ -692,6 +694,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Cài đặt Hệ thống</h2>
         <p className="text-slate-600">Quản lý tham số hệ thống, thông tin trường, người dùng và cấu hình dữ liệu.</p>
+        {currentUser && (
+            <p className="text-xs text-blue-600 mt-1">
+                Đang thao tác với quyền: <strong>{currentUser.fullName} ({currentUser.role}{currentUser.isPrimary ? ' - Primary' : ''})</strong>
+            </p>
+        )}
       </div>
 
       <div className="flex space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit overflow-x-auto">
@@ -728,9 +735,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         {activeTab === 'users' && onUpdateUsers && (
           <UserManagementModule 
             users={users}
-            units={units} // PASS UNITS
+            currentUser={currentUser} // Pass Identified User
+            units={units}
             onAddUser={onAddUser}
-            onUpdateUsers={onUpdateUsers} // PASS UPDATE HANDLER
+            onUpdateUsers={onUpdateUsers}
             onRemoveUser={onRemoveUser}
           />
         )}

@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { UserProfile, Unit } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Shield, User, Building, CheckCircle, Mail, Crown } from 'lucide-react';
+import { Shield, User, Building, CheckCircle, Mail, Crown, AlertCircle } from 'lucide-react';
 
 interface UserManagementModuleProps {
   users: UserProfile[];
+  currentUser?: UserProfile;
   units: Unit[];
   onAddUser: (user: UserProfile) => void;
   onUpdateUsers: (users: UserProfile[]) => void;
   onRemoveUser: (id: string) => void;
 }
 
-const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, units, onAddUser, onUpdateUsers, onRemoveUser }) => {
+const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, currentUser, units, onAddUser, onUpdateUsers, onRemoveUser }) => {
   const [newUser, setNewUser] = useState<Partial<UserProfile>>({ 
       fullName: '', 
       username: '', 
@@ -20,6 +21,47 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
       isPrimary: false,
       managedUnitId: ''
   });
+
+  // --- LOGIC HELPERS ---
+  const isSchoolAdmin = currentUser?.role === 'school_admin' && currentUser.isPrimary;
+  const isUnitManager = currentUser?.role === 'unit_manager' && currentUser.isPrimary;
+
+  // Filter Units based on permission
+  const allowedUnits = useMemo(() => {
+      if (isSchoolAdmin) return units;
+      if (isUnitManager && currentUser?.managedUnitId) {
+          // Unit Manager can only see their unit and children
+          const getDescendants = (parentId: string): Unit[] => {
+              const children = units.filter(u => u.unit_parentId === parentId);
+              let all = [...children];
+              children.forEach(child => {
+                  all = [...all, ...getDescendants(child.unit_id)];
+              });
+              return all;
+          };
+          const self = units.find(u => u.unit_id === currentUser.managedUnitId);
+          return self ? [self, ...getDescendants(self.unit_id)] : [];
+      }
+      return [];
+  }, [units, currentUser, isSchoolAdmin, isUnitManager]);
+
+  // Determine if Primary Checkbox should be enabled/defaulted
+  // Rule 1: School Admin adding School Admin -> isPrimary: false (fixed)
+  // Rule 2: School Admin adding Unit Manager -> isPrimary: selectable
+  // Rule 3: Unit Manager adding Same Unit Manager -> isPrimary: false (fixed)
+  // Rule 4: Unit Manager adding Child Unit Manager -> isPrimary: selectable
+  const canSetPrimary = useMemo(() => {
+      if (newUser.role === 'school_admin') return false; // Rule 1
+      
+      if (newUser.role === 'unit_manager') {
+          if (isSchoolAdmin) return true; // Rule 2
+          if (isUnitManager) {
+              if (newUser.managedUnitId === currentUser?.managedUnitId) return false; // Rule 3
+              return true; // Rule 4 (Child unit)
+          }
+      }
+      return false;
+  }, [newUser.role, newUser.managedUnitId, isSchoolAdmin, isUnitManager, currentUser]);
 
   const handleAddUser = () => {
     if (!newUser.fullName || !newUser.username) return;
@@ -40,23 +82,50 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
         }
     }
 
+    // Enforce default rules on submission
+    let finalIsPrimary = newUser.isPrimary;
+    if (!canSetPrimary && !newUser.isPrimary) {
+        finalIsPrimary = false; // Ensure it stays false if disabled
+    }
+
     onAddUser({
       id: uuidv4(),
       fullName: newUser.fullName!,
       username: newUser.username!,
       role: newUser.role as 'school_admin' | 'unit_manager',
       email: newUser.email,
-      isPrimary: newUser.isPrimary || false,
+      isPrimary: finalIsPrimary || false,
       managedUnitId: newUser.role === 'unit_manager' ? newUser.managedUnitId : undefined
     });
 
     // Reset form
-    setNewUser({ fullName: '', username: '', role: 'unit_manager', email: '', isPrimary: false, managedUnitId: '' });
+    setNewUser({ fullName: '', username: '', role: isUnitManager ? 'unit_manager' : 'school_admin', email: '', isPrimary: false, managedUnitId: '' });
   };
 
   const togglePrimaryStatus = (userId: string) => {
+      // Only Primary School Admin can toggle other Primary statuses freely
+      // Primary Unit Manager can toggle statuses for Child Units only
+      
       const targetUser = users.find(u => u.id === userId);
       if (!targetUser) return;
+
+      // Permission check to toggle
+      let canToggle = false;
+      if (isSchoolAdmin) canToggle = true;
+      if (isUnitManager) {
+          // Can toggle if target is in a child unit
+          const targetUnitId = targetUser.managedUnitId;
+          if (targetUser.role === 'unit_manager' && targetUnitId && targetUnitId !== currentUser?.managedUnitId) {
+              // Check if descendant
+              const descendants = allowedUnits.map(u => u.unit_id);
+              if (descendants.includes(targetUnitId)) canToggle = true;
+          }
+      }
+
+      if (!canToggle) {
+          alert("Bạn không có quyền thay đổi trạng thái Chính/Phụ của người dùng này.");
+          return;
+      }
 
       const newStatus = !targetUser.isPrimary;
       
@@ -89,6 +158,16 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
 
   return (
     <div className="space-y-8">
+       {/* NOTICE IF NOT PRIMARY */}
+       {currentUser && !currentUser.isPrimary && (
+           <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
+               <AlertCircle size={16}/>
+               Bạn đang đăng nhập với tài khoản phụ. Bạn chỉ có quyền xem danh sách người dùng, không thể thêm hoặc sửa đổi.
+           </div>
+       )}
+
+       {/* ADD FORM - Only for Primary Users */}
+       {(isSchoolAdmin || isUnitManager) && (
        <div>
            <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Thêm người dùng mới</h3>
            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -127,12 +206,13 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
                <div>
                    <label className="block text-xs font-semibold text-slate-500 mb-1">Vai trò</label>
                    <select 
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       value={newUser.role}
                       onChange={(e) => setNewUser({...newUser, role: e.target.value as any})}
+                      disabled={isUnitManager} // Unit manager can only create unit managers
                    >
                        <option value="unit_manager">Quản lý Cấp Đơn vị</option>
-                       <option value="school_admin">Quản lý Cấp Trường (Admin)</option>
+                       {isSchoolAdmin && <option value="school_admin">Quản lý Cấp Trường (Admin)</option>}
                    </select>
                </div>
 
@@ -146,7 +226,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
                           onChange={(e) => setNewUser({...newUser, managedUnitId: e.target.value})}
                        >
                            <option value="">-- Chọn đơn vị --</option>
-                           {units.map(u => (
+                           {allowedUnits.map(u => (
                                <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
                            ))}
                        </select>
@@ -155,28 +235,35 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
 
                {/* Line 4: Primary & Action */}
                <div className="md:col-span-2 flex justify-between items-center pt-2">
-                   <label className="flex items-center cursor-pointer">
+                   <label className={`flex items-center ${!canSetPrimary ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                        <input 
                            type="checkbox" 
                            className="w-4 h-4 text-blue-600 rounded"
-                           checked={newUser.isPrimary}
-                           onChange={(e) => setNewUser({...newUser, isPrimary: e.target.checked})}
+                           checked={canSetPrimary ? newUser.isPrimary : false} // Force false if disabled
+                           onChange={(e) => canSetPrimary && setNewUser({...newUser, isPrimary: e.target.checked})}
+                           disabled={!canSetPrimary}
                        />
                        <span className="ml-2 text-sm font-bold text-slate-700 flex items-center gap-1">
-                           <Crown size={14} className={newUser.isPrimary ? "text-amber-500" : "text-slate-400"} />
+                           <Crown size={14} className={newUser.isPrimary && canSetPrimary ? "text-amber-500" : "text-slate-400"} />
                            Đặt làm Tài khoản CHÍNH (Quản lý Drive)
                        </span>
                    </label>
+                   {!canSetPrimary && (
+                       <span className="text-[10px] text-slate-400 ml-2 italic">
+                           (Mặc định là tài khoản phụ cho vai trò này/đơn vị này)
+                       </span>
+                   )}
                    <button 
                       onClick={handleAddUser}
                       disabled={!newUser.username || !newUser.fullName || (newUser.role === 'unit_manager' && !newUser.managedUnitId)}
-                      className={`px-6 py-2 rounded text-sm font-bold text-white transition-colors ${(!newUser.username || !newUser.fullName) ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      className={`ml-auto px-6 py-2 rounded text-sm font-bold text-white transition-colors ${(!newUser.username || !newUser.fullName) ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                    >
                        Thêm User
                    </button>
                </div>
            </div>
        </div>
+       )}
 
        <div>
            <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Danh sách người dùng</h3>
@@ -192,13 +279,27 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
                        </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
-                       {users.map(user => (
+                       {users.map(user => {
+                           // Visibility Filter: 
+                           // School Admin sees all.
+                           // Unit Manager sees users in allowedUnits.
+                           if (isUnitManager) {
+                               if (user.role === 'school_admin') return null; // Can't see admins
+                               if (user.role === 'unit_manager') {
+                                   const userUnitId = user.managedUnitId;
+                                   const isAllowed = allowedUnits.some(u => u.unit_id === userUnitId);
+                                   if (!isAllowed) return null;
+                               }
+                           }
+
+                           return (
                            <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                                <td className="px-4 py-3 text-center">
                                    <button 
                                        onClick={() => togglePrimaryStatus(user.id)}
                                        className={`p-1 rounded-full ${user.isPrimary ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-200' : 'text-slate-300 hover:bg-slate-200'}`}
                                        title={user.isPrimary ? "Đây là tài khoản chính quản lý Drive" : "Đặt làm tài khoản chính"}
+                                       disabled={!(isSchoolAdmin || isUnitManager)}
                                    >
                                        <Crown size={16} fill={user.isPrimary ? "currentColor" : "none"}/>
                                    </button>
@@ -225,15 +326,18 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, unit
                                    )}
                                </td>
                                <td className="px-4 py-3 text-right">
-                                   <button 
-                                       onClick={() => onRemoveUser(user.id)}
-                                       className="text-red-400 hover:text-red-600 text-xs font-medium"
-                                   >
-                                       Xóa
-                                   </button>
+                                   {(isSchoolAdmin || isUnitManager) && (
+                                       <button 
+                                           onClick={() => onRemoveUser(user.id)}
+                                           className="text-red-400 hover:text-red-600 text-xs font-medium"
+                                           disabled={user.id === currentUser?.id} // Cannot delete self
+                                       >
+                                           Xóa
+                                       </button>
+                                   )}
                                </td>
                            </tr>
-                       ))}
+                       )})}
                        {users.length === 0 && (
                            <tr>
                                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">Chưa có người dùng nào.</td>
