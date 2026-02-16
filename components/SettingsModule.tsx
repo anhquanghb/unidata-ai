@@ -43,6 +43,7 @@ interface SettingsModuleProps {
   onUpdateSettings: (settings: SystemSettings) => void;
   onUpdateDriveSession: (session: GoogleDriveConfig) => void; // Handler for Session Updates
   onAddUser: (user: UserProfile) => void;
+  onUpdateUsers?: (users: UserProfile[]) => void; // Changed: Add bulk update for consistency
   onRemoveUser: (id: string) => void;
   onAddAcademicYear: (year: AcademicYear) => void;
   onUpdateAcademicYear: (year: AcademicYear) => void;
@@ -94,6 +95,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onUpdateSettings,
   onUpdateDriveSession,
   onAddUser,
+  onUpdateUsers, // Capture this
   onRemoveUser,
   onAddAcademicYear,
   onUpdateAcademicYear,
@@ -241,16 +243,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               backupCount: backupCount
           });
 
-          // **AUTO-UPDATE SCHOOL PUBLIC DRIVE ID**
-          if (zoneC && schoolInfo.publicDriveId !== zoneC) {
-              onUpdateSchoolInfo({ ...schoolInfo, publicDriveId: zoneC });
-          }
+          // NOTE: The ID updating logic has been moved to App.tsx to centralize state management
+          // and enforce RBAC based on user identity.
 
           const newSession: GoogleDriveConfig = {
              isConnected: true,
              clientId: clientId,
              accessToken: accessToken,
              accountName: `${userName} (${userEmail})`,
+             userEmail: userEmail, // IMPORTANT: Save email for identity check
              
              // Structure IDs
              rootFolderId: rootId,
@@ -409,8 +410,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
               backupCount: 0
           });
 
-          // **AUTO-UPDATE SCHOOL PUBLIC DRIVE ID**
-          onUpdateSchoolInfo({ ...schoolInfo, publicDriveId: zoneCId });
+          // NOTE: ID updating logic moved to App.tsx via effect on driveSession changes.
 
           const updatedSession = {
               ...driveSession,
@@ -725,10 +725,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
         )}
 
         {/* TAB: USERS */}
-        {activeTab === 'users' && (
+        {activeTab === 'users' && onUpdateUsers && (
           <UserManagementModule 
             users={users}
+            units={units} // PASS UNITS
             onAddUser={onAddUser}
+            onUpdateUsers={onUpdateUsers} // PASS UPDATE HANDLER
             onRemoveUser={onRemoveUser}
           />
         )}

@@ -5,7 +5,7 @@ export interface Unit {
   unit_code: string;
   unit_type: 'school' | 'faculty' | 'department';
   unit_parentId?: string;
-  unit_publicDriveId?: string; // ID của Zone C (UniData_Public) của đơn vị này
+  unit_publicDriveId?: string; // ID thư mục UniData_Public thực tế của đơn vị này
 }
 
 export interface HumanResourceRecord {
@@ -22,8 +22,10 @@ export interface UserProfile {
   id: string;
   username: string;
   fullName: string;
-  role: 'admin' | 'staff';
-  email?: string;
+  role: 'school_admin' | 'unit_manager'; // Updated roles
+  isPrimary: boolean; // Is this the Main Account for this scope?
+  managedUnitId?: string; // Required if role is unit_manager
+  email?: string; // Google Account Email for identification
 }
 
 export interface AcademicYear {
@@ -236,6 +238,7 @@ export interface GoogleDriveConfig {
   clientId?: string;
   accessToken?: string;
   accountName?: string;
+  userEmail?: string; // Added: To validate against system user
   
   // Folder Structure
   rootFolderId?: string; // UniData_Store (Level 0)

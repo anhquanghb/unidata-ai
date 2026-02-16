@@ -42,7 +42,12 @@ const App: React.FC = () => {
   // Data States
   const [settings, setSettings] = useState<SystemSettings>(initialSettings);
   const [driveSession, setDriveSession] = useState<GoogleDriveConfig>(initialDriveSession);
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  
+  // Default User (Ensure structure matches new type)
+  const [users, setUsers] = useState<UserProfile[]>([
+      { id: 'administrator', username: 'admin', fullName: 'System Administrator', role: 'school_admin', isPrimary: true, email: '' }
+  ]);
+  
   const [units, setUnits] = useState<Unit[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([{id: 'ay-1', code: '2023-2024', isLocked: false}]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({ school_name: 'Đại học Duy Tân', school_code: 'DTU' });
@@ -104,7 +109,7 @@ const App: React.FC = () => {
       setSettings(newSettings);
       markDirty();
   };
-  const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session); // Drive session changes shouldn't trigger data dirty? Maybe no.
+  const handleUpdateDriveSession = (session: GoogleDriveConfig) => setDriveSession(session); 
 
   const handleUpdateDynamicData = (groupId: string, data: DynamicRecord[]) => {
       setDynamicDataStore(prev => ({ ...prev, [groupId]: data }));
@@ -114,6 +119,48 @@ const App: React.FC = () => {
       setDataConfigGroups(groups);
       markDirty();
   };
+
+  // --- AUTO UPDATE IDs LOGIC (Refined for Primary Users) ---
+  useEffect(() => {
+      if (!driveSession.isConnected || !driveSession.zoneCId || !driveSession.userEmail) return;
+
+      // 1. Identify the current logged-in user within the system
+      const currentUser = users.find(u => u.email === driveSession.userEmail);
+
+      if (!currentUser) {
+          console.warn(`Drive Email ${driveSession.userEmail} does not match any system user.`);
+          return;
+      }
+
+      // 2. Only proceed if this user is designated as "Primary" for their role
+      if (currentUser.isPrimary) {
+          
+          if (currentUser.role === 'school_admin') {
+              // PRIMARY SCHOOL ADMIN: Updates School Public ID
+              if (schoolInfo.publicDriveId !== driveSession.zoneCId) {
+                  console.log("Auto-updating School Public Drive ID (Primary School Admin)");
+                  setSchoolInfo(prev => ({ ...prev, publicDriveId: driveSession.zoneCId }));
+                  markDirty();
+              }
+          } else if (currentUser.role === 'unit_manager' && currentUser.managedUnitId) {
+              // PRIMARY UNIT MANAGER: Updates Specific Unit Public ID
+              const managedId = currentUser.managedUnitId;
+              const targetUnit = units.find(u => u.unit_id === managedId);
+              
+              if (targetUnit && targetUnit.unit_publicDriveId !== driveSession.zoneCId) {
+                  console.log(`Auto-updating Unit Public Drive ID for ${targetUnit.unit_name} (Primary Unit Manager)`);
+                  setUnits(prevUnits => prevUnits.map(u => 
+                      u.unit_id === managedId ? { ...u, unit_publicDriveId: driveSession.zoneCId } : u
+                  ));
+                  markDirty();
+              }
+          }
+      } else {
+          console.log("Connected Drive belongs to a non-primary user. ID updates skipped.");
+      }
+
+  }, [driveSession, users, units, schoolInfo]);
+
 
   // --- SYSTEM INTEGRITY: CASCADE ID UPDATES ---
   const handleCascadeFacultyIdChange = (oldId: string, newId: string) => {
@@ -186,7 +233,6 @@ const App: React.FC = () => {
 
       if (changeCount > 0) {
           markDirty();
-          // Optional: Add toast notification here
           console.log(`Updated ${changeCount} references for Faculty ID change from ${oldId} to ${newId}`);
       }
   };
@@ -217,15 +263,8 @@ const App: React.FC = () => {
           currentParentId = parent ? parent.unit_parentId : undefined;
       }
 
-      // **CRITICAL UPDATE: Inject System's Public Drive ID into the Target Unit Record**
-      // When a child system exports data, it marks its "Self" Unit with the actual publicDriveId of the child system.
-      // The Parent system will receive this ID attached to the Unit record, not the SchoolInfo.
-      const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id)).map(u => {
-          if (u.unit_id === unitId && schoolInfo.publicDriveId) {
-              return { ...u, unit_publicDriveId: schoolInfo.publicDriveId };
-          }
-          return u;
-      });
+      // **CRITICAL UPDATE: Preserve School Public ID when exporting**
+      const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id));
 
       // 2. Identify Related Personnel
       // Only include personnel belonging to the Exported Units
@@ -287,7 +326,7 @@ const App: React.FC = () => {
           dataConfigGroups: dataConfigGroups, 
           dynamicDataStore: filteredDynamicStore,
           academicYears: academicYears, // Include Academic Years
-          schoolInfo: schoolInfo // School Info is included for context but publicDriveId here is ignored by parent sync
+          schoolInfo: schoolInfo // School Info (Public ID kept) is included for context
       };
 
       // 5. Download File
@@ -305,7 +344,7 @@ const App: React.FC = () => {
   // Full System Import Handler
   const handleSystemDataImport = (data: any) => {
       if (data === 'RESET') {
-          setUsers([]);
+          setUsers([{ id: 'administrator', username: 'admin', fullName: 'System Administrator', role: 'school_admin', isPrimary: true }]);
           setUnits([]);
           setFaculties([]);
           setHumanResources([]);
@@ -325,12 +364,9 @@ const App: React.FC = () => {
 
       // LOAD SETTINGS FIRST to apply Permissions
       if (data.settings) {
-          // If the imported file has a permissionProfile, use it. Otherwise default to current or Root.
-          // IMPORTANT: If importing a "Unit Package", the permissionProfile inside data.settings will be 'unit_manager'
           setSettings(prev => ({ 
               ...prev, 
               ...data.settings,
-              // If permissionProfile is missing in import (old format), keep existing or default to root
               permissionProfile: data.settings.permissionProfile || prev.permissionProfile || defaultPermission
           }));
       }
@@ -338,7 +374,12 @@ const App: React.FC = () => {
       if (data.users) setUsers(data.users);
       if (data.units) setUnits(data.units);
       if (data.academicYears) setAcademicYears(data.academicYears);
-      if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
+      
+      // PROTECT SCHOOL INFO ON IMPORT IF PARTIAL IMPORT
+      if (data.schoolInfo) {
+          // If partial import (Unit Manager level), we keep the school info from the import (Parent)
+          setSchoolInfo(data.schoolInfo);
+      }
       
       if (data.faculties) setFaculties(data.faculties);
       if (data.facultyTitles) setFacultyTitles(data.facultyTitles);
@@ -537,6 +578,7 @@ const App: React.FC = () => {
             onUpdateSettings={handleUpdateSettings}
             onUpdateDriveSession={handleUpdateDriveSession}
             onAddUser={(u) => { setUsers([...users, u]); markDirty(); }}
+            onUpdateUsers={(updatedUsers) => { setUsers(updatedUsers); markDirty(); }}
             onRemoveUser={(id) => { setUsers(users.filter(u => u.id !== id)); markDirty(); }}
             onAddAcademicYear={(y) => { setAcademicYears([...academicYears, y]); markDirty(); }}
             onUpdateAcademicYear={(y) => { setAcademicYears(academicYears.map(ay => ay.id === y.id ? y : ay)); markDirty(); }}
