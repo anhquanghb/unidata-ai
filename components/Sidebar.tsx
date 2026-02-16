@@ -1,6 +1,6 @@
 import React from 'react';
-import { ViewState } from '../types';
-import { CloudUpload, Download } from 'lucide-react';
+import { ViewState, GoogleDriveConfig, UserProfile } from '../types';
+import { CloudUpload, Download, LogIn, LogOut, Shield, Building, User } from 'lucide-react';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -12,7 +12,13 @@ interface SidebarProps {
   hasUnsavedChanges: boolean;
   onSaveToCloud: () => void;
   onExportData: () => void;
-  isCloudConnected: boolean;
+  
+  // Auth & User Props
+  driveSession: GoogleDriveConfig;
+  currentUser?: UserProfile;
+  managedUnitName?: string;
+  onConnectDrive: () => void;
+  onDisconnectDrive: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -25,7 +31,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   hasUnsavedChanges,
   onSaveToCloud,
   onExportData,
-  isCloudConnected
+  driveSession,
+  currentUser,
+  managedUnitName,
+  onConnectDrive,
+  onDisconnectDrive
 }) => {
   const menuItems: { id: ViewState; label: string; icon: React.ReactNode }[] = [
     {
@@ -76,6 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const isConnected = driveSession.isConnected;
+
   return (
     <div 
       className={`bg-slate-800 text-white min-h-screen flex flex-col shadow-xl transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}
@@ -107,13 +119,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-full flex gap-2 mt-2">
                 <button 
                     onClick={onSaveToCloud}
-                    disabled={!hasUnsavedChanges || !isCloudConnected}
+                    disabled={!hasUnsavedChanges || !isConnected}
                     className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-xs font-bold transition-all ${
                         hasUnsavedChanges 
                             ? 'bg-green-600 text-white shadow-md hover:bg-green-700 animate-pulse' 
                             : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                     }`}
-                    title={isCloudConnected ? "Lưu thay đổi lên Đám mây" : "Chưa kết nối Google Drive"}
+                    title={isConnected ? "Lưu thay đổi lên Đám mây" : "Chưa kết nối Google Drive"}
                 >
                     <CloudUpload size={14}/>
                     Lưu Cloud
@@ -159,17 +171,84 @@ const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </nav>
 
-      {/* User Info */}
-      <div className="p-4 border-t border-slate-700">
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold flex-shrink-0">UD</div>
-          {!isCollapsed && (
-            <div className="overflow-hidden">
-              <p className="text-sm font-medium truncate">Admin User</p>
-              <p className="text-xs text-slate-400 truncate">Phòng Tổng hợp</p>
+      {/* User Info & Auth */}
+      <div className="p-4 border-t border-slate-700 bg-slate-900/30">
+        {!isConnected ? (
+            // STATE: NOT LOGGED IN
+            <div className={`flex flex-col ${isCollapsed ? 'items-center' : 'items-start'} gap-3`}>
+                {!isCollapsed ? (
+                    <>
+                        <div className="flex items-center gap-2 text-slate-400">
+                            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                                <User size={16}/>
+                            </div>
+                            <span className="text-xs font-medium">Chưa đăng nhập</span>
+                        </div>
+                        <button 
+                            onClick={onConnectDrive}
+                            className="w-full flex items-center justify-center gap-2 bg-white text-slate-900 hover:bg-slate-100 py-2 px-3 rounded-lg text-xs font-bold transition-colors"
+                        >
+                            <LogIn size={14}/> Kết nối Google
+                        </button>
+                    </>
+                ) : (
+                    <button 
+                        onClick={onConnectDrive}
+                        className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
+                        title="Đăng nhập Google"
+                    >
+                        <LogIn size={16}/>
+                    </button>
+                )}
             </div>
-          )}
-        </div>
+        ) : (
+            // STATE: LOGGED IN
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between space-x-2'}`}>
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0 border border-indigo-400">
+                        {driveSession.accountName ? driveSession.accountName.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    {!isCollapsed && (
+                        <div className="flex flex-col min-w-0">
+                            <p className="text-sm font-bold text-white truncate" title={driveSession.accountName}>
+                                {driveSession.accountName}
+                            </p>
+                            
+                            {/* Role Badge */}
+                            <div className="flex items-center gap-1 mt-0.5">
+                                {currentUser?.role === 'school_admin' ? (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                        <Shield size={8}/> Admin
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                        <Building size={8}/> Manager
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Managed Unit Name */}
+                            {currentUser?.role === 'unit_manager' && managedUnitName && (
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5" title={managedUnitName}>
+                                    {managedUnitName}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+                
+                {/* Disconnect Button */}
+                {!isCollapsed && (
+                    <button 
+                        onClick={onDisconnectDrive}
+                        className="text-slate-500 hover:text-red-400 p-1.5 rounded-md hover:bg-slate-800 transition-colors"
+                        title="Ngắt kết nối"
+                    >
+                        <LogOut size={16}/>
+                    </button>
+                )}
+            </div>
+        )}
       </div>
     </div>
   );
