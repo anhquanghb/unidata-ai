@@ -545,6 +545,8 @@ const App: React.FC = () => {
           return;
       }
 
+      const accessToken = window.gapi.client.getToken()?.access_token || driveSession.accessToken;
+
       // Prepare Data
       const { driveConfig: _ignored, ...safeSettings } = (settings as any);
       const data = {
@@ -573,13 +575,71 @@ const App: React.FC = () => {
       try {
           const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
               method: 'POST',
-              headers: new Headers({ 'Authorization': 'Bearer ' + (window.gapi.client.getToken()?.access_token || driveSession.accessToken) }),
+              headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
               body: form,
           });
           
           if (!response.ok) throw new Error("Upload failed");
           
-          alert("Đã lưu bản cập nhật mới lên Cloud thành công!");
+          // --- ZONE C UPDATE LOGIC ---
+          if (currentUser?.role === 'school_admin' && currentUser?.isPrimary && driveSession.zoneCId) {
+              try {
+                  const registryData = units.map(u => ({
+                      unit_id: u.unit_id,
+                      unit_name: u.unit_name,
+                      unit_code: u.unit_code,
+                      unit_type: u.unit_type,
+                      unit_publicDriveId: u.unit_publicDriveId
+                  }));
+                  
+                  const regContent = JSON.stringify(registryData, null, 2);
+                  const regBlob = new Blob([regContent], { type: 'application/json' });
+                  const regFileName = 'Zone_C.json';
+
+                  // 1. Find existing file
+                  const listResp = await window.gapi.client.drive.files.list({
+                      q: `name = '${regFileName}' and '${driveSession.zoneCId}' in parents and trashed = false`,
+                      fields: 'files(id)',
+                  });
+                  
+                  const existingFileId = listResp.result.files?.[0]?.id;
+
+                  if (existingFileId) {
+                      // Update
+                      const regForm = new FormData();
+                      regForm.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+                      regForm.append('file', regBlob);
+                      
+                      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
+                          method: 'PATCH',
+                          headers: { 'Authorization': 'Bearer ' + accessToken },
+                          body: regForm
+                      });
+                  } else {
+                      // Create
+                      const regMeta = {
+                          name: regFileName,
+                          mimeType: 'application/json',
+                          parents: [driveSession.zoneCId]
+                      };
+                      const regForm = new FormData();
+                      regForm.append('metadata', new Blob([JSON.stringify(regMeta)], { type: 'application/json' }));
+                      regForm.append('file', regBlob);
+
+                      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+                          method: 'POST',
+                          headers: { 'Authorization': 'Bearer ' + accessToken },
+                          body: regForm
+                      });
+                  }
+                  console.log('Updated Zone_C.json registry.');
+              } catch (regError) {
+                  console.error('Failed to update registry:', regError);
+                  // Non-blocking error
+              }
+          }
+
+          alert("Đã lưu bản cập nhật mới lên Cloud thành công!" + (currentUser?.role === 'school_admin' && currentUser?.isPrimary && driveSession.zoneCId ? "\n(Đã cập nhật Registry Zone C)" : ""));
           setHasUnsavedChanges(false);
       } catch (error) {
           console.error(error);
