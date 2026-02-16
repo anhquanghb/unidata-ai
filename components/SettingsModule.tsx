@@ -149,6 +149,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       setExternalSourceFolderId(driveSession.externalSourceFolderId || '');
   }, [driveSession]);
 
+  // Handle Tab Safety when permissions change
+  useEffect(() => {
+      if (activeTab === 'users' && currentUser && !currentUser.isPrimary) {
+          setActiveTab('backup');
+      }
+  }, [currentUser, activeTab]);
+
   // --- GOOGLE DRIVE SCRIPTS LOADING ---
   useEffect(() => {
     const loadGapi = () => {
@@ -683,8 +690,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   // Define Tabs based on Permissions
   const tabs = [
       { id: 'backup', label: 'Dữ liệu & Backup' },
-      // Only show Users tab for School Admin or if you are a manager who can add sub-users
-      { id: 'users', label: 'Quản lý User' },
+      // Only show Users tab if current user is PRIMARY
+      ...(currentUser?.isPrimary ? [{ id: 'users', label: 'Quản lý User' }] : []),
       { id: 'data_config', label: 'Cấu hình Dữ liệu' },
       { id: 'general', label: 'Cấu hình Chung' },
   ];
@@ -731,7 +738,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
           />
         )}
 
-        {/* TAB: USERS */}
+        {/* TAB: USERS (Only rendered if tab is active, which depends on isPrimary) */}
         {activeTab === 'users' && onUpdateUsers && (
           <UserManagementModule 
             users={users}
