@@ -3,7 +3,7 @@ export interface Unit {
   unit_id: string;
   unit_name: string;
   unit_code: string;
-  unit_type: 'school' | 'faculty' | 'department' | 'external';
+  unit_type: 'school' | 'faculty' | 'department';
   unit_parentId?: string;
   unit_publicDriveId?: string; // ID thư mục UniData_Public thực tế của đơn vị này
 }
@@ -12,8 +12,9 @@ export interface HumanResourceRecord {
   id: string;
   unitId: string;
   facultyId: string;
-  role?: string; // Optional: Trưởng khoa, nhân viên, etc.
-  position?: string; // Specific Position: Hiệu trưởng, Phó hiệu trưởng, Sinh viên, etc.
+  role?: string; // Optional: Trưởng khoa, nhân viên, etc. (Legacy, keep for compatibility or map to customPositionName)
+  positionLevel?: 'head' | 'deputy' | 'member'; // New: 3 levels
+  customPositionName?: string; // New: Custom name for the position
   assignedDate?: string;
   startDate?: string; // Năm/Ngày bắt đầu
   endDate?: string;   // Năm/Ngày kết thúc (nếu null -> đang làm việc)
@@ -68,7 +69,7 @@ export interface IsoStep {
   id: string;
   name: string;
   description?: string;
-  executorRole: string; // Changed to string to support dynamic roles like 'Hiệu trưởng', 'Sinh viên', etc.
+  executorRole: 'school_admin' | 'unit_manager' | 'lecturer' | 'student' | 'external';
   executorUnitId?: string; // Optional: specific unit
   isStart?: boolean;
   isEnd?: boolean;

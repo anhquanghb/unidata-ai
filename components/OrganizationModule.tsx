@@ -36,6 +36,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [joinDate, setJoinDate] = useState(new Date().toISOString().split('T')[0]);
   const [isTransfer, setIsTransfer] = useState(false); 
+  const [selectedPositionLevel, setSelectedPositionLevel] = useState<'head' | 'deputy' | 'member'>('member');
+  const [customPositionName, setCustomPositionName] = useState('');
 
   // Personnel Inline Editing State (Start Date)
   const [editingHrId, setEditingHrId] = useState<string | null>(null);
@@ -176,8 +178,9 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         id: uuidv4(),
         unitId: selectedUnitId,
         facultyId: selectedPersonId,
-        role: 'Giảng viên', // Default role
-        position: selectedPosition, // Save Position
+        role: customPositionName || (selectedPositionLevel === 'head' ? 'Trưởng đơn vị' : selectedPositionLevel === 'deputy' ? 'Phó đơn vị' : 'Thành viên'), // Fallback for legacy
+        positionLevel: selectedPositionLevel,
+        customPositionName: customPositionName,
         assignedDate: new Date().toISOString(),
         startDate: joinDate, 
         endDate: undefined 
@@ -190,7 +193,8 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     setSelectedPersonId(null);
     setPersonSearchTerm('');
     setIsTransfer(false);
-    setSelectedPosition('');
+    setSelectedPositionLevel('member');
+    setCustomPositionName('');
   };
 
   const handleRemovePersonnel = (recordId: string) => {
@@ -372,7 +376,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                     <thead className="bg-slate-50 font-semibold text-slate-600 border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">Họ và tên</th>
-                        <th className="px-4 py-3">Vị trí / Vai trò</th>
+                        <th className="px-4 py-3">Vai trò</th>
                         <th className="px-4 py-3">Ngày bắt đầu</th>
                         <th className="px-4 py-3 text-right">Thao tác</th>
                       </tr>
@@ -386,11 +390,12 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                                {faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>}
                              </td>
                              <td className="px-4 py-3">
-                                {hr.position ? (
-                                    <span className="font-semibold text-indigo-700">{hr.position}</span>
-                                ) : (
-                                    <span className="text-slate-500">{hr.role}</span>
-                                )}
+                                <div className="flex flex-col">
+                                    <span className="font-medium text-slate-700">{hr.customPositionName || hr.role}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                                        {hr.positionLevel === 'head' ? 'Trưởng' : hr.positionLevel === 'deputy' ? 'Phó' : 'Thành viên'}
+                                    </span>
+                                </div>
                              </td>
                              <td className="px-4 py-3 text-slate-500">
                                 {editingHrId === hr.id ? (
@@ -571,6 +576,28 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
                          <div className="grid grid-cols-2 gap-4">
                              <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1">Cấp bậc / Vai trò</label>
+                                 <select 
+                                     className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                     value={selectedPositionLevel}
+                                     onChange={(e) => setSelectedPositionLevel(e.target.value as any)}
+                                 >
+                                     <option value="head">Trưởng (Head)</option>
+                                     <option value="deputy">Phó (Deputy)</option>
+                                     <option value="member">Thành viên (Member)</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1">Tên chức danh (Tùy chỉnh)</label>
+                                 <input 
+                                     className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                     placeholder={selectedPositionLevel === 'head' ? 'Ví dụ: Trưởng khoa' : selectedPositionLevel === 'deputy' ? 'Ví dụ: Phó khoa' : 'Ví dụ: Giảng viên'}
+                                     value={customPositionName}
+                                     onChange={(e) => setCustomPositionName(e.target.value)}
+                                 />
+                             </div>
+
+                             <div>
                                  <label className="block text-xs font-bold text-slate-500 mb-1">Ngày bắt đầu</label>
                                  <div className="relative">
                                      <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
@@ -605,52 +632,6 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                                      </div>
                                  </div>
                              )}
-
-                             {/* Position Selector */}
-                             <div className="col-span-2">
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Vị trí công tác</label>
-                                {selectedUnit?.unit_type === 'school' ? (
-                                    <select 
-                                        className="w-full p-2 border border-slate-300 rounded text-sm"
-                                        value={selectedPosition}
-                                        onChange={e => setSelectedPosition(e.target.value)}
-                                    >
-                                        <option value="">-- Chọn vị trí --</option>
-                                        <option value="Hiệu trưởng">Hiệu trưởng (Cấp 1)</option>
-                                        <option value="Phó hiệu trưởng">Phó hiệu trưởng (Cấp 2)</option>
-                                        <option value="Trợ lý hiệu trưởng">Trợ lý hiệu trưởng (Cấp 3)</option>
-                                        <option value="Trợ lý phó hiệu trưởng">Trợ lý phó hiệu trưởng (Cấp 3)</option>
-                                        <option value="Thư ký">Thư ký</option>
-                                        <option value="Chuyên viên">Chuyên viên</option>
-                                    </select>
-                                ) : selectedUnit?.unit_type === 'external' ? (
-                                    <select 
-                                        className="w-full p-2 border border-slate-300 rounded text-sm"
-                                        value={selectedPosition}
-                                        onChange={e => setSelectedPosition(e.target.value)}
-                                    >
-                                        <option value="">-- Chọn đối tượng --</option>
-                                        <option value="Sinh viên">Sinh viên</option>
-                                        <option value="Phụ huynh">Phụ huynh</option>
-                                        <option value="Doanh nghiệp">Doanh nghiệp</option>
-                                        <option value="Cựu sinh viên">Cựu sinh viên</option>
-                                        <option value="Khách mời">Khách mời</option>
-                                    </select>
-                                ) : (
-                                    <select 
-                                        className="w-full p-2 border border-slate-300 rounded text-sm"
-                                        value={selectedPosition}
-                                        onChange={e => setSelectedPosition(e.target.value)}
-                                    >
-                                        <option value="">-- Chọn vị trí --</option>
-                                        <option value="Trưởng đơn vị">Trưởng đơn vị</option>
-                                        <option value="Phó đơn vị">Phó đơn vị</option>
-                                        <option value="Giảng viên">Giảng viên</option>
-                                        <option value="Chuyên viên">Chuyên viên</option>
-                                        <option value="Nhân viên">Nhân viên</option>
-                                    </select>
-                                )}
-                             </div>
                          </div>
                      </div>
                  )}
