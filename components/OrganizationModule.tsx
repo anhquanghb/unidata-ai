@@ -177,6 +177,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         unitId: selectedUnitId,
         facultyId: selectedPersonId,
         role: 'Giảng viên', // Default role
+        position: selectedPosition, // Save Position
         assignedDate: new Date().toISOString(),
         startDate: joinDate, 
         endDate: undefined 
@@ -189,6 +190,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     setSelectedPersonId(null);
     setPersonSearchTerm('');
     setIsTransfer(false);
+    setSelectedPosition('');
   };
 
   const handleRemovePersonnel = (recordId: string) => {
@@ -370,7 +372,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                     <thead className="bg-slate-50 font-semibold text-slate-600 border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-3">Họ và tên</th>
-                        <th className="px-4 py-3">Vai trò</th>
+                        <th className="px-4 py-3">Vị trí / Vai trò</th>
                         <th className="px-4 py-3">Ngày bắt đầu</th>
                         <th className="px-4 py-3 text-right">Thao tác</th>
                       </tr>
@@ -383,7 +385,13 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                              <td className="px-4 py-3 font-medium text-slate-800">
                                {faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>}
                              </td>
-                             <td className="px-4 py-3">{hr.role}</td>
+                             <td className="px-4 py-3">
+                                {hr.position ? (
+                                    <span className="font-semibold text-indigo-700">{hr.position}</span>
+                                ) : (
+                                    <span className="text-slate-500">{hr.role}</span>
+                                )}
+                             </td>
                              <td className="px-4 py-3 text-slate-500">
                                 {editingHrId === hr.id ? (
                                     <div className="flex items-center gap-1">
@@ -597,6 +605,52 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                                      </div>
                                  </div>
                              )}
+
+                             {/* Position Selector */}
+                             <div className="col-span-2">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Vị trí công tác</label>
+                                {selectedUnit?.unit_type === 'school' ? (
+                                    <select 
+                                        className="w-full p-2 border border-slate-300 rounded text-sm"
+                                        value={selectedPosition}
+                                        onChange={e => setSelectedPosition(e.target.value)}
+                                    >
+                                        <option value="">-- Chọn vị trí --</option>
+                                        <option value="Hiệu trưởng">Hiệu trưởng (Cấp 1)</option>
+                                        <option value="Phó hiệu trưởng">Phó hiệu trưởng (Cấp 2)</option>
+                                        <option value="Trợ lý hiệu trưởng">Trợ lý hiệu trưởng (Cấp 3)</option>
+                                        <option value="Trợ lý phó hiệu trưởng">Trợ lý phó hiệu trưởng (Cấp 3)</option>
+                                        <option value="Thư ký">Thư ký</option>
+                                        <option value="Chuyên viên">Chuyên viên</option>
+                                    </select>
+                                ) : selectedUnit?.unit_type === 'external' ? (
+                                    <select 
+                                        className="w-full p-2 border border-slate-300 rounded text-sm"
+                                        value={selectedPosition}
+                                        onChange={e => setSelectedPosition(e.target.value)}
+                                    >
+                                        <option value="">-- Chọn đối tượng --</option>
+                                        <option value="Sinh viên">Sinh viên</option>
+                                        <option value="Phụ huynh">Phụ huynh</option>
+                                        <option value="Doanh nghiệp">Doanh nghiệp</option>
+                                        <option value="Cựu sinh viên">Cựu sinh viên</option>
+                                        <option value="Khách mời">Khách mời</option>
+                                    </select>
+                                ) : (
+                                    <select 
+                                        className="w-full p-2 border border-slate-300 rounded text-sm"
+                                        value={selectedPosition}
+                                        onChange={e => setSelectedPosition(e.target.value)}
+                                    >
+                                        <option value="">-- Chọn vị trí --</option>
+                                        <option value="Trưởng đơn vị">Trưởng đơn vị</option>
+                                        <option value="Phó đơn vị">Phó đơn vị</option>
+                                        <option value="Giảng viên">Giảng viên</option>
+                                        <option value="Chuyên viên">Chuyên viên</option>
+                                        <option value="Nhân viên">Nhân viên</option>
+                                    </select>
+                                )}
+                             </div>
                          </div>
                      </div>
                  )}

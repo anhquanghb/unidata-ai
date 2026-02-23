@@ -6,14 +6,14 @@ import OrganizationModule from './components/OrganizationModule';
 import FacultyModule from './components/FacultyModule';
 import SettingsModule from './components/SettingsModule';
 import IngestionModule from './components/IngestionModule';
-import AnalysisModule from './components/AnalysisModule';
+import ISODesignerModule from './components/ISODesignerModule';
 import VersionSelectorModal from './components/VersionSelectorModal';
 import { 
   ViewState, Unit, HumanResourceRecord, Faculty, UserProfile, DataConfigGroup, 
   DynamicRecord, SystemSettings, AcademicYear, SchoolInfo, FacultyTitles, 
   GoogleDriveConfig, ScientificRecord, TrainingRecord, PersonnelRecord, 
   AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, PermissionProfile,
-  Course
+  Course, IsoDefinition
 } from './types';
 
 // Constants for Drive
@@ -85,6 +85,7 @@ const App: React.FC = () => {
   const [departmentRecords, setDepartmentRecords] = useState<DepartmentRecord[]>([]);
   const [businessRecords, setBusinessRecords] = useState<BusinessRecord[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [isoDefinitions, setIsoDefinitions] = useState<IsoDefinition[]>([]);
 
   const [dataConfigGroups, setDataConfigGroups] = useState<DataConfigGroup[]>([]);
   const [dynamicDataStore, setDynamicDataStore] = useState<Record<string, DynamicRecord[]>>({});
@@ -220,6 +221,10 @@ const App: React.FC = () => {
   };
   const handleUpdateDataConfigGroups = (groups: DataConfigGroup[]) => {
       setDataConfigGroups(groups);
+      markDirty();
+  };
+  const handleUpdateIsoDefinitions = (defs: IsoDefinition[]) => {
+      setIsoDefinitions(defs);
       markDirty();
   };
 
@@ -502,6 +507,7 @@ const App: React.FC = () => {
       if (data.classRecords) setClassRecords(data.classRecords);
       if (data.departmentRecords) setDepartmentRecords(data.departmentRecords);
       if (data.businessRecords) setBusinessRecords(data.businessRecords);
+      if (data.isoDefinitions) setIsoDefinitions(data.isoDefinitions);
 
       if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
       if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
@@ -553,9 +559,10 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
-          version: "2.0.0"
+          version: "2.1.0"
       };
 
       const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -653,9 +660,10 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
-          version: "2.0.0"
+          version: "2.1.0"
       };
       
       const jsonString = JSON.stringify(data, null, 2);
@@ -767,6 +775,12 @@ const App: React.FC = () => {
             onUpdateSchoolInfo={(info) => { setSchoolInfo(info); markDirty(); }}
             onShowVersions={() => setIsVersionModalOpen(true)} 
             onResetSystemData={() => handleSystemDataImport('RESET')}
+        />;
+      case 'iso_designer':
+        return <ISODesignerModule 
+            isoDefinitions={isoDefinitions}
+            onUpdateIsoDefinitions={handleUpdateIsoDefinitions}
+            units={units}
         />;
       default:
         return <div>View not found</div>;

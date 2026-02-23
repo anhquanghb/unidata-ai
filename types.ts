@@ -3,7 +3,7 @@ export interface Unit {
   unit_id: string;
   unit_name: string;
   unit_code: string;
-  unit_type: 'school' | 'faculty' | 'department';
+  unit_type: 'school' | 'faculty' | 'department' | 'external';
   unit_parentId?: string;
   unit_publicDriveId?: string; // ID thư mục UniData_Public thực tế của đơn vị này
 }
@@ -13,6 +13,7 @@ export interface HumanResourceRecord {
   unitId: string;
   facultyId: string;
   role?: string; // Optional: Trưởng khoa, nhân viên, etc.
+  position?: string; // Specific Position: Hiệu trưởng, Phó hiệu trưởng, Sinh viên, etc.
   assignedDate?: string;
   startDate?: string; // Năm/Ngày bắt đầu
   endDate?: string;   // Năm/Ngày kết thúc (nếu null -> đang làm việc)
@@ -61,7 +62,36 @@ export interface UniversityReport {
   };
 }
 
-export type ViewState = 'dashboard' | 'scientific_management' | 'faculty_profiles' | 'organization' | 'settings';
+export type ViewState = 'dashboard' | 'scientific_management' | 'faculty_profiles' | 'organization' | 'settings' | 'iso_designer';
+
+export interface IsoStep {
+  id: string;
+  name: string;
+  description?: string;
+  executorRole: string; // Changed to string to support dynamic roles like 'Hiệu trưởng', 'Sinh viên', etc.
+  executorUnitId?: string; // Optional: specific unit
+  isStart?: boolean;
+  isEnd?: boolean;
+}
+
+export interface IsoTransition {
+  id: string;
+  fromStepId: string;
+  toStepId: string;
+  actionName: string; // e.g., "Approve", "Reject", "Submit"
+  condition?: string; // Optional logic description
+}
+
+export interface IsoDefinition {
+  id: string;
+  name: string;
+  code: string; // ISO Code e.g., "ISO-01"
+  description?: string;
+  steps: IsoStep[];
+  transitions: IsoTransition[];
+  active: boolean;
+  updatedAt: string;
+}
 
 export interface ScientificRecord {
   id: string;
