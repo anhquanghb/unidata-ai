@@ -8,6 +8,7 @@ import SettingsModule from './components/SettingsModule';
 import IngestionModule from './components/IngestionModule';
 import ISODesignerModule from './components/ISODesignerModule';
 import VersionSelectorModal from './components/VersionSelectorModal';
+import InitDataPromptModal from './components/InitDataPromptModal';
 import { 
   ViewState, Unit, HumanResourceRecord, Faculty, UserProfile, DataConfigGroup, 
   DynamicRecord, SystemSettings, AcademicYear, SchoolInfo, FacultyTitles, 
@@ -90,6 +91,8 @@ const App: React.FC = () => {
   const [dataConfigGroups, setDataConfigGroups] = useState<DataConfigGroup[]>([]);
   const [dynamicDataStore, setDynamicDataStore] = useState<Record<string, DynamicRecord[]>>({});
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const [showInitDataPrompt, setShowInitDataPrompt] = useState(false);
+  const [hasCheckedAutoLoad, setHasCheckedAutoLoad] = useState(false);
 
   // --- GOOGLE DRIVE LOGIC ---
   
@@ -186,6 +189,7 @@ const App: React.FC = () => {
           const cleanSession = { isConnected: false, clientId: driveSession.clientId }; // Keep ClientID
           setDriveSession(cleanSession);
           localStorage.removeItem(STORAGE_KEY);
+          setHasCheckedAutoLoad(false);
       }
   };
 
@@ -266,6 +270,48 @@ const App: React.FC = () => {
       }
   }, [driveSession, users, units, schoolInfo]);
 
+
+  // --- AUTO LOAD BACKUP LOGIC ---
+  useEffect(() => {
+      if (driveSession.isConnected && driveSession.zoneBId && !hasCheckedAutoLoad) {
+          const checkBackup = async () => {
+              try {
+                  // Search for backup files
+                  const response = await window.gapi.client.drive.files.list({
+                      q: `'${driveSession.zoneBId}' in parents and mimeType = 'application/json' and name contains 'unidata_backup_' and trashed = false`,
+                      fields: 'files(id, name, createdTime)',
+                      orderBy: 'createdTime desc',
+                      pageSize: 1
+                  });
+                  
+                  const files = response.result.files;
+                  if (files && files.length > 0) {
+                      // Found backup -> Load it
+                      const latestFile = files[0];
+                      console.log("Auto-loading latest backup:", latestFile.name);
+                      
+                      const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${latestFile.id}?alt=media`, {
+                          headers: { 'Authorization': `Bearer ${driveSession.accessToken}` }
+                      });
+                      
+                      if (contentResp.ok) {
+                          const data = await contentResp.json();
+                          handleSystemDataImport(data);
+                          alert(`Đã tự động tải bản sao lưu mới nhất: ${latestFile.name}`);
+                      }
+                  } else {
+                      // No backup found -> Prompt user
+                      setShowInitDataPrompt(true);
+                  }
+              } catch (e) {
+                  console.error("Auto-load backup error", e);
+              } finally {
+                  setHasCheckedAutoLoad(true);
+              }
+          };
+          checkBackup();
+      }
+  }, [driveSession.isConnected, driveSession.zoneBId, hasCheckedAutoLoad]);
 
   // --- SYSTEM INTEGRITY: CASCADE ID UPDATES ---
   const handleCascadeFacultyIdChange = (oldId: string, newId: string) => {
@@ -828,6 +874,19 @@ const App: React.FC = () => {
         currentData={{
             units, faculties, scientificRecords, trainingRecords, 
             personnelRecords, admissionRecords, dataConfigGroups, dynamicDataStore
+        }}
+      />
+
+      <InitDataPromptModal
+        isOpen={showInitDataPrompt}
+        onClose={() => setShowInitDataPrompt(false)}
+        onInitEmpty={() => {
+            handleSystemDataImport('RESET');
+            setShowInitDataPrompt(false);
+        }}
+        onSelectExternal={() => {
+            setShowInitDataPrompt(false);
+            setIsVersionModalOpen(true);
         }}
       />
     </div>
