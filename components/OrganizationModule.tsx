@@ -103,11 +103,34 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   };
 
   const getChildUnits = (parentId?: string) => {
-    return units.filter(u => u.unit_parentId === parentId || (!parentId && !u.unit_parentId));
+    const children = units.filter(u => u.unit_parentId === parentId || (!parentId && !u.unit_parentId));
+    
+    // Sort logic for Root Level
+    if (!parentId) {
+        return children.sort((a, b) => {
+            // 1. School Management always top
+            if (a.unit_id === 'unit_school_mgmt') return -1;
+            if (b.unit_id === 'unit_school_mgmt') return 1;
+            
+            // 2. External always bottom
+            if (a.unit_id === 'unit_external') return 1;
+            if (b.unit_id === 'unit_external') return -1;
+            
+            // 3. Others: Alphabetical or creation order (default)
+            return a.unit_name.localeCompare(b.unit_name);
+        });
+    }
+    
+    return children;
   };
 
   // --- Unit Actions ---
   const handleDeleteUnit = (id: string) => {
+    const unit = units.find(u => u.unit_id === id);
+    if (unit?.isSystem) {
+        alert("Không thể xóa đơn vị hệ thống.");
+        return;
+    }
     if (!canEditTargetUnit(id)) return;
     if (confirm("Bạn có chắc chắn muốn xóa đơn vị này? Các đơn vị con cũng sẽ bị xóa.")) {
       const idsToDelete = new Set<string>();
@@ -135,6 +158,11 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
     if (!tempUnit.unit_name || !tempUnit.unit_code) return;
     
     if (isEditingUnit && tempUnit.unit_id) {
+      const originalUnit = units.find(u => u.unit_id === tempUnit.unit_id);
+      if (originalUnit?.isSystem && tempUnit.unit_parentId) {
+          alert("Không thể di chuyển đơn vị hệ thống khỏi cấp gốc.");
+          return;
+      }
       if (!canEditTargetUnit(tempUnit.unit_id)) return;
       onUpdateUnits(units.map(u => u.unit_id === tempUnit.unit_id ? { ...u, ...tempUnit } as Unit : u));
     } else {
@@ -265,8 +293,15 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
           
-          <Building size={16} className={`mr-2 ${unit.unit_type === 'school' ? 'text-indigo-600' : unit.unit_type === 'faculty' ? 'text-blue-600' : 'text-slate-500'}`} />
-          <span className="text-sm font-medium truncate flex-1">{unit.unit_name}</span>
+          {unit.unit_id === 'unit_school_mgmt' ? (
+              <Shield size={16} className="mr-2 text-indigo-700" />
+          ) : unit.unit_id === 'unit_external' ? (
+              <Globe size={16} className="mr-2 text-slate-500" />
+          ) : (
+              <Building size={16} className={`mr-2 ${unit.unit_type === 'school' ? 'text-indigo-600' : unit.unit_type === 'faculty' ? 'text-blue-600' : 'text-slate-500'}`} />
+          )}
+          
+          <span className={`text-sm font-medium truncate flex-1 ${unit.isSystem ? 'font-bold' : ''}`}>{unit.unit_name}</span>
           {managedUnitId === unit.unit_id && <span title="Managed Unit"><Shield size={12} className="text-amber-500 ml-1" /></span>}
         </div>
         
@@ -364,12 +399,14 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                             >
                               <Edit2 size={14}/> Sửa
                             </button>
-                            <button 
-                              onClick={() => handleDeleteUnit(selectedUnit.unit_id)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50"
-                            >
-                              <Trash2 size={14}/> Xóa
-                            </button>
+                            {!selectedUnit.isSystem && (
+                                <button 
+                                  onClick={() => handleDeleteUnit(selectedUnit.unit_id)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50"
+                                >
+                                  <Trash2 size={14}/> Xóa
+                                </button>
+                            )}
                         </>
                     ) : (
                         <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100" title="Bạn không có quyền sửa đơn vị này">

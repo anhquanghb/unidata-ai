@@ -6,6 +6,7 @@ export interface Unit {
   unit_type: 'school' | 'faculty' | 'department';
   unit_parentId?: string;
   unit_publicDriveId?: string; // ID thư mục UniData_Public thực tế của đơn vị này
+  isSystem?: boolean; // System unit, cannot be deleted
 }
 
 export interface HumanResourceRecord {

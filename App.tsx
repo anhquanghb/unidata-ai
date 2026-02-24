@@ -232,6 +232,26 @@ const App: React.FC = () => {
       markDirty();
   };
 
+  // --- ENSURE SYSTEM UNITS EXIST ---
+  useEffect(() => {
+      const systemUnits: Unit[] = [
+          { unit_id: 'unit_school_mgmt', unit_name: 'Quản lý cấp trường', unit_code: 'SCHOOL_MGMT', unit_type: 'school', isSystem: true },
+          { unit_id: 'unit_external', unit_name: 'Đối tượng ngoài', unit_code: 'EXTERNAL', unit_type: 'department', isSystem: true }
+      ];
+
+      // Use functional update to safely check and add missing units without race conditions
+      setUnits(prev => {
+          const currentIds = new Set(prev.map(u => u.unit_id));
+          const missingUnits = systemUnits.filter(sysUnit => !currentIds.has(sysUnit.unit_id));
+          
+          if (missingUnits.length > 0) {
+              console.log("Injecting missing system units:", missingUnits.map(u => u.unit_name));
+              return [...prev, ...missingUnits];
+          }
+          return prev;
+      });
+  }, [units.length]); // Only re-run if length changes to avoid infinite loops if references change but content doesn't
+
   // --- AUTO UPDATE IDs LOGIC (Refined for Primary Users) ---
   useEffect(() => {
       if (!driveSession.isConnected || !driveSession.zoneCId || !driveSession.userEmail) return;
