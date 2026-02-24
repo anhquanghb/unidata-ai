@@ -43,6 +43,11 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   const [editingHrId, setEditingHrId] = useState<string | null>(null);
   const [editJoinDate, setEditJoinDate] = useState('');
 
+  // Personnel Inline Editing State (Role)
+  const [editingRoleHrId, setEditingRoleHrId] = useState<string | null>(null);
+  const [editPositionLevel, setEditPositionLevel] = useState<'head' | 'deputy' | 'member'>('member');
+  const [editCustomPositionName, setEditCustomPositionName] = useState('');
+
   // --- Permission Check Helpers ---
   const role = permission?.role || 'school_admin';
   const managedUnitId = permission?.managedUnitId;
@@ -214,6 +219,26 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
               hr.id === editingHrId ? { ...hr, startDate: editJoinDate } : hr
           ));
           setEditingHrId(null);
+      }
+  };
+
+  const handleStartEditRole = (hr: HumanResourceRecord) => {
+      setEditingRoleHrId(hr.id);
+      setEditPositionLevel(hr.positionLevel || 'member');
+      setEditCustomPositionName(hr.customPositionName || '');
+  };
+
+  const handleSaveEditRole = () => {
+      if (editingRoleHrId) {
+          onUpdateHumanResources(humanResources.map(hr => 
+              hr.id === editingRoleHrId ? { 
+                  ...hr, 
+                  positionLevel: editPositionLevel,
+                  customPositionName: editCustomPositionName,
+                  role: editCustomPositionName || (editPositionLevel === 'head' ? 'Trưởng đơn vị' : editPositionLevel === 'deputy' ? 'Phó đơn vị' : 'Thành viên')
+              } : hr
+          ));
+          setEditingRoleHrId(null);
       }
   };
 
@@ -389,13 +414,40 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                              <td className="px-4 py-3 font-medium text-slate-800">
                                {faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>}
                              </td>
-                             <td className="px-4 py-3">
-                                <div className="flex flex-col">
-                                    <span className="font-medium text-slate-700">{hr.customPositionName || hr.role}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                                        {hr.positionLevel === 'head' ? 'Trưởng' : hr.positionLevel === 'deputy' ? 'Phó' : 'Thành viên'}
-                                    </span>
-                                </div>
+                             <td className="px-4 py-3" onDoubleClick={() => handleStartEditRole(hr)}>
+                                {editingRoleHrId === hr.id ? (
+                                    <div className="flex flex-col gap-1">
+                                        <select 
+                                            className="p-1 border border-slate-300 rounded text-xs"
+                                            value={editPositionLevel}
+                                            onChange={e => setEditPositionLevel(e.target.value as any)}
+                                            onClick={e => e.stopPropagation()}
+                                        >
+                                            <option value="head">Trưởng (Head)</option>
+                                            <option value="deputy">Phó (Deputy)</option>
+                                            <option value="member">Thành viên (Member)</option>
+                                        </select>
+                                        <input 
+                                            className="p-1 border border-slate-300 rounded text-xs"
+                                            placeholder="Tên chức danh..."
+                                            value={editCustomPositionName}
+                                            onChange={e => setEditCustomPositionName(e.target.value)}
+                                            onClick={e => e.stopPropagation()}
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-1 mt-1">
+                                            <button onClick={(e) => { e.stopPropagation(); handleSaveEditRole(); }} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">Lưu</button>
+                                            <button onClick={(e) => { e.stopPropagation(); setEditingRoleHrId(null); }} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col cursor-pointer group" title="Double click để sửa">
+                                        <span className="font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{hr.customPositionName || hr.role}</span>
+                                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                                            {hr.positionLevel === 'head' ? 'Trưởng' : hr.positionLevel === 'deputy' ? 'Phó' : 'Thành viên'}
+                                        </span>
+                                    </div>
+                                )}
                              </td>
                              <td className="px-4 py-3 text-slate-500">
                                 {editingHrId === hr.id ? (
