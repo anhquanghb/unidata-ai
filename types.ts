@@ -84,6 +84,79 @@ export interface IsoTransition {
   condition?: string; // Optional logic description
 }
 
+export interface IsoControlInfo {
+  documentCode: string;
+  revision: string;
+  effectiveDate: string;
+  drafter: string;
+  reviewer: string;
+  approver: string;
+}
+
+export interface IsoPurposeScope {
+  purpose: string;
+  scope: string;
+}
+
+export interface IsoDefinitionTerm {
+  id: string;
+  term: string;
+  definition: string;
+}
+
+export interface IsoStepDetail {
+  nodeId: string;
+  who: string;
+  what: string;
+  when: string;
+  how: string;
+}
+
+export interface IsoKPI {
+  id: string;
+  indicator: string;
+  target: string;
+}
+
+export interface IsoRecordForm {
+  id: string;
+  name: string;
+  code: string;
+  link?: string;
+}
+
+// React Flow Types (Simplified for storage)
+export interface IsoFlowchartNodeData {
+  id: string;
+  type: 'start' | 'process' | 'decision' | 'end'; // oval, rect, diamond, oval
+  label: string;
+  position: { x: number; y: number };
+}
+
+export interface IsoFlowchartEdgeData {
+  id: string;
+  source: string;
+  target: string;
+  label?: string; // Yes/No for decision
+}
+
+export interface IsoProcess {
+  id: string;
+  name: string;
+  controlInfo: IsoControlInfo;
+  purposeScope: IsoPurposeScope;
+  definitions: IsoDefinitionTerm[];
+  flowchart: {
+    nodes: IsoFlowchartNodeData[];
+    edges: IsoFlowchartEdgeData[];
+  };
+  stepDetails: Record<string, IsoStepDetail>; // Keyed by Node ID
+  kpis: IsoKPI[];
+  records: IsoRecordForm[];
+  updatedAt: string;
+}
+
+// Legacy IsoDefinition (Keep for compatibility if needed, or replace usages)
 export interface IsoDefinition {
   id: string;
   name: string;
@@ -93,6 +166,8 @@ export interface IsoDefinition {
   transitions: IsoTransition[];
   active: boolean;
   updatedAt: string;
+  // New structure integration (optional migration)
+  processData?: IsoProcess;
 }
 
 export interface ScientificRecord {
