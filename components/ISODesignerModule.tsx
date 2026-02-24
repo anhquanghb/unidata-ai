@@ -15,14 +15,15 @@ import ReactFlow, {
   Panel
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit } from '../types';
+
 import { 
   Save, Plus, Trash2, Edit2, FileText, Settings, 
   Layout, List, CheckSquare, BarChart2, ArrowLeft,
   MousePointer, Type, Square, Circle, Diamond,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Upload, Link, Search, User, File, ExternalLink, X
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, HumanResourceRecord, Faculty, GoogleDriveConfig } from '../types';
 
 // --- Custom Node Components ---
 
@@ -73,9 +74,12 @@ interface ISODesignerModuleProps {
   isoDefinitions: IsoDefinition[];
   onUpdateIsoDefinitions: (defs: IsoDefinition[]) => void;
   units: Unit[];
+  humanResources: HumanResourceRecord[];
+  faculties: Faculty[];
+  driveSession: GoogleDriveConfig;
 }
 
-const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, onUpdateIsoDefinitions, units }) => {
+const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, onUpdateIsoDefinitions, units, humanResources, faculties, driveSession }) => {
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'control' | 'purpose' | 'definitions' | 'flowchart' | 'kpi' | 'records'>('flowchart');
@@ -89,6 +93,138 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // --- Handlers ---
+
+  // --- Helpers ---
+
+  const handleUploadRecord = async (file: File, recordIndex: number) => {
+      if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneBId) {
+          alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục hệ thống.");
+          return;
+      }
+
+      try {
+          // 1. Ensure ISO Folder
+          let isoFolderId = '';
+          const q = `mimeType='application/vnd.google-apps.folder' and name='ISO' and '${driveSession.zoneBId}' in parents and trashed=false`;
+          const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+          if (resp.result.files && resp.result.files.length > 0) {
+              isoFolderId = resp.result.files[0].id;
+          } else {
+              const meta = {
+                  name: 'ISO',
+                  mimeType: 'application/vnd.google-apps.folder',
+                  parents: [driveSession.zoneBId]
+              };
+              const createResp = await window.gapi.client.drive.files.create({
+                  resource: meta,
+                  fields: 'id'
+              });
+              isoFolderId = createResp.result.id;
+          }
+
+          // 2. Upload File
+          const metadata = {
+              name: file.name,
+              parents: [isoFolderId]
+          };
+          const form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          form.append('file', file);
+
+          const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,mimeType', {
+              method: 'POST',
+              headers: new Headers({ 'Authorization': 'Bearer ' + driveSession.accessToken }),
+              body: form
+          });
+          
+          if (!uploadResp.ok) throw new Error("Upload failed");
+          const fileData = await uploadResp.json();
+
+          // 3. Update Record
+          const newRecs = [...processData!.records];
+          newRecs[recordIndex] = {
+              ...newRecs[recordIndex],
+              fileId: fileData.id,
+              link: fileData.webViewLink,
+              mimeType: fileData.mimeType,
+              name: newRecs[recordIndex].name || file.name
+          };
+          setProcessData({...processData!, records: newRecs});
+          alert("Upload thành công!");
+
+      } catch (e) {
+          console.error(e);
+          alert("Lỗi upload file: " + e);
+      }
+  };
+
+  const PersonnelInput = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => {
+      const [searchTerm, setSearchTerm] = useState('');
+      const [isSearching, setIsSearching] = useState(false);
+      
+      const candidates = useMemo(() => {
+          if (!searchTerm) return [];
+          const lower = searchTerm.toLowerCase();
+          return humanResources
+            .filter(hr => {
+                const f = faculties.find(fac => fac.id === hr.facultyId);
+                return f && (f.name.vi.toLowerCase().includes(lower) || f.email?.toLowerCase().includes(lower));
+            })
+            .map(hr => {
+                const f = faculties.find(fac => fac.id === hr.facultyId);
+                const u = units.find(un => un.unit_id === hr.unitId);
+                return {
+                    name: f?.name.vi,
+                    email: f?.email,
+                    role: hr.role,
+                    unit: u?.unit_name,
+                    fullString: `${f?.name.vi} - ${hr.role} (${u?.unit_name})`
+                };
+            })
+            .slice(0, 5);
+      }, [searchTerm, humanResources, faculties, units]);
+
+      return (
+          <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+              {value ? (
+                  <div className="flex items-center justify-between p-2 border border-blue-200 bg-blue-50 rounded text-sm text-blue-800">
+                      <span className="font-medium">{value}</span>
+                      <button onClick={() => onChange('')} className="text-blue-400 hover:text-blue-600"><X size={14}/></button>
+                  </div>
+              ) : (
+                  <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search size={14} className="text-slate-400" />
+                      </div>
+                      <input 
+                          className="w-full pl-9 p-2 border border-slate-300 rounded focus:border-blue-500 focus:outline-none text-sm"
+                          placeholder="Tìm kiếm nhân sự..."
+                          value={searchTerm}
+                          onChange={e => { setSearchTerm(e.target.value); setIsSearching(true); }}
+                          onFocus={() => setIsSearching(true)}
+                          onBlur={() => setTimeout(() => setIsSearching(false), 200)}
+                      />
+                      {isSearching && searchTerm && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                              {candidates.map((c, i) => (
+                                  <div 
+                                      key={i} 
+                                      className="p-2 hover:bg-slate-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                      onClick={() => { onChange(c.fullString); setSearchTerm(''); }}
+                                  >
+                                      <div className="font-bold text-slate-700">{c.name}</div>
+                                      <div className="text-xs text-slate-500">{c.role} - {c.unit}</div>
+                                  </div>
+                              ))}
+                              {candidates.length === 0 && <div className="p-2 text-xs text-slate-400">Không tìm thấy.</div>}
+                          </div>
+                      )}
+                  </div>
+              )}
+          </div>
+      );
+  };
 
   const handleCreateNew = () => {
     const newProcess: IsoProcess = {
@@ -375,27 +511,24 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
 
                 <div className="grid grid-cols-3 gap-6 pt-4 border-t border-slate-100">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Người soạn thảo</label>
-                    <input 
+                    <PersonnelInput 
+                      label="Người soạn thảo"
                       value={processData.controlInfo.drafter}
-                      onChange={e => setProcessData({...processData, controlInfo: {...processData.controlInfo, drafter: e.target.value}})}
-                      className="w-full p-2 border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                      onChange={(val) => setProcessData({...processData, controlInfo: {...processData.controlInfo, drafter: val}})}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Người kiểm tra</label>
-                    <input 
+                    <PersonnelInput 
+                      label="Người kiểm tra"
                       value={processData.controlInfo.reviewer}
-                      onChange={e => setProcessData({...processData, controlInfo: {...processData.controlInfo, reviewer: e.target.value}})}
-                      className="w-full p-2 border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                      onChange={(val) => setProcessData({...processData, controlInfo: {...processData.controlInfo, reviewer: val}})}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Người phê duyệt</label>
-                    <input 
+                    <PersonnelInput 
+                      label="Người phê duyệt"
                       value={processData.controlInfo.approver}
-                      onChange={e => setProcessData({...processData, controlInfo: {...processData.controlInfo, approver: e.target.value}})}
-                      className="w-full p-2 border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                      onChange={(val) => setProcessData({...processData, controlInfo: {...processData.controlInfo, approver: val}})}
                     />
                   </div>
                 </div>
@@ -739,6 +872,49 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                           }}
                           className="w-full p-2 border border-slate-300 rounded text-sm"
                         />
+                        
+                        {/* File Upload Area */}
+                        <div className="mt-2 flex items-center gap-2">
+                            {rec.link ? (
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border border-green-200 text-green-700 text-sm">
+                                    <File size={14}/>
+                                    <a href={rec.link} target="_blank" rel="noreferrer" className="hover:underline truncate max-w-[200px]">
+                                        {rec.name || 'File đính kèm'}
+                                    </a>
+                                    <button 
+                                        onClick={() => {
+                                            const newRecs = [...processData.records];
+                                            newRecs[idx].link = undefined;
+                                            newRecs[idx].fileId = undefined;
+                                            setProcessData({...processData, records: newRecs});
+                                        }}
+                                        className="text-slate-400 hover:text-red-500 ml-2"
+                                        title="Gỡ file"
+                                    >
+                                        <X size={12}/>
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        id={`file-upload-${rec.id}`}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                handleUploadRecord(e.target.files[0], idx);
+                                            }
+                                        }}
+                                    />
+                                    <label 
+                                        htmlFor={`file-upload-${rec.id}`}
+                                        className="flex items-center gap-1 cursor-pointer bg-white px-3 py-1.5 rounded border border-slate-300 text-slate-600 text-xs font-medium hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                                    >
+                                        <Upload size={14}/> Upload File
+                                    </label>
+                                </div>
+                            )}
+                        </div>
                       </div>
                       <div className="w-1/4">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mã số</label>

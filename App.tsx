@@ -847,6 +847,9 @@ const App: React.FC = () => {
             isoDefinitions={isoDefinitions}
             onUpdateIsoDefinitions={handleUpdateIsoDefinitions}
             units={units}
+            humanResources={humanResources}
+            faculties={faculties}
+            driveSession={driveSession}
         />;
       default:
         return <div>View not found</div>;

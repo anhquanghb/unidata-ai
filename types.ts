@@ -123,6 +123,8 @@ export interface IsoRecordForm {
   name: string;
   code: string;
   link?: string;
+  fileId?: string; // Google Drive File ID
+  mimeType?: string;
 }
 
 // React Flow Types (Simplified for storage)
