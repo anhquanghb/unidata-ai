@@ -24,6 +24,9 @@ import {
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, HumanResourceRecord, Faculty, GoogleDriveConfig } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 // --- Custom Node Components ---
 
@@ -302,6 +305,136 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     setIsEditing(true);
   };
 
+  const handleExportPDF = async () => {
+    if (!processData) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    let yPos = 20;
+
+    // Helper to add text and advance Y
+    const addText = (text: string, fontSize: number = 10, fontStyle: string = 'normal', color: string = '#000000') => {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', fontStyle);
+        doc.setTextColor(color);
+        const splitText = doc.splitTextToSize(text, pageWidth - margin * 2);
+        doc.text(splitText, margin, yPos);
+        yPos += splitText.length * fontSize * 0.5 + 4; // Approximate line height
+    };
+
+    // Helper to add section header
+    const addSectionHeader = (title: string) => {
+        yPos += 5;
+        addText(title, 12, 'bold', '#2563eb');
+        yPos += 2;
+    };
+
+    // 1. Header Info
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(processData.name, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Mã số: ${processData.controlInfo.documentCode} | Phiên bản: ${processData.controlInfo.revision}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 6;
+    doc.text(`Ngày hiệu lực: ${new Date(processData.controlInfo.effectiveDate).toLocaleDateString('vi-VN')}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+
+    // 2. Control Info Table
+    autoTable(doc, {
+        startY: yPos,
+        head: [['Vai trò', 'Họ tên']],
+        body: [
+            ['Soạn thảo', processData.controlInfo.drafter],
+            ['Kiểm tra', processData.controlInfo.reviewer],
+            ['Phê duyệt', processData.controlInfo.approver],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [241, 245, 249], textColor: 20 },
+        styles: { font: 'helvetica', fontSize: 10 }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // 3. Purpose & Scope
+    addSectionHeader('1. Mục đích & Phạm vi');
+    addText(`Mục đích: ${processData.purposeScope.purpose}`);
+    addText(`Phạm vi: ${processData.purposeScope.scope}`);
+
+    // 4. Definitions
+    if (processData.definitions.length > 0) {
+        addSectionHeader('2. Thuật ngữ & Định nghĩa');
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Thuật ngữ', 'Định nghĩa']],
+            body: processData.definitions.map(d => [d.term, d.definition]),
+            theme: 'grid',
+            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // 5. Steps (5W1H)
+    if (nodes.length > 0) {
+        addSectionHeader('3. Nội dung Quy trình (5W1H)');
+        // Sort nodes by position Y roughly to order steps? Or just list them.
+        // Flowchart nodes don't have inherent order unless we traverse edges.
+        // For simplicity, list them as they appear in the array or try to sort by Y.
+        const sortedNodes = [...nodes].sort((a, b) => a.position.y - b.position.y);
+        
+        const bodyData = sortedNodes.map(node => {
+            const detail = processData.stepDetails[node.id] || {};
+            return [
+                node.data.label,
+                detail.who || '',
+                detail.when || '',
+                detail.how || ''
+            ];
+        });
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Bước (Task)', 'Ai (Who)', 'Khi nào (When)', 'Cách thức (How)']],
+            body: bodyData,
+            theme: 'grid',
+            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+            styles: { fontSize: 9, cellPadding: 3 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // 6. KPIs
+    if (processData.kpis.length > 0) {
+        addSectionHeader('4. Chỉ số đo lường (KPIs)');
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Chỉ số', 'Mục tiêu']],
+            body: processData.kpis.map(k => [k.indicator, k.target]),
+            theme: 'grid',
+            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // 7. Records
+    if (processData.records.length > 0) {
+        addSectionHeader('5. Hồ sơ & Biểu mẫu');
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Tên hồ sơ/biểu mẫu', 'Mã số', 'Link']],
+            body: processData.records.map(r => [r.name, r.code, r.link || '']),
+            theme: 'grid',
+            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // Save
+    doc.save(`${processData.controlInfo.documentCode}_${processData.name}.pdf`);
+  };
+
   const handleSave = () => {
     if (!processData) return;
 
@@ -439,6 +572,9 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
             </div>
           </div>
           <div className="flex gap-2">
+            <button onClick={handleExportPDF} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-sm">
+                <FileText size={16} /> Xuất PDF
+            </button>
             <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
               <Save size={18} /> Lưu Quy trình
             </button>
@@ -651,11 +787,11 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 </div>
                 <div 
                   className="p-3 bg-slate-50 border border-slate-200 rounded cursor-move hover:border-blue-400 flex items-center gap-2"
-                  onDragStart={(event) => onDragStart(event, 'diamond', 'Quyết định')}
+                  onDragStart={(event) => onDragStart(event, 'diamond', 'Điểm quyết định')}
                   draggable
                 >
                   <Diamond size={16} className="text-amber-600" />
-                  <span className="text-sm">Quyết định</span>
+                  <span className="text-sm">Điểm quyết định</span>
                 </div>
                 
                 <div className="mt-auto text-xs text-slate-400">
@@ -676,6 +812,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       onNodeClick={onNodeClick}
                       nodeTypes={nodeTypes}
                       fitView
+                      snapToGrid={true}
+                      snapGrid={[15, 15]}
                     >
                       <Background color="#e2e8f0" gap={16} />
                       <Controls />
