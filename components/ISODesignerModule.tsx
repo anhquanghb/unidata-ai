@@ -20,13 +20,15 @@ import {
   Save, Plus, Trash2, Edit2, FileText, Settings, 
   Layout, List, CheckSquare, BarChart2, ArrowLeft,
   MousePointer, Type, Square, Circle, Diamond,
-  ChevronDown, ChevronUp, Upload, Link, Search, User, File, ExternalLink, X
+  ChevronDown, ChevronUp, Upload, Link, Search, User, File, ExternalLink, X, FileType
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, HumanResourceRecord, Faculty, GoogleDriveConfig } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, WidthType, BorderStyle, AlignmentType, HeadingLevel } from 'docx';
+import { saveAs } from 'file-saver';
 
 // --- Custom Node Components ---
 
@@ -305,134 +307,288 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     setIsEditing(true);
   };
 
-  const handleExportPDF = async () => {
+  const handleUploadScan = async (file: File) => {
+    if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneBId) {
+        alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục hệ thống.");
+        return;
+    }
+
+    try {
+        // 1. Ensure ISO Folder
+        let isoFolderId = '';
+        const q = `mimeType='application/vnd.google-apps.folder' and name='ISO' and '${driveSession.zoneBId}' in parents and trashed=false`;
+        const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+        if (resp.result.files && resp.result.files.length > 0) {
+            isoFolderId = resp.result.files[0].id;
+        } else {
+            const meta = {
+                name: 'ISO',
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [driveSession.zoneBId]
+            };
+            const createResp = await window.gapi.client.drive.files.create({
+                resource: meta,
+                fields: 'id'
+            });
+            isoFolderId = createResp.result.id;
+        }
+
+        // 2. Upload File
+        const metadata = {
+            name: file.name,
+            parents: [isoFolderId]
+        };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,mimeType', {
+            method: 'POST',
+            headers: new Headers({ 'Authorization': 'Bearer ' + driveSession.accessToken }),
+            body: form
+        });
+        
+        if (!uploadResp.ok) throw new Error("Upload failed");
+        const fileData = await uploadResp.json();
+
+        // 3. Update Control Info
+        setProcessData({
+            ...processData!,
+            controlInfo: {
+                ...processData!.controlInfo,
+                scanFileId: fileData.id,
+                scanLink: fileData.webViewLink,
+                scanMimeType: fileData.mimeType
+            }
+        });
+        alert("Upload bản scan thành công!");
+
+    } catch (e) {
+        console.error(e);
+        alert("Lỗi upload file: " + e);
+    }
+  };
+
+  const handleExportDocx = async () => {
     if (!processData) return;
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 14;
-    let yPos = 20;
+    try {
+        // 1. Capture Flowchart Image
+        let flowchartImageBlob: Blob | null = null;
+        const flowElement = document.querySelector('.react-flow') as HTMLElement;
+        if (flowElement) {
+             // Temporarily hide controls/panels if needed, or just capture
+             const canvas = await html2canvas(flowElement, {
+                 ignoreElements: (element) => element.classList.contains('react-flow__controls') || element.classList.contains('react-flow__panel')
+             });
+             flowchartImageBlob = await new Promise(resolve => canvas.toBlob(resolve));
+        }
 
-    // Helper to add text and advance Y
-    const addText = (text: string, fontSize: number = 10, fontStyle: string = 'normal', color: string = '#000000') => {
-        doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle);
-        doc.setTextColor(color);
-        const splitText = doc.splitTextToSize(text, pageWidth - margin * 2);
-        doc.text(splitText, margin, yPos);
-        yPos += splitText.length * fontSize * 0.5 + 4; // Approximate line height
-    };
+        // 2. Build Document Sections
+        const children: any[] = [];
 
-    // Helper to add section header
-    const addSectionHeader = (title: string) => {
-        yPos += 5;
-        addText(title, 12, 'bold', '#2563eb');
-        yPos += 2;
-    };
+        // Header
+        children.push(
+            new Paragraph({
+                text: processData.name,
+                heading: HeadingLevel.TITLE,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 }
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                    new TextRun({ text: `Mã số: ${processData.controlInfo.documentCode} | Phiên bản: ${processData.controlInfo.revision}`, size: 24 }),
+                ],
+                spacing: { after: 100 }
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                    new TextRun({ text: `Ngày hiệu lực: ${new Date(processData.controlInfo.effectiveDate).toLocaleDateString('vi-VN')}`, size: 24 }),
+                ],
+                spacing: { after: 400 }
+            })
+        );
 
-    // 1. Header Info
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(processData.name, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 10;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Mã số: ${processData.controlInfo.documentCode} | Phiên bản: ${processData.controlInfo.revision}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 6;
-    doc.text(`Ngày hiệu lực: ${new Date(processData.controlInfo.effectiveDate).toLocaleDateString('vi-VN')}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 15;
-
-    // 2. Control Info Table
-    autoTable(doc, {
-        startY: yPos,
-        head: [['Vai trò', 'Họ tên']],
-        body: [
-            ['Soạn thảo', processData.controlInfo.drafter],
-            ['Kiểm tra', processData.controlInfo.reviewer],
-            ['Phê duyệt', processData.controlInfo.approver],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [241, 245, 249], textColor: 20 },
-        styles: { font: 'helvetica', fontSize: 10 }
-    });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
-
-    // 3. Purpose & Scope
-    addSectionHeader('1. Mục đích & Phạm vi');
-    addText(`Mục đích: ${processData.purposeScope.purpose}`);
-    addText(`Phạm vi: ${processData.purposeScope.scope}`);
-
-    // 4. Definitions
-    if (processData.definitions.length > 0) {
-        addSectionHeader('2. Thuật ngữ & Định nghĩa');
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Thuật ngữ', 'Định nghĩa']],
-            body: processData.definitions.map(d => [d.term, d.definition]),
-            theme: 'grid',
-            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
+        // Control Info Table
+        const controlTable = new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph({ text: "Vai trò", bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+                        new TableCell({ children: [new Paragraph({ text: "Họ tên", bold: true })], width: { size: 70, type: WidthType.PERCENTAGE } }),
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph("Soạn thảo")] }),
+                        new TableCell({ children: [new Paragraph(processData.controlInfo.drafter)] }),
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph("Kiểm tra")] }),
+                        new TableCell({ children: [new Paragraph(processData.controlInfo.reviewer)] }),
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph("Phê duyệt")] }),
+                        new TableCell({ children: [new Paragraph(processData.controlInfo.approver)] }),
+                    ]
+                }),
+            ]
         });
-        yPos = (doc as any).lastAutoTable.finalY + 10;
+        children.push(controlTable);
+        children.push(new Paragraph({ text: "", spacing: { after: 400 } }));
+
+        // Purpose & Scope
+        children.push(
+            new Paragraph({ text: "1. Mục đích & Phạm vi", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }),
+            new Paragraph({ children: [new TextRun({ text: "Mục đích: ", bold: true }), new TextRun(processData.purposeScope.purpose)], spacing: { after: 100 } }),
+            new Paragraph({ children: [new TextRun({ text: "Phạm vi: ", bold: true }), new TextRun(processData.purposeScope.scope)], spacing: { after: 400 } })
+        );
+
+        // Definitions
+        if (processData.definitions.length > 0) {
+            children.push(new Paragraph({ text: "2. Thuật ngữ & Định nghĩa", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+            const defRows = processData.definitions.map(d => new TableRow({
+                children: [
+                    new TableCell({ children: [new Paragraph(d.term)] }),
+                    new TableCell({ children: [new Paragraph(d.definition)] }),
+                ]
+            }));
+            children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: "Thuật ngữ", bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+                            new TableCell({ children: [new Paragraph({ text: "Định nghĩa", bold: true })], width: { size: 70, type: WidthType.PERCENTAGE } }),
+                        ]
+                    }),
+                    ...defRows
+                ]
+            }));
+            children.push(new Paragraph({ text: "", spacing: { after: 400 } }));
+        }
+
+        // Flowchart Image
+        if (flowchartImageBlob) {
+             children.push(new Paragraph({ text: "3. Lưu đồ", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+             const imageBuffer = await flowchartImageBlob.arrayBuffer();
+             children.push(new Paragraph({
+                 children: [
+                     new ImageRun({
+                         data: imageBuffer,
+                         transformation: { width: 600, height: 400 }, // Adjust size as needed
+                     }),
+                 ],
+                 alignment: AlignmentType.CENTER,
+                 spacing: { after: 400 }
+             }));
+        }
+
+        // Steps (5W1H)
+        if (nodes.length > 0) {
+            children.push(new Paragraph({ text: "4. Nội dung chi tiết (5W1H)", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+            
+            const sortedNodes = [...nodes].sort((a, b) => a.position.y - b.position.y);
+            const stepRows = sortedNodes.map(node => {
+                const detail = processData.stepDetails[node.id] || {};
+                return new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph(node.data.label)] }),
+                        new TableCell({ children: [new Paragraph(detail.who || '')] }),
+                        new TableCell({ children: [new Paragraph(detail.when || '')] }),
+                        new TableCell({ children: [new Paragraph(detail.how || '')] }),
+                    ]
+                });
+            });
+
+            children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: "Bước (Task)", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Ai (Who)", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Khi nào (When)", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Cách thức (How)", bold: true })] }),
+                        ]
+                    }),
+                    ...stepRows
+                ]
+            }));
+            children.push(new Paragraph({ text: "", spacing: { after: 400 } }));
+        }
+
+        // KPIs
+        if (processData.kpis.length > 0) {
+            children.push(new Paragraph({ text: "5. Chỉ số đo lường (KPIs)", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+            const kpiRows = processData.kpis.map(k => new TableRow({
+                children: [
+                    new TableCell({ children: [new Paragraph(k.indicator)] }),
+                    new TableCell({ children: [new Paragraph(k.target)] }),
+                ]
+            }));
+            children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: "Chỉ số", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Mục tiêu", bold: true })] }),
+                        ]
+                    }),
+                    ...kpiRows
+                ]
+            }));
+            children.push(new Paragraph({ text: "", spacing: { after: 400 } }));
+        }
+
+        // Records
+        if (processData.records.length > 0) {
+            children.push(new Paragraph({ text: "6. Hồ sơ & Biểu mẫu", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+            const recRows = processData.records.map(r => new TableRow({
+                children: [
+                    new TableCell({ children: [new Paragraph(r.name)] }),
+                    new TableCell({ children: [new Paragraph(r.code)] }),
+                    new TableCell({ children: [new Paragraph(r.link || '')] }),
+                ]
+            }));
+            children.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: "Tên hồ sơ", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Mã số", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Link", bold: true })] }),
+                        ]
+                    }),
+                    ...recRows
+                ]
+            }));
+        }
+
+        // Generate Docx
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: children
+            }]
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, `${processData.controlInfo.documentCode}_${processData.name}.docx`);
+
+    } catch (e) {
+        console.error("Export Docx Error:", e);
+        alert("Lỗi xuất file Docx: " + e);
     }
-
-    // 5. Steps (5W1H)
-    if (nodes.length > 0) {
-        addSectionHeader('3. Nội dung Quy trình (5W1H)');
-        // Sort nodes by position Y roughly to order steps? Or just list them.
-        // Flowchart nodes don't have inherent order unless we traverse edges.
-        // For simplicity, list them as they appear in the array or try to sort by Y.
-        const sortedNodes = [...nodes].sort((a, b) => a.position.y - b.position.y);
-        
-        const bodyData = sortedNodes.map(node => {
-            const detail = processData.stepDetails[node.id] || {};
-            return [
-                node.data.label,
-                detail.who || '',
-                detail.when || '',
-                detail.how || ''
-            ];
-        });
-
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Bước (Task)', 'Ai (Who)', 'Khi nào (When)', 'Cách thức (How)']],
-            body: bodyData,
-            theme: 'grid',
-            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-            styles: { fontSize: 9, cellPadding: 3 }
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-    }
-
-    // 6. KPIs
-    if (processData.kpis.length > 0) {
-        addSectionHeader('4. Chỉ số đo lường (KPIs)');
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Chỉ số', 'Mục tiêu']],
-            body: processData.kpis.map(k => [k.indicator, k.target]),
-            theme: 'grid',
-            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-    }
-
-    // 7. Records
-    if (processData.records.length > 0) {
-        addSectionHeader('5. Hồ sơ & Biểu mẫu');
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Tên hồ sơ/biểu mẫu', 'Mã số', 'Link']],
-            body: processData.records.map(r => [r.name, r.code, r.link || '']),
-            theme: 'grid',
-            headStyles: { fillColor: [241, 245, 249], textColor: 20 },
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-    }
-
-    // Save
-    doc.save(`${processData.controlInfo.documentCode}_${processData.name}.pdf`);
   };
 
   const handleSave = () => {
@@ -572,8 +728,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleExportPDF} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-sm">
-                <FileText size={16} /> Xuất PDF
+            <button onClick={handleExportDocx} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-sm">
+                <FileText size={16} /> Xuất Docx
             </button>
             <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
               <Save size={18} /> Lưu Quy trình
@@ -667,6 +823,53 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       onChange={(val) => setProcessData({...processData, controlInfo: {...processData.controlInfo, approver: val}})}
                     />
                   </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Bản scan đã ban hành (PDF)</label>
+                    {processData.controlInfo.scanLink ? (
+                        <div className="flex items-center gap-2 bg-slate-50 p-3 rounded border border-slate-200">
+                            <FileType size={20} className="text-red-500"/>
+                            <a href={processData.controlInfo.scanLink} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex-1">
+                                Xem bản scan
+                            </a>
+                            <button 
+                                onClick={() => setProcessData({
+                                    ...processData, 
+                                    controlInfo: {
+                                        ...processData.controlInfo,
+                                        scanFileId: undefined,
+                                        scanLink: undefined,
+                                        scanMimeType: undefined
+                                    }
+                                })}
+                                className="text-slate-400 hover:text-red-500"
+                            >
+                                <X size={16}/>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <input 
+                                type="file" 
+                                id="scan-upload"
+                                accept="application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                        handleUploadScan(e.target.files[0]);
+                                    }
+                                }}
+                            />
+                            <label 
+                                htmlFor="scan-upload"
+                                className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-blue-400 transition-colors text-slate-500"
+                            >
+                                <Upload size={20}/>
+                                <span className="text-sm font-medium">Tải lên bản scan (PDF)</span>
+                            </label>
+                        </div>
+                    )}
                 </div>
               </div>
             </div>

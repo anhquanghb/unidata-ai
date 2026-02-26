@@ -91,6 +91,9 @@ export interface IsoControlInfo {
   drafter: string;
   reviewer: string;
   approver: string;
+  scanFileId?: string;
+  scanLink?: string;
+  scanMimeType?: string;
 }
 
 export interface IsoPurposeScope {
