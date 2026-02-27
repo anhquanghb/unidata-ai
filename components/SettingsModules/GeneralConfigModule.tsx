@@ -200,6 +200,31 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
       setTempYearConfig({ ...tempYearConfig, workingSchedule: newSchedule });
   };
 
+  const toggleSessionOff = (index: number, session: 'morning' | 'afternoon', isOff: boolean) => {
+      if (!tempYearConfig) return;
+      const newSchedule = [...tempYearConfig.workingSchedule];
+      // Deep copy the specific day and session to avoid mutation issues
+      newSchedule[index] = { 
+          ...newSchedule[index], 
+          [session]: { ...newSchedule[index][session] } 
+      };
+
+      if (isOff) {
+          newSchedule[index][session].start = '';
+          newSchedule[index][session].end = '';
+      } else {
+          // Set defaults if turning on
+          if (session === 'morning') {
+              newSchedule[index].morning.start = '07:00';
+              newSchedule[index].morning.end = '11:30';
+          } else {
+              newSchedule[index].afternoon.start = '13:00';
+              newSchedule[index].afternoon.end = '17:00';
+          }
+      }
+      setTempYearConfig({ ...tempYearConfig, workingSchedule: newSchedule });
+  };
+
   const addTempHoliday = () => {
       if (!tempYearConfig) return;
       const newHoliday: Holiday = { id: uuidv4(), name: 'Kỳ nghỉ mới', startDate: '', endDate: '' };
@@ -519,11 +544,11 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                    </td>
                                    <td className="px-4 py-3 text-right">
                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => startEditingConfig(year)} className="text-slate-400 hover:text-blue-600" title={isUnitManager || year.isLocked ? "Xem cấu hình" : "Cấu hình ngày làm việc"}>
+                                                {isUnitManager || year.isLocked ? <Eye size={16}/> : <Calendar size={16}/>}
+                                            </button>
                                             {!year.isLocked && !isUnitManager && (
-                                                <>
-                                                    <button onClick={() => startEditingConfig(year)} className="text-slate-400 hover:text-blue-600" title="Cấu hình ngày làm việc"><Calendar size={16}/></button>
-                                                    <button onClick={() => startEditingYear(year)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
-                                                </>
+                                                <button onClick={() => startEditingYear(year)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
                                             )}
                                             {!isUnitManager && (
                                                 <button onClick={() => onDeleteAcademicYear(year.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
@@ -539,50 +564,78 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                                <div>
                                                    <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                                                        <Clock size={16} className="text-blue-600"/> Kế hoạch làm việc trong tuần
+                                                       {(isUnitManager || year.isLocked) && <span className="text-xs font-normal text-slate-500 italic">(Chỉ xem)</span>}
                                                    </h4>
                                                    <div className="overflow-x-auto">
                                                        <table className="w-full text-xs border border-slate-300 bg-white rounded">
                                                            <thead className="bg-slate-100 font-semibold text-slate-600">
                                                                <tr>
-                                                                   <th className="p-2 border-r">Thứ</th>
-                                                                   <th className="p-2 border-r text-center">Nghỉ</th>
-                                                                   <th className="p-2 border-r text-center" colSpan={2}>Sáng</th>
-                                                                   <th className="p-2 text-center" colSpan={2}>Chiều</th>
+                                                                   <th className="p-2 border-r" rowSpan={2}>Thứ</th>
+                                                                   <th className="p-2 border-r text-center" rowSpan={2}>Cả ngày</th>
+                                                                   <th className="p-2 border-r text-center" colSpan={3}>Sáng</th>
+                                                                   <th className="p-2 text-center" colSpan={3}>Chiều</th>
                                                                </tr>
                                                                <tr>
-                                                                   <th className="p-2 border-r"></th>
-                                                                   <th className="p-2 border-r"></th>
+                                                                   <th className="p-1 border-r text-center w-10">Nghỉ</th>
                                                                    <th className="p-1 border-r text-center w-20">Bắt đầu</th>
                                                                    <th className="p-1 border-r text-center w-20">Kết thúc</th>
+                                                                   <th className="p-1 border-r text-center w-10">Nghỉ</th>
                                                                    <th className="p-1 border-r text-center w-20">Bắt đầu</th>
                                                                    <th className="p-1 text-center w-20">Kết thúc</th>
                                                                </tr>
                                                            </thead>
                                                            <tbody>
-                                                               {tempYearConfig.workingSchedule.map((day, idx) => (
-                                                                   <tr key={day.day} className="border-t hover:bg-slate-50">
-                                                                       <td className="p-2 font-medium border-r">{day.day}</td>
-                                                                       <td className="p-2 text-center border-r">
-                                                                           <input 
-                                                                               type="checkbox" 
-                                                                               checked={day.isOff} 
-                                                                               onChange={(e) => updateTempSchedule(idx, 'isOff', e.target.checked)}
-                                                                           />
-                                                                       </td>
-                                                                       <td className="p-1 border-r">
-                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.start} onChange={(e) => updateTempSchedule(idx, 'morningStart', e.target.value)} disabled={day.isOff}/>
-                                                                       </td>
-                                                                       <td className="p-1 border-r">
-                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.end} onChange={(e) => updateTempSchedule(idx, 'morningEnd', e.target.value)} disabled={day.isOff}/>
-                                                                       </td>
-                                                                       <td className="p-1 border-r">
-                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.start} onChange={(e) => updateTempSchedule(idx, 'afternoonStart', e.target.value)} disabled={day.isOff}/>
-                                                                       </td>
-                                                                       <td className="p-1">
-                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.end} onChange={(e) => updateTempSchedule(idx, 'afternoonEnd', e.target.value)} disabled={day.isOff}/>
-                                                                       </td>
-                                                                   </tr>
-                                                               ))}
+                                                               {tempYearConfig.workingSchedule.map((day, idx) => {
+                                                                   const isMorningOff = !day.morning.start && !day.morning.end;
+                                                                   const isAfternoonOff = !day.afternoon.start && !day.afternoon.end;
+                                                                   const readOnly = isUnitManager || year.isLocked;
+
+                                                                   return (
+                                                                       <tr key={day.day} className="border-t hover:bg-slate-50">
+                                                                           <td className="p-2 font-medium border-r">{day.day}</td>
+                                                                           <td className="p-2 text-center border-r">
+                                                                               <input 
+                                                                                   type="checkbox" 
+                                                                                   checked={day.isOff} 
+                                                                                   onChange={(e) => updateTempSchedule(idx, 'isOff', e.target.checked)}
+                                                                                   disabled={readOnly}
+                                                                               />
+                                                                           </td>
+                                                                           
+                                                                           {/* Morning */}
+                                                                           <td className="p-1 border-r text-center">
+                                                                               <input 
+                                                                                   type="checkbox"
+                                                                                   checked={isMorningOff}
+                                                                                   onChange={(e) => toggleSessionOff(idx, 'morning', e.target.checked)}
+                                                                                   disabled={day.isOff || readOnly}
+                                                                               />
+                                                                           </td>
+                                                                           <td className="p-1 border-r">
+                                                                               <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.start} onChange={(e) => updateTempSchedule(idx, 'morningStart', e.target.value)} disabled={day.isOff || isMorningOff || readOnly}/>
+                                                                           </td>
+                                                                           <td className="p-1 border-r">
+                                                                               <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.end} onChange={(e) => updateTempSchedule(idx, 'morningEnd', e.target.value)} disabled={day.isOff || isMorningOff || readOnly}/>
+                                                                           </td>
+
+                                                                           {/* Afternoon */}
+                                                                           <td className="p-1 border-r text-center">
+                                                                               <input 
+                                                                                   type="checkbox"
+                                                                                   checked={isAfternoonOff}
+                                                                                   onChange={(e) => toggleSessionOff(idx, 'afternoon', e.target.checked)}
+                                                                                   disabled={day.isOff || readOnly}
+                                                                               />
+                                                                           </td>
+                                                                           <td className="p-1 border-r">
+                                                                               <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.start} onChange={(e) => updateTempSchedule(idx, 'afternoonStart', e.target.value)} disabled={day.isOff || isAfternoonOff || readOnly}/>
+                                                                           </td>
+                                                                           <td className="p-1">
+                                                                               <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.end} onChange={(e) => updateTempSchedule(idx, 'afternoonEnd', e.target.value)} disabled={day.isOff || isAfternoonOff || readOnly}/>
+                                                                           </td>
+                                                                       </tr>
+                                                                   );
+                                                               })}
                                                            </tbody>
                                                        </table>
                                                    </div>
@@ -594,39 +647,50 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                                                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                                                            <Calendar size={16} className="text-red-500"/> Kỳ nghỉ lễ
                                                        </h4>
-                                                       <button onClick={addTempHoliday} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 font-medium">+ Thêm kỳ nghỉ</button>
+                                                       {!(isUnitManager || year.isLocked) && (
+                                                            <button onClick={addTempHoliday} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 font-medium">+ Thêm kỳ nghỉ</button>
+                                                       )}
                                                    </div>
                                                    <div className="space-y-2">
                                                        {tempYearConfig.holidays.map((h) => (
                                                            <div key={h.id} className="flex gap-2 items-center">
                                                                <input 
-                                                                   className="flex-1 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   className="flex-1 p-1.5 border border-slate-300 rounded text-xs disabled:bg-slate-100" 
                                                                    placeholder="Tên kỳ nghỉ"
                                                                    value={h.name}
                                                                    onChange={(e) => updateTempHoliday(h.id, 'name', e.target.value)}
+                                                                   disabled={isUnitManager || year.isLocked}
                                                                />
                                                                <input 
                                                                    type="date"
-                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs disabled:bg-slate-100" 
                                                                    value={h.startDate}
                                                                    onChange={(e) => updateTempHoliday(h.id, 'startDate', e.target.value)}
+                                                                   disabled={isUnitManager || year.isLocked}
                                                                />
                                                                <span className="text-slate-400">-</span>
                                                                <input 
                                                                    type="date"
-                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs disabled:bg-slate-100" 
                                                                    value={h.endDate}
                                                                    onChange={(e) => updateTempHoliday(h.id, 'endDate', e.target.value)}
+                                                                   disabled={isUnitManager || year.isLocked}
                                                                />
-                                                               <button onClick={() => removeTempHoliday(h.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
+                                                               {!(isUnitManager || year.isLocked) && (
+                                                                    <button onClick={() => removeTempHoliday(h.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
+                                                               )}
                                                            </div>
                                                        ))}
                                                    </div>
                                                </div>
 
                                                <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-                                                   <button onClick={() => setEditingYearConfigId(null)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-200 rounded text-xs font-bold">Hủy bỏ</button>
-                                                   <button onClick={saveConfig} className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-bold">Lưu Cấu hình</button>
+                                                   <button onClick={() => setEditingYearConfigId(null)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-200 rounded text-xs font-bold">
+                                                        {(isUnitManager || year.isLocked) ? 'Đóng' : 'Hủy bỏ'}
+                                                   </button>
+                                                   {!(isUnitManager || year.isLocked) && (
+                                                       <button onClick={saveConfig} className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-bold">Lưu Cấu hình</button>
+                                                   )}
                                                </div>
                                            </div>
                                        </td>
