@@ -1064,33 +1064,223 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Who (Ai thực hiện?)</label>
-                        <input 
-                          value={processData.stepDetails[selectedNodeId].who}
-                          onChange={e => setProcessData(prev => prev ? ({
-                            ...prev,
-                            stepDetails: {
-                              ...prev.stepDetails,
-                              [selectedNodeId]: { ...prev.stepDetails[selectedNodeId], who: e.target.value }
+                        <div className="space-y-2">
+                          {/* Level 1: Unit Type */}
+                          <select
+                            className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                            value={processData.stepDetails[selectedNodeId].whoConfig?.unitType || ''}
+                            onChange={(e) => {
+                                const newType = e.target.value as any;
+                                setProcessData(prev => {
+                                    if (!prev) return null;
+                                    const currentDetail = prev.stepDetails[selectedNodeId];
+                                    const newConfig = { ...currentDetail.whoConfig, unitType: newType, unitId: undefined, personId: undefined };
+                                    
+                                    // Generate display string
+                                    let displayString = '';
+                                    if (newType === 'school') displayString = 'Cấp Trường';
+                                    else if (newType === 'faculty') displayString = 'Cấp Khoa/Phòng';
+                                    else if (newType === 'department') displayString = 'Cấp Bộ môn/Tổ';
+
+                                    return {
+                                        ...prev,
+                                        stepDetails: {
+                                            ...prev.stepDetails,
+                                            [selectedNodeId]: { 
+                                                ...currentDetail, 
+                                                whoConfig: newConfig,
+                                                who: displayString
+                                            }
+                                        }
+                                    };
+                                });
+                            }}
+                          >
+                            <option value="">-- Chọn Cấp Đơn vị --</option>
+                            <option value="school">Cấp Trường</option>
+                            <option value="faculty">Cấp Khoa/Phòng ban</option>
+                            <option value="department">Cấp Bộ môn/Tổ</option>
+                          </select>
+
+                          {/* Level 2: Specific Unit */}
+                          <select
+                            className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100"
+                            value={processData.stepDetails[selectedNodeId].whoConfig?.unitId || ''}
+                            disabled={!processData.stepDetails[selectedNodeId].whoConfig?.unitType}
+                            onChange={(e) => {
+                                const newUnitId = e.target.value;
+                                setProcessData(prev => {
+                                    if (!prev) return null;
+                                    const currentDetail = prev.stepDetails[selectedNodeId];
+                                    const newConfig = { ...currentDetail.whoConfig, unitId: newUnitId, personId: undefined };
+                                    
+                                    // Generate display string
+                                    let displayString = currentDetail.who;
+                                    const unit = units.find(u => u.unit_id === newUnitId);
+                                    if (unit) {
+                                        displayString = unit.unit_name;
+                                    }
+
+                                    return {
+                                        ...prev,
+                                        stepDetails: {
+                                            ...prev.stepDetails,
+                                            [selectedNodeId]: { 
+                                                ...currentDetail, 
+                                                whoConfig: newConfig,
+                                                who: displayString
+                                            }
+                                        }
+                                    };
+                                });
+                            }}
+                          >
+                            <option value="">-- Chọn Đơn vị cụ thể (Nếu cần) --</option>
+                            {units
+                                .filter(u => u.unit_type === processData.stepDetails[selectedNodeId].whoConfig?.unitType)
+                                .map(u => (
+                                    <option key={u.unit_id} value={u.unit_id}>{u.unit_name}</option>
+                                ))
                             }
-                          }) : null)}
-                          className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                          placeholder="Ví dụ: Trưởng phòng nhân sự"
-                        />
+                          </select>
+
+                          {/* Level 3: Specific Person */}
+                          <select
+                            className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100"
+                            value={processData.stepDetails[selectedNodeId].whoConfig?.personId || ''}
+                            disabled={!processData.stepDetails[selectedNodeId].whoConfig?.unitId}
+                            onChange={(e) => {
+                                const newPersonId = e.target.value;
+                                setProcessData(prev => {
+                                    if (!prev) return null;
+                                    const currentDetail = prev.stepDetails[selectedNodeId];
+                                    const newConfig = { ...currentDetail.whoConfig, personId: newPersonId };
+                                    
+                                    // Generate display string
+                                    let displayString = currentDetail.who;
+                                    const person = humanResources.find(p => p.id === newPersonId);
+                                    const unit = units.find(u => u.unit_id === currentDetail.whoConfig?.unitId);
+                                    
+                                    if (person) {
+                                        // Try to find name from Faculty profile if linked
+                                        let personName = person.id; // Fallback
+                                        const facultyProfile = faculties.find(f => f.id === person.facultyId);
+                                        if (facultyProfile) personName = facultyProfile.name.vi;
+                                        
+                                        displayString = `${personName} (${unit?.unit_name})`;
+                                    } else if (unit) {
+                                        displayString = unit.unit_name; // Revert to unit name if person deselected
+                                    }
+
+                                    return {
+                                        ...prev,
+                                        stepDetails: {
+                                            ...prev.stepDetails,
+                                            [selectedNodeId]: { 
+                                                ...currentDetail, 
+                                                whoConfig: newConfig,
+                                                who: displayString
+                                            }
+                                        }
+                                    };
+                                });
+                            }}
+                          >
+                            <option value="">-- Chọn Cá nhân cụ thể (Nếu cần) --</option>
+                            {humanResources
+                                .filter(p => p.unitId === processData.stepDetails[selectedNodeId].whoConfig?.unitId)
+                                .map(p => {
+                                    const facultyProfile = faculties.find(f => f.id === p.facultyId);
+                                    const name = facultyProfile ? facultyProfile.name.vi : p.id;
+                                    return <option key={p.id} value={p.id}>{name}</option>;
+                                })
+                            }
+                          </select>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">When (Khi nào/Bao lâu?)</label>
-                        <input 
-                          value={processData.stepDetails[selectedNodeId].when}
-                          onChange={e => setProcessData(prev => prev ? ({
-                            ...prev,
-                            stepDetails: {
-                              ...prev.stepDetails,
-                              [selectedNodeId]: { ...prev.stepDetails[selectedNodeId], when: e.target.value }
-                            }
-                          }) : null)}
-                          className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                          placeholder="Ví dụ: Trong vòng 24h"
-                        />
+                        <div className="flex gap-2">
+                            <input 
+                              type="number"
+                              min="0"
+                              value={processData.stepDetails[selectedNodeId].whenConfig?.value || ''}
+                              onChange={e => {
+                                  const val = parseInt(e.target.value);
+                                  setProcessData(prev => {
+                                    if (!prev) return null;
+                                    const currentDetail = prev.stepDetails[selectedNodeId];
+                                    const currentUnit = currentDetail.whenConfig?.unit || 'working_hours';
+                                    const newConfig = { ...currentDetail.whenConfig, value: val, unit: currentUnit };
+                                    
+                                    // Generate display string
+                                    const unitLabels: Record<string, string> = {
+                                        'working_hours': 'giờ làm việc',
+                                        'working_days': 'ngày làm việc',
+                                        'weeks': 'tuần',
+                                        'months': 'tháng',
+                                        'years': 'năm'
+                                    };
+                                    const displayString = `${val} ${unitLabels[currentUnit]}`;
+
+                                    return {
+                                        ...prev,
+                                        stepDetails: {
+                                            ...prev.stepDetails,
+                                            [selectedNodeId]: { 
+                                                ...currentDetail, 
+                                                whenConfig: newConfig,
+                                                when: displayString
+                                            }
+                                        }
+                                    };
+                                  });
+                              }}
+                              className="w-24 p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                              placeholder="Giá trị"
+                            />
+                            <select
+                                className="flex-1 p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                                value={processData.stepDetails[selectedNodeId].whenConfig?.unit || 'working_hours'}
+                                onChange={e => {
+                                    const newUnit = e.target.value as any;
+                                    setProcessData(prev => {
+                                        if (!prev) return null;
+                                        const currentDetail = prev.stepDetails[selectedNodeId];
+                                        const currentVal = currentDetail.whenConfig?.value || 0;
+                                        const newConfig = { ...currentDetail.whenConfig, value: currentVal, unit: newUnit };
+                                        
+                                        // Generate display string
+                                        const unitLabels: Record<string, string> = {
+                                            'working_hours': 'giờ làm việc',
+                                            'working_days': 'ngày làm việc',
+                                            'weeks': 'tuần',
+                                            'months': 'tháng',
+                                            'years': 'năm'
+                                        };
+                                        const displayString = `${currentVal} ${unitLabels[newUnit]}`;
+
+                                        return {
+                                            ...prev,
+                                            stepDetails: {
+                                                ...prev.stepDetails,
+                                                [selectedNodeId]: { 
+                                                    ...currentDetail, 
+                                                    whenConfig: newConfig,
+                                                    when: displayString
+                                                }
+                                            }
+                                        };
+                                    });
+                                }}
+                            >
+                                <option value="working_hours">Giờ làm việc</option>
+                                <option value="working_days">Ngày làm việc</option>
+                                <option value="weeks">Tuần</option>
+                                <option value="months">Tháng</option>
+                                <option value="years">Năm</option>
+                            </select>
+                        </div>
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">How (Thực hiện như thế nào/Công cụ gì?)</label>
