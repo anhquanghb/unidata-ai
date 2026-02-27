@@ -3,7 +3,7 @@ export interface Unit {
   unit_id: string;
   unit_name: string;
   unit_code: string;
-  unit_type: 'school' | 'faculty' | 'department';
+  unit_type: 'school' | 'faculty' | 'department' | 'external';
   unit_parentId?: string;
   unit_publicDriveId?: string; // ID thư mục UniData_Public thực tế của đơn vị này
   isSystem?: boolean; // System unit, cannot be deleted

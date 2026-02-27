@@ -236,7 +236,7 @@ const App: React.FC = () => {
   useEffect(() => {
       const systemUnits: Unit[] = [
           { unit_id: 'unit_school_mgmt', unit_name: 'Quản lý cấp trường', unit_code: 'SCHOOL_MGMT', unit_type: 'school', isSystem: true },
-          { unit_id: 'unit_external', unit_name: 'Đối tượng ngoài', unit_code: 'EXTERNAL', unit_type: 'department', isSystem: true }
+          { unit_id: 'unit_external', unit_name: 'Đối tượng ngoài', unit_code: 'EXTERNAL', unit_type: 'external', isSystem: true }
       ];
 
       // Use functional update to safely check and add missing units without race conditions

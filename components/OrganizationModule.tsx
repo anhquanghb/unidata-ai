@@ -183,7 +183,38 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
   // --- Personnel Actions ---
   const handleAddPersonnel = () => {
-    if (!selectedUnitId || !selectedPersonId) return;
+    if (!selectedUnitId) return;
+    
+    const targetUnit = units.find(u => u.unit_id === selectedUnitId);
+    if (!targetUnit) return;
+
+    // CASE 1: External Unit - Add "Object"
+    if (targetUnit.unit_type === 'external') {
+        if (!customPositionName.trim()) return;
+
+        const newRecord: HumanResourceRecord = {
+            id: uuidv4(),
+            unitId: selectedUnitId,
+            facultyId: `EXT-${uuidv4()}`, // Dummy ID since no real faculty profile exists
+            role: 'Đại diện',
+            positionLevel: 'member',
+            customPositionName: customPositionName, // Store the object name here
+            assignedDate: new Date().toISOString(),
+            startDate: joinDate,
+            endDate: undefined
+        };
+
+        onUpdateHumanResources([...humanResources, newRecord]);
+        
+        // Reset UI
+        setIsAddingPerson(false);
+        setCustomPositionName('');
+        setJoinDate(new Date().toISOString().split('T')[0]);
+        return;
+    }
+
+    // CASE 2: Internal Unit - Add "Personnel"
+    if (!selectedPersonId) return;
     
     let updatedHR = [...humanResources];
 
@@ -295,7 +326,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
           
           {unit.unit_id === 'unit_school_mgmt' ? (
               <Shield size={16} className="mr-2 text-indigo-700" />
-          ) : unit.unit_id === 'unit_external' ? (
+          ) : unit.unit_type === 'external' ? (
               <Globe size={16} className="mr-2 text-slate-500" />
           ) : (
               <Building size={16} className={`mr-2 ${unit.unit_type === 'school' ? 'text-indigo-600' : unit.unit_type === 'faculty' ? 'text-blue-600' : 'text-slate-500'}`} />
@@ -419,17 +450,18 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
                <div className="flex justify-between items-center mb-4">
-                 <h4 className="font-bold text-slate-700">Danh sách Nhân sự ({selectedUnitPersonnel.length})</h4>
+                 <h4 className="font-bold text-slate-700">Danh sách {selectedUnit.unit_type === 'external' ? 'Đối tượng' : 'Nhân sự'} ({selectedUnitPersonnel.length})</h4>
                  <button 
                     onClick={() => {
                         setIsAddingPerson(true);
                         setJoinDate(new Date().toISOString().split('T')[0]);
                         setPersonSearchTerm('');
                         setSelectedPersonId(null);
+                        setCustomPositionName('');
                     }}
                     className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700"
                  >
-                    <Plus size={14}/> Thêm Nhân sự
+                    <Plus size={14}/> {selectedUnit.unit_type === 'external' ? 'Thêm Đối tượng' : 'Thêm Nhân sự'}
                  </button>
                </div>
                
@@ -437,7 +469,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                  <table className="w-full text-sm text-left">
                     <thead className="bg-slate-50 font-semibold text-slate-600 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3">Họ và tên</th>
+                        <th className="px-4 py-3">{selectedUnit.unit_type === 'external' ? 'Tên Đối tượng' : 'Họ và tên'}</th>
                         <th className="px-4 py-3">Vai trò</th>
                         <th className="px-4 py-3">Ngày bắt đầu</th>
                         <th className="px-4 py-3 text-right">Thao tác</th>
@@ -446,10 +478,15 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                     <tbody className="divide-y divide-slate-100">
                       {selectedUnitPersonnel.map(hr => {
                         const faculty = faculties.find(f => f.id === hr.facultyId);
+                        // For external units, use customPositionName as the name if faculty not found (or special ID)
+                        const displayName = selectedUnit.unit_type === 'external' 
+                            ? (hr.customPositionName || faculty?.name.vi || 'Đối tượng chưa đặt tên')
+                            : (faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>);
+
                         return (
                           <tr key={hr.id} className="hover:bg-slate-50">
                              <td className="px-4 py-3 font-medium text-slate-800">
-                               {faculty ? faculty.name.vi : <span className="text-red-400 italic">Nhân sự không tồn tại</span>}
+                               {displayName}
                              </td>
                              <td className="px-4 py-3" onDoubleClick={() => handleStartEditRole(hr)}>
                                 {editingRoleHrId === hr.id ? (
@@ -554,6 +591,7 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
                        <option value="school">Trường (School)</option>
                        <option value="faculty">Khoa/Viện (Faculty)</option>
                        <option value="department">Bộ môn/Phòng ban (Department)</option>
+                       <option value="external">Đối tượng ngoài (External)</option>
                     </select>
                  </div>
                  <div>
@@ -604,131 +642,170 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
            {/* ... Personnel Modal content (same as before) ... */}
            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
-              <h3 className="font-bold text-lg mb-4">Thêm Nhân sự vào {selectedUnit?.unit_name}</h3>
+              <h3 className="font-bold text-lg mb-4">
+                  {selectedUnit?.unit_type === 'external' ? `Thêm Đối tượng vào ${selectedUnit.unit_name}` : `Thêm Nhân sự vào ${selectedUnit?.unit_name}`}
+              </h3>
               
               <div className="space-y-4">
-                 {/* 1. Search */}
-                 <div>
-                     <label className="block text-xs font-bold text-slate-500 mb-1">Tìm kiếm nhân sự</label>
-                     <div className="relative">
-                         <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                         <input 
-                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Nhập tên hoặc email..."
-                            value={personSearchTerm}
-                            onChange={(e) => { setPersonSearchTerm(e.target.value); setSelectedPersonId(null); }}
-                         />
+                 {/* CASE 1: EXTERNAL UNIT - Simple Name Input */}
+                 {selectedUnit?.unit_type === 'external' ? (
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Tên Đối tượng (Đại diện)</label>
+                        <input 
+                            className="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Ví dụ: Sinh viên, Phụ huynh, Doanh nghiệp..."
+                            value={customPositionName}
+                            onChange={(e) => setCustomPositionName(e.target.value)}
+                            autoFocus
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Đối tượng này sẽ được dùng làm đại diện trong quy trình ISO.</p>
+                        
+                        <div className="mt-4">
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Ngày thêm</label>
+                            <div className="relative">
+                                <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                <input 
+                                type="date" 
+                                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                value={joinDate}
+                                onChange={(e) => setJoinDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
                      </div>
-                     
-                     {/* Search Results */}
-                     {personSearchTerm && !selectedPersonId && (
-                         <div className="mt-1 border border-slate-200 rounded-lg max-h-40 overflow-y-auto bg-white shadow-sm">
-                             {filteredCandidates.map(f => {
-                                 const currentUnit = getFacultyCurrentUnit(f.id);
-                                 return (
-                                     <div 
-                                        key={f.id} 
-                                        className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm"
-                                        onClick={() => setSelectedPersonId(f.id)}
-                                     >
-                                         <div>
-                                             <div className="font-medium text-slate-800">{f.name.vi}</div>
-                                             <div className="text-xs text-slate-500">{f.email}</div>
-                                         </div>
-                                         {currentUnit && (
-                                             <div className="text-xs px-2 py-1 bg-slate-100 rounded text-slate-600 border border-slate-200">
-                                                 {currentUnit.unit_name}
-                                             </div>
-                                         )}
-                                     </div>
-                                 );
-                             })}
-                             {filteredCandidates.length === 0 && (
-                                 <div className="p-3 text-center text-xs text-slate-400">Không tìm thấy nhân sự.</div>
-                             )}
-                         </div>
-                     )}
-                 </div>
+                 ) : (
+                     /* CASE 2: INTERNAL UNIT - Search & Select */
+                     <>
+                        {/* 1. Search */}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Tìm kiếm nhân sự</label>
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                <input 
+                                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="Nhập tên hoặc email..."
+                                    value={personSearchTerm}
+                                    onChange={(e) => { setPersonSearchTerm(e.target.value); setSelectedPersonId(null); }}
+                                />
+                            </div>
+                            
+                            {/* Search Results */}
+                            {personSearchTerm && !selectedPersonId && (
+                                <div className="mt-1 border border-slate-200 rounded-lg max-h-40 overflow-y-auto bg-white shadow-sm">
+                                    {filteredCandidates.map(f => {
+                                        const currentUnit = getFacultyCurrentUnit(f.id);
+                                        return (
+                                            <div 
+                                                key={f.id} 
+                                                className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm"
+                                                onClick={() => setSelectedPersonId(f.id)}
+                                            >
+                                                <div>
+                                                    <div className="font-medium text-slate-800">{f.name.vi}</div>
+                                                    <div className="text-xs text-slate-500">{f.email}</div>
+                                                </div>
+                                                {currentUnit && (
+                                                    <div className="text-xs px-2 py-1 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                                                        {currentUnit.unit_name}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {filteredCandidates.length === 0 && (
+                                        <div className="p-3 text-center text-xs text-slate-400">Không tìm thấy nhân sự.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
-                 {/* 2. Selected Person Details & Config */}
-                 {selectedPersonId && (
-                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                         <div className="flex items-center gap-3 mb-4">
-                             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
-                                 {faculties.find(f => f.id === selectedPersonId)?.name.vi.charAt(0)}
-                             </div>
-                             <div>
-                                 <div className="font-bold text-slate-800">{faculties.find(f => f.id === selectedPersonId)?.name.vi}</div>
-                                 <div className="text-xs text-slate-500">{faculties.find(f => f.id === selectedPersonId)?.email}</div>
-                             </div>
-                         </div>
+                        {/* 2. Selected Person Details & Config */}
+                        {selectedPersonId && (
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
+                                        {faculties.find(f => f.id === selectedPersonId)?.name.vi.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800">{faculties.find(f => f.id === selectedPersonId)?.name.vi}</div>
+                                        <div className="text-xs text-slate-500">{faculties.find(f => f.id === selectedPersonId)?.email}</div>
+                                    </div>
+                                </div>
 
-                         <div className="grid grid-cols-2 gap-4">
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-500 mb-1">Cấp bậc / Vai trò</label>
-                                 <select 
-                                     className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
-                                     value={selectedPositionLevel}
-                                     onChange={(e) => setSelectedPositionLevel(e.target.value as any)}
-                                 >
-                                     <option value="head">Trưởng (Head)</option>
-                                     <option value="deputy">Phó (Deputy)</option>
-                                     <option value="member">Thành viên (Member)</option>
-                                 </select>
-                             </div>
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-500 mb-1">Tên chức danh (Tùy chỉnh)</label>
-                                 <input 
-                                     className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
-                                     placeholder={selectedPositionLevel === 'head' ? 'Ví dụ: Trưởng khoa' : selectedPositionLevel === 'deputy' ? 'Ví dụ: Phó khoa' : 'Ví dụ: Giảng viên'}
-                                     value={customPositionName}
-                                     onChange={(e) => setCustomPositionName(e.target.value)}
-                                 />
-                             </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Cấp bậc / Vai trò</label>
+                                        <select 
+                                            className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                            value={selectedPositionLevel}
+                                            onChange={(e) => setSelectedPositionLevel(e.target.value as any)}
+                                        >
+                                            <option value="head">Trưởng (Head)</option>
+                                            <option value="deputy">Phó (Deputy)</option>
+                                            <option value="member">Thành viên (Member)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Tên chức danh (Tùy chỉnh)</label>
+                                        <input 
+                                            className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                            placeholder={selectedPositionLevel === 'head' ? 'Ví dụ: Trưởng khoa' : selectedPositionLevel === 'deputy' ? 'Ví dụ: Phó khoa' : 'Ví dụ: Giảng viên'}
+                                            value={customPositionName}
+                                            onChange={(e) => setCustomPositionName(e.target.value)}
+                                        />
+                                    </div>
 
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-500 mb-1">Ngày bắt đầu</label>
-                                 <div className="relative">
-                                     <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                     <input 
-                                        type="date" 
-                                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                                        value={joinDate}
-                                        onChange={(e) => setJoinDate(e.target.value)}
-                                     />
-                                 </div>
-                             </div>
-                             
-                             {/* Transfer Option */}
-                             {getFacultyCurrentUnit(selectedPersonId) && getFacultyCurrentUnit(selectedPersonId)?.unit_id !== selectedUnitId && (
-                                 <div className="col-span-2 pt-2 border-t border-slate-200 mt-2">
-                                     <div className="flex items-start gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                                         <div className="mt-0.5"><ArrowRight size={16} className="text-amber-600"/></div>
-                                         <div className="flex-1">
-                                             <p className="text-xs text-amber-800 mb-1">
-                                                 Nhân sự này đang thuộc: <strong>{getFacultyCurrentUnit(selectedPersonId)?.unit_name}</strong>
-                                             </p>
-                                             <label className="flex items-center cursor-pointer">
-                                                 <input 
-                                                    type="checkbox" 
-                                                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
-                                                    checked={isTransfer}
-                                                    onChange={(e) => setIsTransfer(e.target.checked)}
-                                                 />
-                                                 <span className="ml-2 text-sm font-medium text-slate-700">Chuyển công tác (Rời đơn vị cũ)</span>
-                                             </label>
-                                         </div>
-                                     </div>
-                                 </div>
-                             )}
-                         </div>
-                     </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Ngày bắt đầu</label>
+                                        <div className="relative">
+                                            <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                            <input 
+                                                type="date" 
+                                                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                                                value={joinDate}
+                                                onChange={(e) => setJoinDate(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Transfer Option */}
+                                    {getFacultyCurrentUnit(selectedPersonId) && getFacultyCurrentUnit(selectedPersonId)?.unit_id !== selectedUnitId && (
+                                        <div className="col-span-2 pt-2 border-t border-slate-200 mt-2">
+                                            <div className="flex items-start gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                                <div className="mt-0.5"><ArrowRight size={16} className="text-amber-600"/></div>
+                                                <div className="flex-1">
+                                                    <p className="text-xs text-amber-800 mb-1">
+                                                        Nhân sự này đang thuộc: <strong>{getFacultyCurrentUnit(selectedPersonId)?.unit_name}</strong>
+                                                    </p>
+                                                    <label className="flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                                                            checked={isTransfer}
+                                                            onChange={(e) => setIsTransfer(e.target.checked)}
+                                                        />
+                                                        <span className="ml-2 text-sm font-medium text-slate-700">Chuyển công tác (Rời đơn vị cũ)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                     </>
                  )}
               </div>
 
               <div className="flex justify-end gap-2 mt-6">
                  <button onClick={() => setIsAddingPerson(false)} className="px-4 py-2 text-slate-600 font-bold text-sm bg-slate-100 hover:bg-slate-200 rounded-lg">Hủy</button>
-                 <button onClick={handleAddPersonnel} disabled={!selectedPersonId} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:bg-slate-300 disabled:cursor-not-allowed">Xác nhận Thêm</button>
+                 <button 
+                    onClick={handleAddPersonnel} 
+                    disabled={selectedUnit?.unit_type === 'external' ? !customPositionName.trim() : !selectedPersonId} 
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:bg-slate-300 disabled:cursor-not-allowed"
+                 >
+                    {selectedUnit?.unit_type === 'external' ? 'Thêm Đối tượng' : 'Xác nhận Thêm'}
+                 </button>
               </div>
            </div>
         </div>

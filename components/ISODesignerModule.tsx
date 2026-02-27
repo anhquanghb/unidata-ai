@@ -97,6 +97,48 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // Resizable Panels State
+  const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
+  const [isResizing, setIsResizing] = useState<'sidebar' | 'bottom' | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      
+      if (isResizing === 'sidebar') {
+        // Limit sidebar width between 150px and 500px
+        // We need to account for the fact that the sidebar is on the left
+        // The mouse position X is the new width relative to the left edge of the container
+        // Assuming the container starts at 0 (or close to it), e.clientX is a good approximation
+        // However, since this component might be nested, using movementX is safer if we track the start
+        // But movementX is simple enough for relative changes
+        setSidebarWidth(prev => Math.max(150, Math.min(500, prev + e.movementX)));
+      } else if (isResizing === 'bottom') {
+        // Limit bottom panel height between 100px and 600px
+        // Moving mouse UP (negative movementY) should INCREASE height
+        setBottomPanelHeight(prev => Math.max(100, Math.min(600, prev - e.movementY)));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      document.body.style.cursor = 'default';
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isResizing === 'sidebar' ? 'col-resize' : 'row-resize';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [isResizing]);
+
   // --- Handlers ---
 
   // --- Helpers ---
@@ -968,9 +1010,12 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
 
           {/* 4. Flowchart & Details */}
           {activeTab === 'flowchart' && (
-            <div className="flex h-full">
+            <div className="flex h-full select-none">
               {/* Sidebar Tools */}
-              <div className="w-48 bg-white border-r border-slate-200 p-4 flex flex-col gap-4 z-10 shadow-sm">
+              <div 
+                style={{ width: sidebarWidth }}
+                className="bg-white border-r border-slate-200 p-4 flex flex-col gap-4 z-10 shadow-sm shrink-0"
+              >
                 <h3 className="text-sm font-bold text-slate-700 mb-2">Công cụ</h3>
                 <div 
                   className="p-3 bg-slate-50 border border-slate-200 rounded cursor-move hover:border-blue-400 flex items-center gap-2"
@@ -1002,8 +1047,16 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 </div>
               </div>
 
+              {/* Sidebar Resizer Handle */}
+              <div
+                className="w-1 bg-slate-100 hover:bg-blue-400 active:bg-blue-600 cursor-col-resize transition-colors z-20 flex items-center justify-center group"
+                onMouseDown={() => setIsResizing('sidebar')}
+              >
+                 <div className="h-8 w-0.5 bg-slate-300 group-hover:bg-white rounded"></div>
+              </div>
+
               {/* Canvas & Detail Panel */}
-              <div className="flex-1 flex flex-col relative">
+              <div className="flex-1 flex flex-col relative overflow-hidden">
                 <div className="flex-1 bg-slate-50" onDrop={onDrop} onDragOver={onDragOver}>
                   <ReactFlowProvider>
                     <ReactFlow
@@ -1027,8 +1080,19 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                   </ReactFlowProvider>
                 </div>
 
+                {/* Bottom Panel Resizer Handle */}
+                <div
+                    className="h-1 bg-slate-100 hover:bg-blue-400 active:bg-blue-600 cursor-row-resize transition-colors z-20 flex items-center justify-center group"
+                    onMouseDown={() => setIsResizing('bottom')}
+                >
+                    <div className="w-8 h-0.5 bg-slate-300 group-hover:bg-white rounded"></div>
+                </div>
+
                 {/* Detailed Instructions Panel (Bottom) */}
-                <div className="h-1/3 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col">
+                <div 
+                    style={{ height: bottomPanelHeight }}
+                    className="bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col shrink-0"
+                >
                   <div className="px-6 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
                       <List size={16} /> Mô tả chi tiết (5W1H)
@@ -1074,7 +1138,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                 setProcessData(prev => {
                                     if (!prev) return null;
                                     const currentDetail = prev.stepDetails[selectedNodeId];
-                                    const newConfig = { ...currentDetail.whoConfig, unitType: newType, unitId: undefined, personId: undefined };
+                                    
+                                    // Auto-select unit if external
+                                    let newUnitId = undefined;
+                                    if (newType === 'external') {
+                                        const extUnit = units.find(u => u.unit_type === 'external');
+                                        if (extUnit) newUnitId = extUnit.unit_id;
+                                    }
+
+                                    const newConfig = { ...currentDetail.whoConfig, unitType: newType, unitId: newUnitId, personId: undefined };
                                     
                                     // Generate display string
                                     let displayString = '';
@@ -1164,12 +1236,16 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                     const unit = units.find(u => u.unit_id === currentDetail.whoConfig?.unitId);
                                     
                                     if (person) {
-                                        // Try to find name from Faculty profile if linked
-                                        let personName = person.id; // Fallback
-                                        const facultyProfile = faculties.find(f => f.id === person.facultyId);
-                                        if (facultyProfile) personName = facultyProfile.name.vi;
-                                        
-                                        displayString = `${personName} (${unit?.unit_name})`;
+                                        if (currentDetail.whoConfig?.unitType === 'external') {
+                                            displayString = person.customPositionName || 'Đối tượng ngoài';
+                                        } else {
+                                            // Try to find name from Faculty profile if linked
+                                            let personName = person.id; // Fallback
+                                            const facultyProfile = faculties.find(f => f.id === person.facultyId);
+                                            if (facultyProfile) personName = facultyProfile.name.vi;
+                                            
+                                            displayString = `${personName} (${unit?.unit_name})`;
+                                        }
                                     } else if (unit) {
                                         displayString = unit.unit_name; // Revert to unit name if person deselected
                                     }
@@ -1188,13 +1264,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                 });
                             }}
                           >
-                            <option value="">-- Chọn Cá nhân cụ thể (Nếu cần) --</option>
+                            <option value="">-- Chọn {processData.stepDetails[selectedNodeId].whoConfig?.unitType === 'external' ? 'Đối tượng' : 'Cá nhân'} cụ thể --</option>
                             {humanResources
                                 .filter(p => p.unitId === processData.stepDetails[selectedNodeId].whoConfig?.unitId)
                                 .map(p => {
                                     const facultyProfile = faculties.find(f => f.id === p.facultyId);
-                                    const name = facultyProfile ? facultyProfile.name.vi : p.id;
-                                    return <option key={p.id} value={p.id}>{name}</option>;
+                                    const name = processData.stepDetails[selectedNodeId].whoConfig?.unitType === 'external' 
+                                        ? p.customPositionName 
+                                        : (facultyProfile ? facultyProfile.name.vi : p.id);
+                                    return <option key={p.id} value={p.id}>{name || p.id}</option>;
                                 })
                             }
                           </select>
