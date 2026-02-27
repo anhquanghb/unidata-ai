@@ -1081,6 +1081,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                     if (newType === 'school') displayString = 'Cấp Trường';
                                     else if (newType === 'faculty') displayString = 'Cấp Khoa/Phòng';
                                     else if (newType === 'department') displayString = 'Cấp Bộ môn/Tổ';
+                                    else if (newType === 'external') displayString = 'Đối tượng ngoài';
 
                                     return {
                                         ...prev,
@@ -1100,13 +1101,14 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                             <option value="school">Cấp Trường</option>
                             <option value="faculty">Cấp Khoa/Phòng ban</option>
                             <option value="department">Cấp Bộ môn/Tổ</option>
+                            <option value="external">Đối tượng ngoài</option>
                           </select>
 
                           {/* Level 2: Specific Unit */}
                           <select
                             className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100"
                             value={processData.stepDetails[selectedNodeId].whoConfig?.unitId || ''}
-                            disabled={!processData.stepDetails[selectedNodeId].whoConfig?.unitType}
+                            disabled={!processData.stepDetails[selectedNodeId].whoConfig?.unitType || processData.stepDetails[selectedNodeId].whoConfig?.unitType === 'external'}
                             onChange={(e) => {
                                 const newUnitId = e.target.value;
                                 setProcessData(prev => {
@@ -1196,6 +1198,20 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                 })
                             }
                           </select>
+
+                          {/* Manual Override Input */}
+                           <input 
+                              value={processData.stepDetails[selectedNodeId].who}
+                              onChange={e => setProcessData(prev => prev ? ({
+                                ...prev,
+                                stepDetails: {
+                                  ...prev.stepDetails,
+                                  [selectedNodeId]: { ...prev.stepDetails[selectedNodeId], who: e.target.value }
+                                }
+                              }) : null)}
+                              className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none bg-slate-50 italic"
+                              placeholder="Tên hiển thị (tự động hoặc nhập tay)"
+                            />
                         </div>
                       </div>
                       <div>
