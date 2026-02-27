@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig, PermissionProfile } from '../../types';
-import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield, Globe, HardDrive, Copy } from 'lucide-react';
+import { SystemSettings, SchoolInfo, AcademicYear, GoogleDriveConfig, PermissionProfile, AcademicYearConfig, DailySchedule, Holiday, WorkingSession } from '../../types';
+import { Users, UserPlus, Trash2, Folder, File, RefreshCw, Loader2, Lock, Eye, Share2, ChevronRight, AlertTriangle, PlusCircle, CheckCircle, Database, Save, Edit2, X, Settings, Shield, Globe, HardDrive, Copy, Calendar, Clock } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface GeneralConfigModuleProps {
   settings: SystemSettings;
@@ -105,8 +106,29 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [shareEmailFile, setShareEmailFile] = useState('');
   const [isSharing, setIsSharing] = useState(false);
 
+  const [editingYearConfigId, setEditingYearConfigId] = useState<string | null>(null);
+  const [tempYearConfig, setTempYearConfig] = useState<AcademicYearConfig | null>(null);
+
   const permission = settings.permissionProfile || { role: 'school_admin' };
   const isUnitManager = permission.role === 'unit_manager';
+
+  const DEFAULT_WORKING_SCHEDULE: DailySchedule[] = [
+      { day: 'Thứ Hai', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Thứ Ba', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Thứ Tư', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Thứ Năm', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Thứ Sáu', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Thứ Bảy', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: false },
+      { day: 'Chủ Nhật', morning: { start: '07:00', end: '11:30' }, afternoon: { start: '13:00', end: '17:00' }, isOff: true },
+  ];
+
+  const DEFAULT_HOLIDAYS: Holiday[] = [
+      { id: uuidv4(), name: 'Tết Dương Lịch', startDate: '2024-01-01', endDate: '2024-01-01' },
+      { id: uuidv4(), name: 'Tết Âm Lịch', startDate: '2024-02-10', endDate: '2024-02-17' },
+      { id: uuidv4(), name: 'Giỗ Tổ Hùng Vương', startDate: '2024-04-18', endDate: '2024-04-18' },
+      { id: uuidv4(), name: 'Quốc tế Lao động', startDate: '2024-05-01', endDate: '2024-05-01' },
+      { id: uuidv4(), name: 'Quốc Khánh', startDate: '2024-09-02', endDate: '2024-09-02' },
+  ];
 
   const handleSaveGeneral = () => {
       onUpdateSettings({ ...settings, virtualAssistantUrl });
@@ -115,12 +137,86 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   const handleAddNewYear = () => {
       if (!newYearCode.trim()) return;
+
+      // Inheritance Logic
+      let initialConfig: AcademicYearConfig = {
+          workingSchedule: DEFAULT_WORKING_SCHEDULE,
+          holidays: DEFAULT_HOLIDAYS
+      };
+
+      // Try to find the latest year to inherit from
+      if (academicYears.length > 0) {
+          // Sort by code descending to get the "latest" added year roughly
+          const sortedYears = [...academicYears].sort((a, b) => b.code.localeCompare(a.code));
+          const latestYear = sortedYears[0];
+          if (latestYear.config) {
+              initialConfig = JSON.parse(JSON.stringify(latestYear.config)); // Deep copy
+          }
+      }
+
       onAddAcademicYear({
           id: crypto.randomUUID(),
           code: newYearCode.trim(),
-          isLocked: false
+          isLocked: false,
+          config: initialConfig
       });
       setNewYearCode('');
+  };
+
+  const startEditingConfig = (year: AcademicYear) => {
+      setEditingYearConfigId(year.id);
+      setTempYearConfig(year.config ? JSON.parse(JSON.stringify(year.config)) : {
+          workingSchedule: DEFAULT_WORKING_SCHEDULE,
+          holidays: DEFAULT_HOLIDAYS
+      });
+  };
+
+  const saveConfig = () => {
+      if (!editingYearConfigId || !tempYearConfig) return;
+      const year = academicYears.find(y => y.id === editingYearConfigId);
+      if (year) {
+          onUpdateAcademicYear({ ...year, config: tempYearConfig });
+      }
+      setEditingYearConfigId(null);
+      setTempYearConfig(null);
+  };
+
+  const updateTempSchedule = (index: number, field: keyof DailySchedule | 'morningStart' | 'morningEnd' | 'afternoonStart' | 'afternoonEnd', value: any) => {
+      if (!tempYearConfig) return;
+      const newSchedule = [...tempYearConfig.workingSchedule];
+      
+      if (field === 'isOff') {
+          newSchedule[index].isOff = value;
+      } else if (field === 'morningStart') {
+          newSchedule[index].morning.start = value;
+      } else if (field === 'morningEnd') {
+          newSchedule[index].morning.end = value;
+      } else if (field === 'afternoonStart') {
+          newSchedule[index].afternoon.start = value;
+      } else if (field === 'afternoonEnd') {
+          newSchedule[index].afternoon.end = value;
+      }
+
+      setTempYearConfig({ ...tempYearConfig, workingSchedule: newSchedule });
+  };
+
+  const addTempHoliday = () => {
+      if (!tempYearConfig) return;
+      const newHoliday: Holiday = { id: uuidv4(), name: 'Kỳ nghỉ mới', startDate: '', endDate: '' };
+      setTempYearConfig({ ...tempYearConfig, holidays: [...tempYearConfig.holidays, newHoliday] });
+  };
+
+  const removeTempHoliday = (id: string) => {
+      if (!tempYearConfig) return;
+      setTempYearConfig({ ...tempYearConfig, holidays: tempYearConfig.holidays.filter(h => h.id !== id) });
+  };
+
+  const updateTempHoliday = (id: string, field: keyof Holiday, value: string) => {
+      if (!tempYearConfig) return;
+      setTempYearConfig({
+          ...tempYearConfig,
+          holidays: tempYearConfig.holidays.map(h => h.id === id ? { ...h, [field]: value } : h)
+      });
   };
 
   const handleSaveSchoolInfo = () => {

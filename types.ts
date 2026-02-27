@@ -31,10 +31,35 @@ export interface UserProfile {
   email?: string; // Google Account Email for identification
 }
 
+export interface WorkingSession {
+  start: string;
+  end: string;
+}
+
+export interface DailySchedule {
+  day: string; // "Monday", "Tuesday", ...
+  morning: WorkingSession;
+  afternoon: WorkingSession;
+  isOff: boolean;
+}
+
+export interface Holiday {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface AcademicYearConfig {
+  workingSchedule: DailySchedule[];
+  holidays: Holiday[];
+}
+
 export interface AcademicYear {
   id: string;
   code: string;
   isLocked: boolean;
+  config?: AcademicYearConfig;
 }
 
 export interface UniversityReport {
@@ -110,8 +135,17 @@ export interface IsoDefinitionTerm {
 export interface IsoStepDetail {
   nodeId: string;
   who: string;
+  whoConfig?: {
+    unitType?: 'school' | 'faculty' | 'department';
+    unitId?: string;
+    personId?: string;
+  };
   what: string;
   when: string;
+  whenConfig?: {
+    value: number;
+    unit: 'working_hours' | 'working_days' | 'weeks' | 'months' | 'years';
+  };
   how: string;
 }
 
