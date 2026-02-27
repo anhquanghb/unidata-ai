@@ -49,20 +49,24 @@ const DiamondNode = ({ data, isConnectable }: any) => {
 
 const OvalNode = ({ data, isConnectable }: any) => {
   return (
-    <div className="px-6 py-3 rounded-[50px] border-2 border-slate-800 bg-white shadow-sm min-w-[120px] text-center">
+    <div className="px-6 py-3 rounded-[50px] border-2 border-slate-800 bg-white shadow-sm min-w-[120px] text-center relative group">
       <div className="text-sm font-bold text-slate-800">{data.label}</div>
       <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
       <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="target" position={Position.Left} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="source" position={Position.Right} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
     </div>
   );
 };
 
 const ProcessNode = ({ data, isConnectable }: any) => {
   return (
-    <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center">
+    <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
       <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
       <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="target" position={Position.Left} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="source" position={Position.Right} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
     </div>
   );
 };
@@ -96,6 +100,64 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      setEdges((eds) => {
+        const deletedNodeIds = new Set(deleted.map((n) => n.id));
+        // React Flow handles removal, but we need to calculate auto-reconnect based on PREVIOUS edges.
+        // However, setEdges callback receives current edges (which might still have the deleted ones if onNodesChange hasn't processed yet? 
+        // Actually onNodesDelete is called BEFORE nodes are removed from store? No, "gets called when nodes are deleted".
+        // But we have access to 'eds' which is the current state.
+        
+        // We need to find edges connected to the deleted nodes *before* they are removed.
+        // Since 'eds' is the current state, it should still contain them if this runs before the edge cleanup effect.
+        // React Flow's onNodesChange(remove) triggers edge removal.
+        
+        // Let's assume 'eds' has the edges.
+        const newConnections: Edge[] = [];
+        
+        deleted.forEach((node) => {
+           const connectedEdges = eds.filter(e => e.source === node.id || e.target === node.id);
+           const incoming = connectedEdges.filter(e => e.target === node.id);
+           const outgoing = connectedEdges.filter(e => e.source === node.id);
+           
+           if (incoming.length === 1 && outgoing.length === 1) {
+               const sourceNode = incoming[0].source;
+               const targetNode = outgoing[0].target;
+               
+               // Create new edge
+               const newEdge: Edge = {
+                   id: `e${sourceNode}-${targetNode}-${uuidv4()}`,
+                   source: sourceNode,
+                   target: targetNode,
+                   type: 'smoothstep', 
+                   markerEnd: { type: MarkerType.ArrowClosed },
+                   label: incoming[0].label || outgoing[0].label
+               };
+               newConnections.push(newEdge);
+           }
+        });
+        
+        // Return edges excluding the ones connected to deleted nodes (React Flow does this, but if we return a new array here, we override)
+        // Actually, if we use setEdges, we are responsible for the state.
+        // So we should remove the old edges and add the new ones.
+        const remainingEdges = eds.filter((e) => !deletedNodeIds.has(e.source) && !deletedNodeIds.has(e.target));
+        return [...remainingEdges, ...newConnections];
+      });
+      
+      if (deleted.some(n => n.id === selectedNodeId)) {
+          setSelectedNodeId(null);
+      }
+    },
+    [setEdges, selectedNodeId]
+  );
+
+  const onEdgeClick = useCallback((event, edge) => {
+      setSelectedEdgeId(edge.id);
+      setSelectedNodeId(null);
+  }, []);
 
   // Resizable Panels State
   const [sidebarWidth, setSidebarWidth] = useState(250);
@@ -741,6 +803,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
 
   const onNodeClick = (_: React.MouseEvent, node: Node) => {
       setSelectedNodeId(node.id);
+      setSelectedEdgeId(null);
       // Ensure detail exists
       if (processData && !processData.stepDetails[node.id]) {
           setProcessData({
@@ -1066,6 +1129,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       onEdgesChange={onEdgesChange}
                       onConnect={onConnect}
                       onNodeClick={onNodeClick}
+                      onEdgeClick={onEdgeClick}
+                      onNodesDelete={onNodesDelete}
                       nodeTypes={nodeTypes}
                       fitView
                       snapToGrid={true}
@@ -1101,8 +1166,12 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                          Đang chọn: {nodes.find(n => n.id === selectedNodeId)?.data.label}
                        </span>
+                    ) : selectedEdgeId ? (
+                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                         Đang chọn: Mũi tên kết nối
+                       </span>
                     ) : (
-                       <span className="text-xs text-slate-400 italic">Chọn một bước để chỉnh sửa chi tiết</span>
+                       <span className="text-xs text-slate-400 italic">Chọn một bước hoặc mũi tên để chỉnh sửa chi tiết</span>
                     )}
                   </div>
                   
@@ -1393,9 +1462,32 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                         />
                       </div>
                     </div>
+                  ) : selectedEdgeId ? (
+                    <div className="p-6">
+                        <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                            <Link size={16} className="text-purple-600"/>
+                            Chi tiết Mũi tên (Kết nối)
+                        </h4>
+                        <div className="max-w-md">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nhãn / Điều kiện (Label)</label>
+                            <input 
+                                value={edges.find(e => e.id === selectedEdgeId)?.label || ''}
+                                onChange={(e) => {
+                                    setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, label: e.target.value } : edge));
+                                }}
+                                className="w-full p-2 border border-slate-300 rounded font-medium focus:border-blue-500 focus:outline-none"
+                                placeholder="Ví dụ: Nếu có, Nếu không..."
+                            />
+                            <p className="text-xs text-slate-400 mt-2 italic">
+                                Nhập văn bản để hiển thị trên mũi tên (thường dùng cho các nhánh rẽ từ Điểm quyết định).
+                                <br/>
+                                Nhấn phím <strong>Backspace</strong> hoặc <strong>Delete</strong> để xóa mũi tên.
+                            </p>
+                        </div>
+                    </div>
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-slate-400">
-                      <p>Click vào một hình khối trong lưu đồ để nhập thông tin chi tiết 5W1H.</p>
+                      <p>Click vào một hình khối hoặc mũi tên trong lưu đồ để nhập thông tin chi tiết.</p>
                     </div>
                   )}
                 </div>
