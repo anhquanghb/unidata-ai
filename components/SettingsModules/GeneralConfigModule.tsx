@@ -481,52 +481,158 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                        {academicYears.map(year => (
-                           <tr key={year.id} className="hover:bg-slate-50 transition-colors">
-                               <td className="px-4 py-3 font-medium text-slate-800">
-                                   {editingYearId === year.id && !isUnitManager ? (
-                                       <div className="flex gap-2">
-                                           <input 
-                                               className="w-24 px-2 py-1 border border-slate-300 rounded text-xs"
-                                               value={editYearCode}
-                                               onChange={(e) => setEditYearCode(e.target.value)}
-                                               autoFocus
-                                           />
-                                           <button onClick={() => saveEditingYear(year)} className="text-green-600"><CheckCircle size={16}/></button>
-                                           <button onClick={cancelEditingYear} className="text-red-400"><X size={16}/></button>
+                           <React.Fragment key={year.id}>
+                               <tr className="hover:bg-slate-50 transition-colors">
+                                   <td className="px-4 py-3 font-medium text-slate-800">
+                                       {editingYearId === year.id && !isUnitManager ? (
+                                           <div className="flex gap-2">
+                                               <input 
+                                                   className="w-24 px-2 py-1 border border-slate-300 rounded text-xs"
+                                                   value={editYearCode}
+                                                   onChange={(e) => setEditYearCode(e.target.value)}
+                                                   autoFocus
+                                               />
+                                               <button onClick={() => saveEditingYear(year)} className="text-green-600"><CheckCircle size={16}/></button>
+                                               <button onClick={cancelEditingYear} className="text-red-400"><X size={16}/></button>
+                                           </div>
+                                       ) : (
+                                           year.code
+                                       )}
+                                   </td>
+                                   <td className="px-4 py-3 text-center">
+                                       <button 
+                                           onClick={() => onToggleLockAcademicYear(year.id)}
+                                           className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border transition-colors ${year.isLocked ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100'}`}
+                                       >
+                                           {year.isLocked ? <Lock size={12} /> : <Eye size={12} />}
+                                           {year.isLocked ? 'Đã khóa' : 'Đang mở'}
+                                       </button>
+                                   </td>
+                                   <td className="px-4 py-3 text-center">
+                                       <input 
+                                          type="radio" 
+                                          name="currentYear" 
+                                          checked={settings.currentAcademicYear === year.code}
+                                          onChange={() => onSetCurrentYear(year.code)}
+                                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                       />
+                                   </td>
+                                   <td className="px-4 py-3 text-right">
+                                       <div className="flex justify-end gap-2">
+                                            {!year.isLocked && !isUnitManager && (
+                                                <>
+                                                    <button onClick={() => startEditingConfig(year)} className="text-slate-400 hover:text-blue-600" title="Cấu hình ngày làm việc"><Calendar size={16}/></button>
+                                                    <button onClick={() => startEditingYear(year)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
+                                                </>
+                                            )}
+                                            {!isUnitManager && (
+                                                <button onClick={() => onDeleteAcademicYear(year.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                            )}
                                        </div>
-                                   ) : (
-                                       year.code
-                                   )}
-                               </td>
-                               <td className="px-4 py-3 text-center">
-                                   <button 
-                                       onClick={() => onToggleLockAcademicYear(year.id)}
-                                       className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border transition-colors ${year.isLocked ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100'}`}
-                                   >
-                                       {year.isLocked ? <Lock size={12} /> : <Eye size={12} />}
-                                       {year.isLocked ? 'Đã khóa' : 'Đang mở'}
-                                   </button>
-                               </td>
-                               <td className="px-4 py-3 text-center">
-                                   <input 
-                                      type="radio" 
-                                      name="currentYear" 
-                                      checked={settings.currentAcademicYear === year.code}
-                                      onChange={() => onSetCurrentYear(year.code)}
-                                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                                   />
-                               </td>
-                               <td className="px-4 py-3 text-right">
-                                   <div className="flex justify-end gap-2">
-                                        {!year.isLocked && !isUnitManager && (
-                                            <button onClick={() => startEditingYear(year)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
-                                        )}
-                                        {!isUnitManager && (
-                                            <button onClick={() => onDeleteAcademicYear(year.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                        )}
-                                   </div>
-                               </td>
-                           </tr>
+                                   </td>
+                               </tr>
+                               {editingYearConfigId === year.id && tempYearConfig && (
+                                   <tr key={`${year.id}-config`}>
+                                       <td colSpan={4} className="bg-slate-50 p-4 border-t border-slate-200 shadow-inner">
+                                           <div className="space-y-6">
+                                               {/* Working Schedule */}
+                                               <div>
+                                                   <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                                       <Clock size={16} className="text-blue-600"/> Kế hoạch làm việc trong tuần
+                                                   </h4>
+                                                   <div className="overflow-x-auto">
+                                                       <table className="w-full text-xs border border-slate-300 bg-white rounded">
+                                                           <thead className="bg-slate-100 font-semibold text-slate-600">
+                                                               <tr>
+                                                                   <th className="p-2 border-r">Thứ</th>
+                                                                   <th className="p-2 border-r text-center">Nghỉ</th>
+                                                                   <th className="p-2 border-r text-center" colSpan={2}>Sáng</th>
+                                                                   <th className="p-2 text-center" colSpan={2}>Chiều</th>
+                                                               </tr>
+                                                               <tr>
+                                                                   <th className="p-2 border-r"></th>
+                                                                   <th className="p-2 border-r"></th>
+                                                                   <th className="p-1 border-r text-center w-20">Bắt đầu</th>
+                                                                   <th className="p-1 border-r text-center w-20">Kết thúc</th>
+                                                                   <th className="p-1 border-r text-center w-20">Bắt đầu</th>
+                                                                   <th className="p-1 text-center w-20">Kết thúc</th>
+                                                               </tr>
+                                                           </thead>
+                                                           <tbody>
+                                                               {tempYearConfig.workingSchedule.map((day, idx) => (
+                                                                   <tr key={day.day} className="border-t hover:bg-slate-50">
+                                                                       <td className="p-2 font-medium border-r">{day.day}</td>
+                                                                       <td className="p-2 text-center border-r">
+                                                                           <input 
+                                                                               type="checkbox" 
+                                                                               checked={day.isOff} 
+                                                                               onChange={(e) => updateTempSchedule(idx, 'isOff', e.target.checked)}
+                                                                           />
+                                                                       </td>
+                                                                       <td className="p-1 border-r">
+                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.start} onChange={(e) => updateTempSchedule(idx, 'morningStart', e.target.value)} disabled={day.isOff}/>
+                                                                       </td>
+                                                                       <td className="p-1 border-r">
+                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.morning.end} onChange={(e) => updateTempSchedule(idx, 'morningEnd', e.target.value)} disabled={day.isOff}/>
+                                                                       </td>
+                                                                       <td className="p-1 border-r">
+                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.start} onChange={(e) => updateTempSchedule(idx, 'afternoonStart', e.target.value)} disabled={day.isOff}/>
+                                                                       </td>
+                                                                       <td className="p-1">
+                                                                           <input type="time" className="w-full p-1 border rounded disabled:bg-slate-100" value={day.afternoon.end} onChange={(e) => updateTempSchedule(idx, 'afternoonEnd', e.target.value)} disabled={day.isOff}/>
+                                                                       </td>
+                                                                   </tr>
+                                                               ))}
+                                                           </tbody>
+                                                       </table>
+                                                   </div>
+                                               </div>
+
+                                               {/* Holidays */}
+                                               <div>
+                                                   <div className="flex justify-between items-center mb-2">
+                                                       <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                           <Calendar size={16} className="text-red-500"/> Kỳ nghỉ lễ
+                                                       </h4>
+                                                       <button onClick={addTempHoliday} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 font-medium">+ Thêm kỳ nghỉ</button>
+                                                   </div>
+                                                   <div className="space-y-2">
+                                                       {tempYearConfig.holidays.map((h) => (
+                                                           <div key={h.id} className="flex gap-2 items-center">
+                                                               <input 
+                                                                   className="flex-1 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   placeholder="Tên kỳ nghỉ"
+                                                                   value={h.name}
+                                                                   onChange={(e) => updateTempHoliday(h.id, 'name', e.target.value)}
+                                                               />
+                                                               <input 
+                                                                   type="date"
+                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   value={h.startDate}
+                                                                   onChange={(e) => updateTempHoliday(h.id, 'startDate', e.target.value)}
+                                                               />
+                                                               <span className="text-slate-400">-</span>
+                                                               <input 
+                                                                   type="date"
+                                                                   className="w-32 p-1.5 border border-slate-300 rounded text-xs" 
+                                                                   value={h.endDate}
+                                                                   onChange={(e) => updateTempHoliday(h.id, 'endDate', e.target.value)}
+                                                               />
+                                                               <button onClick={() => removeTempHoliday(h.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
+                                                           </div>
+                                                       ))}
+                                                   </div>
+                                               </div>
+
+                                               <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                                                   <button onClick={() => setEditingYearConfigId(null)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-200 rounded text-xs font-bold">Hủy bỏ</button>
+                                                   <button onClick={saveConfig} className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-bold">Lưu Cấu hình</button>
+                                               </div>
+                                           </div>
+                                       </td>
+                                   </tr>
+                               )}
+                           </React.Fragment>
                        ))}
                    </tbody>
                </table>

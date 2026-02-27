@@ -20,7 +20,7 @@ import {
   Save, Plus, Trash2, Edit2, FileText, Settings, 
   Layout, List, CheckSquare, BarChart2, ArrowLeft,
   MousePointer, Type, Square, Circle, Diamond,
-  ChevronDown, ChevronUp, Upload, Link, Search, User, File, ExternalLink, X, FileType
+  ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, HumanResourceRecord, Faculty, GoogleDriveConfig } from '../types';
