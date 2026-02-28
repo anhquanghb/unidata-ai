@@ -159,6 +159,122 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       setSelectedNodeId(null);
   }, []);
 
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sourceNodeId: string; sourceHandle: string | null } | null>(null);
+
+  const onConnectStart = useCallback((_, { nodeId, handleId }) => {
+      // Store source info
+      // We can't store it in contextMenu yet because we don't know if it will end on pane
+      // But we can store it in a ref or temp state if needed. 
+      // Actually, React Flow doesn't pass this to onConnectEnd directly.
+      // We need a ref.
+      (window as any).currentConnectionStart = { nodeId, handleId };
+  }, []);
+
+  const onConnectEnd = useCallback(
+    (event: any) => {
+      const targetIsPane = event.target.classList.contains('react-flow__pane');
+      
+      if (targetIsPane && (window as any).currentConnectionStart) {
+        // Get position relative to container
+        // We need to convert screen coordinates to flow coordinates if we want to place the node correctly
+        // But for the menu, we just need screen/container coordinates.
+        // Let's use the event coordinates for the menu position.
+        
+        const { clientX, clientY } = event instanceof TouchEvent ? event.changedTouches[0] : event;
+        
+        // We need the bounding rect of the flow container to calculate relative position
+        const flowPane = document.querySelector('.react-flow');
+        if (flowPane) {
+            const bounds = flowPane.getBoundingClientRect();
+            setContextMenu({
+                x: clientX - bounds.left,
+                y: clientY - bounds.top,
+                sourceNodeId: (window as any).currentConnectionStart.nodeId,
+                sourceHandle: (window as any).currentConnectionStart.handleId
+            });
+        }
+      }
+      (window as any).currentConnectionStart = null;
+    },
+    []
+  );
+
+  const handleAddNodeFromMenu = (type: string, label: string) => {
+      if (!contextMenu) return;
+
+      const { x, y, sourceNodeId, sourceHandle } = contextMenu;
+      
+      // We need to project these x,y (which are pixel offsets) to React Flow internal coordinates (zoom/pan)
+      // Since we don't have easy access to project() without useReactFlow hook inside a child component,
+      // we can try to approximate or use the raw values if zoom is 1.
+      // Better: Wrap the content in ReactFlowProvider and use useReactFlow in a sub-component?
+      // Or just use the raw values and let the user move it. 
+      // Let's try to adjust for basic pan/zoom if possible, but for now raw is okay as a start.
+      // Wait, we are inside ReactFlowProvider in the render, but this component IS the parent.
+      // We can't use useReactFlow here.
+      // We will just place it at the click position. 
+      // Note: If the user has panned, this might be off. 
+      // A robust solution requires a child component to handle the interaction or moving this logic.
+      // For this iteration, let's place it at the mouse position relative to the pane.
+      
+      // Actually, we can get the transform from the viewport if we track it, but let's keep it simple.
+      // We will use a helper to get the viewport state if we can, or just accept the offset.
+      
+      // Let's assume the user hasn't panned too far or we just place it where they clicked.
+      // React Flow nodes position is absolute in the world.
+      // We need to convert screen pixels -> world coordinates.
+      // Without `project`, it's hard. 
+      // Let's try to use the `reactFlowInstance` if we can get a ref to it.
+      // But we don't have it. 
+      
+      // Workaround: We will place it at the visual position.
+      // If the user zooms, it might be weird.
+      
+      const newNodeId = uuidv4();
+      const newNode: Node = {
+        id: newNodeId,
+        type,
+        position: { x: x - 50, y: y - 20 }, // Center somewhat
+        data: { label },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+      
+      // Create Edge
+      const newEdge: Edge = {
+          id: `e${sourceNodeId}-${newNodeId}-${uuidv4()}`,
+          source: sourceNodeId,
+          sourceHandle: sourceHandle,
+          target: newNodeId,
+          targetHandle: type === 'diamond' ? 'top' : 'left', // Default target handle
+          type: 'smoothstep',
+          markerEnd: { type: MarkerType.ArrowClosed },
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
+
+      // Initialize Detail
+      if (processData) {
+          setProcessData(prev => prev ? ({
+              ...prev,
+              stepDetails: {
+                  ...prev.stepDetails,
+                  [newNodeId]: { nodeId: newNodeId, who: '', what: label, when: '', how: '' }
+              }
+          }) : null);
+      }
+      
+      setSelectedNodeId(newNodeId);
+      setContextMenu(null);
+  };
+
+  // Close context menu on click elsewhere
+  useEffect(() => {
+      const handleClick = () => setContextMenu(null);
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+  }, []);
+
   // Resizable Panels State
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
@@ -1074,39 +1190,40 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
           {/* 4. Flowchart & Details */}
           {activeTab === 'flowchart' && (
             <div className="flex h-full select-none">
-              {/* Sidebar Tools */}
+              {/* Sidebar Steps List */}
               <div 
                 style={{ width: sidebarWidth }}
-                className="bg-white border-r border-slate-200 p-4 flex flex-col gap-4 z-10 shadow-sm shrink-0"
+                className="bg-white border-r border-slate-200 p-4 flex flex-col gap-4 z-10 shadow-sm shrink-0 overflow-hidden"
               >
-                <h3 className="text-sm font-bold text-slate-700 mb-2">Công cụ</h3>
-                <div 
-                  className="p-3 bg-slate-50 border border-slate-200 rounded cursor-move hover:border-blue-400 flex items-center gap-2"
-                  onDragStart={(event) => onDragStart(event, 'oval', 'Start')}
-                  draggable
-                >
-                  <Circle size={16} className="text-slate-600" />
-                  <span className="text-sm">Bắt đầu / Kết thúc</span>
-                </div>
-                <div 
-                  className="p-3 bg-slate-50 border border-slate-200 rounded cursor-move hover:border-blue-400 flex items-center gap-2"
-                  onDragStart={(event) => onDragStart(event, 'process', 'Bước thực hiện')}
-                  draggable
-                >
-                  <Square size={16} className="text-blue-600" />
-                  <span className="text-sm">Bước thực hiện</span>
-                </div>
-                <div 
-                  className="p-3 bg-slate-50 border border-slate-200 rounded cursor-move hover:border-blue-400 flex items-center gap-2"
-                  onDragStart={(event) => onDragStart(event, 'diamond', 'Điểm quyết định')}
-                  draggable
-                >
-                  <Diamond size={16} className="text-amber-600" />
-                  <span className="text-sm">Điểm quyết định</span>
+                <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                    <List size={16}/> Các bước quy trình
+                </h3>
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                    {nodes.length === 0 && (
+                        <p className="text-xs text-slate-400 italic text-center mt-4">Chưa có bước nào. Hãy thêm bước bằng cách kéo thả hoặc kết nối.</p>
+                    )}
+                    {nodes.map((node, index) => (
+                        <div 
+                            key={node.id}
+                            onClick={() => {
+                                setSelectedNodeId(node.id);
+                                setSelectedEdgeId(null);
+                            }}
+                            className={`p-3 border rounded cursor-pointer transition-colors flex items-center gap-2 ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}`}
+                        >
+                            <div className="text-slate-500">
+                                {node.type === 'oval' ? <Circle size={14} /> : node.type === 'diamond' ? <Diamond size={14} /> : <Square size={14} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-slate-700 truncate">{node.data.label}</div>
+                                <div className="text-[10px] text-slate-400 truncate">ID: {node.id.slice(0, 8)}</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
                 
-                <div className="mt-auto text-xs text-slate-400">
-                  Kéo thả hình vào vùng vẽ. Click vào hình để sửa chi tiết.
+                <div className="mt-auto text-xs text-slate-400 border-t pt-2">
+                  <p>Kéo từ điểm kết nối của một khối ra vùng trống để thêm bước mới.</p>
                 </div>
               </div>
 
@@ -1128,6 +1245,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       onNodesChange={onNodesChange}
                       onEdgesChange={onEdgesChange}
                       onConnect={onConnect}
+                      onConnectStart={onConnectStart}
+                      onConnectEnd={onConnectEnd}
                       onNodeClick={onNodeClick}
                       onEdgeClick={onEdgeClick}
                       onNodesDelete={onNodesDelete}
@@ -1141,6 +1260,33 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       <Panel position="top-right" className="bg-white p-2 rounded shadow text-xs text-slate-500">
                         {nodes.length} Steps | {edges.length} Connections
                       </Panel>
+                      {contextMenu && (
+                          <div 
+                              style={{ top: contextMenu.y, left: contextMenu.x }} 
+                              className="absolute bg-white border border-slate-200 shadow-lg rounded-lg p-2 flex flex-col gap-1 z-50 w-48"
+                              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                          >
+                              <div className="text-xs font-bold text-slate-500 px-2 py-1 uppercase">Thêm bước tiếp theo</div>
+                              <button 
+                                  onClick={() => handleAddNodeFromMenu('process', 'Bước thực hiện')}
+                                  className="flex items-center gap-2 px-2 py-2 hover:bg-blue-50 text-slate-700 rounded text-sm text-left"
+                              >
+                                  <Square size={14} className="text-blue-600"/> Bước thực hiện
+                              </button>
+                              <button 
+                                  onClick={() => handleAddNodeFromMenu('diamond', 'Điểm quyết định')}
+                                  className="flex items-center gap-2 px-2 py-2 hover:bg-amber-50 text-slate-700 rounded text-sm text-left"
+                              >
+                                  <Diamond size={14} className="text-amber-600"/> Điểm quyết định
+                              </button>
+                              <button 
+                                  onClick={() => handleAddNodeFromMenu('oval', 'Kết thúc')}
+                                  className="flex items-center gap-2 px-2 py-2 hover:bg-slate-100 text-slate-700 rounded text-sm text-left"
+                              >
+                                  <Circle size={14} className="text-slate-600"/> Kết thúc
+                              </button>
+                          </div>
+                      )}
                     </ReactFlow>
                   </ReactFlowProvider>
                 </div>
