@@ -1195,31 +1195,241 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 style={{ width: sidebarWidth }}
                 className="bg-white border-r border-slate-200 p-4 flex flex-col gap-4 z-10 shadow-sm shrink-0 overflow-hidden"
               >
-                <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                    <List size={16}/> Các bước quy trình
-                </h3>
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <List size={16}/> Các bước quy trình
+                    </h3>
+                    <div className="relative group">
+                        <button className="p-1 hover:bg-slate-100 rounded text-blue-600">
+                            <Plus size={16} />
+                        </button>
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 shadow-lg rounded-lg p-1 w-48 z-50 hidden group-hover:block">
+                            {!nodes.some(n => n.type === 'oval' && n.data.label === 'Start') && (
+                                <button 
+                                    onClick={() => {
+                                        const newNode: Node = {
+                                            id: uuidv4(),
+                                            type: 'oval',
+                                            position: { x: 50, y: 50 },
+                                            data: { label: 'Start' },
+                                        };
+                                        setNodes(nds => nds.concat(newNode));
+                                        // Init details
+                                        if (processData) {
+                                            setProcessData(prev => prev ? ({
+                                                ...prev,
+                                                stepDetails: { ...prev.stepDetails, [newNode.id]: { nodeId: newNode.id, who: '', what: 'Start', when: '', how: '' } }
+                                            }) : null);
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 px-2 py-2 hover:bg-slate-50 text-slate-700 rounded text-sm w-full text-left"
+                                >
+                                    <Circle size={14} className="text-slate-600"/> Điểm đầu (Start)
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    const yPos = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.y)) + 100 : 50;
+                                    const newNode: Node = {
+                                        id: uuidv4(),
+                                        type: 'process',
+                                        position: { x: 50, y: yPos },
+                                        data: { label: 'Bước thực hiện' },
+                                    };
+                                    setNodes(nds => nds.concat(newNode));
+                                    if (processData) {
+                                        setProcessData(prev => prev ? ({
+                                            ...prev,
+                                            stepDetails: { ...prev.stepDetails, [newNode.id]: { nodeId: newNode.id, who: '', what: 'Bước thực hiện', when: '', how: '' } }
+                                        }) : null);
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-2 py-2 hover:bg-blue-50 text-slate-700 rounded text-sm w-full text-left"
+                            >
+                                <Square size={14} className="text-blue-600"/> Bước thực hiện
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    const yPos = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.y)) + 100 : 50;
+                                    const newNode: Node = {
+                                        id: uuidv4(),
+                                        type: 'diamond',
+                                        position: { x: 50, y: yPos },
+                                        data: { label: 'Điểm quyết định' },
+                                    };
+                                    setNodes(nds => nds.concat(newNode));
+                                    if (processData) {
+                                        setProcessData(prev => prev ? ({
+                                            ...prev,
+                                            stepDetails: { ...prev.stepDetails, [newNode.id]: { nodeId: newNode.id, who: '', what: 'Điểm quyết định', when: '', how: '' } }
+                                        }) : null);
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-2 py-2 hover:bg-amber-50 text-slate-700 rounded text-sm w-full text-left"
+                            >
+                                <Diamond size={14} className="text-amber-600"/> Điểm quyết định
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    const yPos = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.y)) + 100 : 50;
+                                    const newNode: Node = {
+                                        id: uuidv4(),
+                                        type: 'oval',
+                                        position: { x: 50, y: yPos },
+                                        data: { label: 'End' },
+                                    };
+                                    setNodes(nds => nds.concat(newNode));
+                                    if (processData) {
+                                        setProcessData(prev => prev ? ({
+                                            ...prev,
+                                            stepDetails: { ...prev.stepDetails, [newNode.id]: { nodeId: newNode.id, who: '', what: 'End', when: '', how: '' } }
+                                        }) : null);
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-2 py-2 hover:bg-slate-50 text-slate-700 rounded text-sm w-full text-left"
+                            >
+                                <Circle size={14} className="text-slate-600"/> Điểm kết thúc
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                     {nodes.length === 0 && (
-                        <p className="text-xs text-slate-400 italic text-center mt-4">Chưa có bước nào. Hãy thêm bước bằng cách kéo thả hoặc kết nối.</p>
+                        <p className="text-xs text-slate-400 italic text-center mt-4">Chưa có bước nào. Hãy thêm bước bằng nút (+).</p>
                     )}
-                    {nodes.map((node, index) => (
+                    {nodes.map((node, index) => {
+                        const outgoingEdges = edges.filter(e => e.source === node.id);
+                        const isEndNode = node.type === 'oval' && node.data.label === 'End'; // Simple check
+                        
+                        return (
                         <div 
                             key={node.id}
-                            onClick={() => {
+                            className={`p-3 border rounded transition-colors flex flex-col gap-2 ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedNodeId(node.id);
                                 setSelectedEdgeId(null);
                             }}
-                            className={`p-3 border rounded cursor-pointer transition-colors flex items-center gap-2 ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}`}
                         >
-                            <div className="text-slate-500">
-                                {node.type === 'oval' ? <Circle size={14} /> : node.type === 'diamond' ? <Diamond size={14} /> : <Square size={14} />}
+                            <div className="flex items-center gap-2">
+                                <div className="text-slate-500">
+                                    {node.type === 'oval' ? <Circle size={14} /> : node.type === 'diamond' ? <Diamond size={14} /> : <Square size={14} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-bold text-slate-700 truncate">{node.data.label}</div>
+                                </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold text-slate-700 truncate">{node.data.label}</div>
-                                <div className="text-[10px] text-slate-400 truncate">ID: {node.id.slice(0, 8)}</div>
-                            </div>
+                            
+                            {!isEndNode && (
+                                <div className="mt-1 pt-2 border-t border-slate-200/50">
+                                    <div className="text-[10px] text-slate-400 font-bold mb-1 flex items-center gap-1">
+                                        <ArrowLeft size={10} className="rotate-180"/> BƯỚC TIẾP THEO
+                                    </div>
+                                    
+                                    {/* Config Next Steps */}
+                                    {node.type === 'diamond' ? (
+                                        <div className="space-y-1">
+                                            {outgoingEdges.map(edge => (
+                                                <div key={edge.id} className="flex items-center gap-1 text-xs bg-white border border-slate-200 rounded px-1.5 py-1">
+                                                    <span className="font-mono text-[10px] text-purple-600 bg-purple-50 px-1 rounded">{edge.label || '?'}</span>
+                                                    <ArrowLeft size={10} className="rotate-180 text-slate-400"/>
+                                                    <span className="truncate flex-1">{nodes.find(n => n.id === edge.target)?.data.label || edge.target}</span>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEdges(eds => eds.filter(ed => ed.id !== edge.id));
+                                                        }}
+                                                        className="text-slate-400 hover:text-red-500"
+                                                    >
+                                                        <X size={12}/>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <div className="flex gap-1">
+                                                 <input 
+                                                    id={`cond-${node.id}`}
+                                                    placeholder="Điều kiện (VD: Có)" 
+                                                    className="w-1/3 text-xs p-1 border border-slate-300 rounded"
+                                                    onClick={e => e.stopPropagation()}
+                                                 />
+                                                 <select 
+                                                    id={`target-${node.id}`}
+                                                    className="flex-1 text-xs p-1 border border-slate-300 rounded"
+                                                    onClick={e => e.stopPropagation()}
+                                                 >
+                                                    <option value="">-- Chọn bước --</option>
+                                                    {nodes.filter(n => n.id !== node.id).map(n => (
+                                                        <option key={n.id} value={n.id}>{n.data.label}</option>
+                                                    ))}
+                                                 </select>
+                                                 <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const condInput = document.getElementById(`cond-${node.id}`) as HTMLInputElement;
+                                                        const targetSelect = document.getElementById(`target-${node.id}`) as HTMLSelectElement;
+                                                        if (condInput.value && targetSelect.value) {
+                                                            const newEdge: Edge = {
+                                                                id: `e${node.id}-${targetSelect.value}-${uuidv4()}`,
+                                                                source: node.id,
+                                                                target: targetSelect.value,
+                                                                label: condInput.value,
+                                                                type: 'smoothstep',
+                                                                markerEnd: { type: MarkerType.ArrowClosed },
+                                                            };
+                                                            setEdges(eds => addEdge(newEdge, eds));
+                                                            condInput.value = '';
+                                                            targetSelect.value = '';
+                                                        }
+                                                    }}
+                                                    className="bg-blue-100 text-blue-600 p-1 rounded hover:bg-blue-200"
+                                                >
+                                                    <Plus size={12}/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // Standard Node (1 outgoing max)
+                                        <div className="flex gap-1">
+                                            <select 
+                                                className="w-full text-xs p-1 border border-slate-300 rounded"
+                                                value={outgoingEdges[0]?.target || ''}
+                                                onClick={e => e.stopPropagation()}
+                                                onChange={(e) => {
+                                                    const targetId = e.target.value;
+                                                    if (!targetId) {
+                                                        // Remove edge if exists
+                                                        if (outgoingEdges.length > 0) {
+                                                            setEdges(eds => eds.filter(ed => ed.id !== outgoingEdges[0].id));
+                                                        }
+                                                    } else {
+                                                        // Update or Create
+                                                        if (outgoingEdges.length > 0) {
+                                                            // Update existing edge target? React Flow edges are immutable-ish, better replace.
+                                                            setEdges(eds => eds.map(ed => ed.id === outgoingEdges[0].id ? { ...ed, target: targetId } : ed));
+                                                        } else {
+                                                            const newEdge: Edge = {
+                                                                id: `e${node.id}-${targetId}-${uuidv4()}`,
+                                                                source: node.id,
+                                                                target: targetId,
+                                                                type: 'smoothstep',
+                                                                markerEnd: { type: MarkerType.ArrowClosed },
+                                                            };
+                                                            setEdges(eds => addEdge(newEdge, eds));
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                <option value="">-- Chọn bước tiếp theo --</option>
+                                                {nodes.filter(n => n.id !== node.id).map(n => (
+                                                    <option key={n.id} value={n.id}>{n.data.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    ))}
+                    )})}
                 </div>
                 
                 <div className="mt-auto text-xs text-slate-400 border-t pt-2">
