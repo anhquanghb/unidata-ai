@@ -39,10 +39,10 @@ const DiamondNode = ({ data, isConnectable }: any) => {
       <div className="relative z-10 text-xs font-medium text-center p-2 pointer-events-none transform">
         {data.label}
       </div>
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Left} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Right} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
     </div>
   );
 };
@@ -51,10 +51,10 @@ const OvalNode = ({ data, isConnectable }: any) => {
   return (
     <div className="px-6 py-3 rounded-[50px] border-2 border-slate-800 bg-white shadow-sm min-w-[120px] text-center relative group">
       <div className="text-sm font-bold text-slate-800">{data.label}</div>
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="target" position={Position.Left} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="source" position={Position.Right} isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
     </div>
   );
 };
@@ -63,10 +63,10 @@ const ProcessNode = ({ data, isConnectable }: any) => {
   return (
     <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="target" position={Position.Left} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Right} isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
     </div>
   );
 };
@@ -275,8 +275,18 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Resizable Panels State
-  const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  
+  // Close add menu on click elsewhere
+  useEffect(() => {
+      const handleClick = (e: MouseEvent) => {
+          if (showAddMenu && !(e.target as Element).closest('.add-step-menu-container')) {
+              setShowAddMenu(false);
+          }
+      };
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+  }, [showAddMenu]);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
   const [isResizing, setIsResizing] = useState<'sidebar' | 'bottom' | null>(null);
 
@@ -1199,11 +1209,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                     <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                         <List size={16}/> Các bước quy trình
                     </h3>
-                    <div className="relative group">
-                        <button className="p-1 hover:bg-slate-100 rounded text-blue-600">
+                    <div className="relative group add-step-menu-container">
+                        <button 
+                            className={`p-1 hover:bg-slate-100 rounded ${showAddMenu ? 'bg-slate-100 text-blue-700' : 'text-blue-600'}`}
+                            onClick={() => setShowAddMenu(!showAddMenu)}
+                        >
                             <Plus size={16} />
                         </button>
-                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 shadow-lg rounded-lg p-1 w-48 z-50 hidden group-hover:block">
+                        {showAddMenu && (
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 shadow-lg rounded-lg p-1 w-48 z-50">
                             {!nodes.some(n => n.type === 'oval' && n.data.label === 'Start') && (
                                 <button 
                                     onClick={() => {
@@ -1291,6 +1305,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                 <Circle size={14} className="text-slate-600"/> Điểm kết thúc
                             </button>
                         </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -1824,16 +1839,52 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                             <Link size={16} className="text-purple-600"/>
                             Chi tiết Mũi tên (Kết nối)
                         </h4>
-                        <div className="max-w-md">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nhãn / Điều kiện (Label)</label>
-                            <input 
-                                value={edges.find(e => e.id === selectedEdgeId)?.label || ''}
-                                onChange={(e) => {
-                                    setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, label: e.target.value } : edge));
-                                }}
-                                className="w-full p-2 border border-slate-300 rounded font-medium focus:border-blue-500 focus:outline-none"
-                                placeholder="Ví dụ: Nếu có, Nếu không..."
-                            />
+                        <div className="max-w-md space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nhãn / Điều kiện (Label)</label>
+                                <input 
+                                    value={edges.find(e => e.id === selectedEdgeId)?.label || ''}
+                                    onChange={(e) => {
+                                        setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, label: e.target.value } : edge));
+                                    }}
+                                    className="w-full p-2 border border-slate-300 rounded font-medium focus:border-blue-500 focus:outline-none"
+                                    placeholder="Ví dụ: Nếu có, Nếu không..."
+                                />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Điểm bắt đầu</label>
+                                    <select
+                                        value={edges.find(e => e.id === selectedEdgeId)?.sourceHandle || 'bottom'}
+                                        onChange={(e) => {
+                                            setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, sourceHandle: e.target.value } : edge));
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                                    >
+                                        <option value="top">Trên (Top)</option>
+                                        <option value="bottom">Dưới (Bottom)</option>
+                                        <option value="left">Trái (Left)</option>
+                                        <option value="right">Phải (Right)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Điểm kết thúc</label>
+                                    <select
+                                        value={edges.find(e => e.id === selectedEdgeId)?.targetHandle || 'top'}
+                                        onChange={(e) => {
+                                            setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, targetHandle: e.target.value } : edge));
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                                    >
+                                        <option value="top">Trên (Top)</option>
+                                        <option value="bottom">Dưới (Bottom)</option>
+                                        <option value="left">Trái (Left)</option>
+                                        <option value="right">Phải (Right)</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <p className="text-xs text-slate-400 mt-2 italic">
                                 Nhập văn bản để hiển thị trên mũi tên (thường dùng cho các nhánh rẽ từ Điểm quyết định).
                                 <br/>
