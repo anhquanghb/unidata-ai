@@ -202,29 +202,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   }, []);
 
   const onConnectEnd = useCallback(
-    (event: any) => {
-      const targetIsPane = event.target.classList.contains('react-flow__pane');
-      
-      if (targetIsPane && (window as any).currentConnectionStart) {
-        // Get position relative to container
-        // We need to convert screen coordinates to flow coordinates if we want to place the node correctly
-        // But for the menu, we just need screen/container coordinates.
-        // Let's use the event coordinates for the menu position.
-        
-        const { clientX, clientY } = event instanceof TouchEvent ? event.changedTouches[0] : event;
-        
-        // We need the bounding rect of the flow container to calculate relative position
-        const flowPane = document.querySelector('.react-flow');
-        if (flowPane) {
-            const bounds = flowPane.getBoundingClientRect();
-            setContextMenu({
-                x: clientX - bounds.left,
-                y: clientY - bounds.top,
-                sourceNodeId: (window as any).currentConnectionStart.nodeId,
-                sourceHandle: (window as any).currentConnectionStart.handleId
-            });
-        }
-      }
+    () => {
       (window as any).currentConnectionStart = null;
     },
     []
@@ -1382,7 +1360,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                         <div 
                             key={node.id}
                             className={`p-3 border rounded transition-colors flex flex-col gap-2 relative group/item 
-                                ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}
+                                ${selectedNodeId === node.id || (selectedEdgeId && outgoingEdges.some(e => e.id === selectedEdgeId)) ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}
                                 ${error ? 'border-red-400 bg-red-50' : ''}
                             `}
                             onClick={(e) => {
@@ -1434,7 +1412,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                     {node.type === 'diamond' ? (
                                         <div className="space-y-1">
                                             {outgoingEdges.map(edge => (
-                                                <div key={edge.id} className="flex items-center gap-1 text-xs bg-white border border-slate-200 rounded px-1.5 py-1">
+                                                <div 
+                                                    key={edge.id} 
+                                                    className={`flex items-center gap-1 text-xs border rounded px-1.5 py-1 cursor-pointer transition-all ${selectedEdgeId === edge.id ? 'bg-purple-50 border-purple-400 ring-1 ring-purple-400' : 'bg-white border-slate-200 hover:border-purple-300'}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedEdgeId(edge.id);
+                                                        setSelectedNodeId(null);
+                                                    }}
+                                                >
                                                     <span className="font-mono text-[10px] text-purple-600 bg-purple-50 px-1 rounded">{edge.label || '?'}</span>
                                                     <ArrowLeft size={10} className="rotate-180 text-slate-400"/>
                                                     <span className="truncate flex-1">{nodes.find(n => n.id === edge.target)?.data.label || edge.target}</span>
@@ -1463,9 +1449,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                         // Standard Node (1 outgoing max)
                                         <div className="flex gap-1">
                                             <select 
-                                                className="w-full text-xs p-1 border border-slate-300 rounded"
+                                                className={`w-full text-xs p-1 border rounded transition-all ${selectedEdgeId === outgoingEdges[0]?.id ? 'bg-purple-50 border-purple-400 ring-1 ring-purple-400' : 'border-slate-300'}`}
                                                 value={outgoingEdges[0]?.target || ''}
-                                                onClick={e => e.stopPropagation()}
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    if (outgoingEdges[0]) {
+                                                        setSelectedEdgeId(outgoingEdges[0].id);
+                                                        setSelectedNodeId(null);
+                                                    }
+                                                }}
                                                 onChange={(e) => {
                                                     const targetId = e.target.value;
                                                     if (!targetId) {
