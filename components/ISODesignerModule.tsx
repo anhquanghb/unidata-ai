@@ -200,7 +200,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     []
   );
 
-  const handleAddNodeFromMenu = (type: string, label: string) => {
+  const handleAddNodeFromMenu = (type: string, label: string, role?: string) => {
       if (!contextMenu) return;
 
       const { x, y, sourceNodeId, sourceHandle } = contextMenu;
@@ -236,7 +236,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
         id: newNodeId,
         type,
         position: { x: x - 50, y: y - 20 }, // Center somewhat
-        data: { label },
+        data: { label, role },
       };
 
       setNodes((nds) => nds.concat(newNode));
@@ -290,6 +290,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
 
   // Resizable Panels State
   const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [conditionModal, setConditionModal] = useState<{ isOpen: boolean; nodeId: string; condition: string; targetId: string } | null>(null);
+
   const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
   const [isResizing, setIsResizing] = useState<'sidebar' | 'bottom' | null>(null);
 
@@ -650,8 +652,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
             rows: [
                 new TableRow({
                     children: [
-                        new TableCell({ children: [new Paragraph({ text: "Vai trò", bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
-                        new TableCell({ children: [new Paragraph({ text: "Họ tên", bold: true })], width: { size: 70, type: WidthType.PERCENTAGE } }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Vai trò", bold: true })] })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Họ tên", bold: true })] })], width: { size: 70, type: WidthType.PERCENTAGE } }),
                     ]
                 }),
                 new TableRow({
@@ -698,8 +700,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 rows: [
                     new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph({ text: "Thuật ngữ", bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
-                            new TableCell({ children: [new Paragraph({ text: "Định nghĩa", bold: true })], width: { size: 70, type: WidthType.PERCENTAGE } }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Thuật ngữ", bold: true })] })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Định nghĩa", bold: true })] })], width: { size: 70, type: WidthType.PERCENTAGE } }),
                         ]
                     }),
                     ...defRows
@@ -711,13 +713,13 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
         // Flowchart Image
         if (flowchartImageBlob) {
              children.push(new Paragraph({ text: "3. Lưu đồ", heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
-             const imageBuffer = await flowchartImageBlob.arrayBuffer();
+             const imageBuffer = new Uint8Array(await flowchartImageBlob.arrayBuffer());
              children.push(new Paragraph({
                  children: [
                      new ImageRun({
                          data: imageBuffer,
                          transformation: { width: 600, height: 400 }, // Adjust size as needed
-                     }),
+                     } as any),
                  ],
                  alignment: AlignmentType.CENTER,
                  spacing: { after: 400 }
@@ -746,10 +748,10 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 rows: [
                     new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph({ text: "Bước (Task)", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Ai (Who)", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Khi nào (When)", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Cách thức (How)", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Bước (Task)", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ai (Who)", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Khi nào (When)", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Cách thức (How)", bold: true })] })] }),
                         ]
                     }),
                     ...stepRows
@@ -772,8 +774,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 rows: [
                     new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph({ text: "Chỉ số", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Mục tiêu", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Chỉ số", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mục tiêu", bold: true })] })] }),
                         ]
                     }),
                     ...kpiRows
@@ -797,9 +799,9 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                 rows: [
                     new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph({ text: "Tên hồ sơ", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Mã số", bold: true })] }),
-                            new TableCell({ children: [new Paragraph({ text: "Link", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tên hồ sơ", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mã số", bold: true })] })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Link", bold: true })] })] }),
                         ]
                     }),
                     ...recRows
@@ -1221,14 +1223,14 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                         </button>
                         {showAddMenu && (
                         <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 shadow-lg rounded-lg p-1 w-48 z-50">
-                            {!nodes.some(n => n.type === 'oval' && n.data.label === 'Start') && (
+                            {!nodes.some(n => n.data.role === 'start' || (n.type === 'oval' && n.data.label === 'Start')) && (
                                 <button 
                                     onClick={() => {
                                         const newNode: Node = {
                                             id: uuidv4(),
                                             type: 'oval',
                                             position: { x: 50, y: 50 },
-                                            data: { label: 'Start' },
+                                            data: { label: 'Start', role: 'start' },
                                         };
                                         setNodes(nds => nds.concat(newNode));
                                         // Init details
@@ -1293,7 +1295,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                         id: uuidv4(),
                                         type: 'oval',
                                         position: { x: 50, y: yPos },
-                                        data: { label: 'End' },
+                                        data: { label: 'End', role: 'end' },
                                     };
                                     setNodes(nds => nds.concat(newNode));
                                     if (processData) {
@@ -1318,8 +1320,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                     {nodes.map((node, index) => {
                         const outgoingEdges = edges.filter(e => e.source === node.id);
                         const incomingEdges = edges.filter(e => e.target === node.id);
-                        const isStartNode = node.type === 'oval' && node.data.label === 'Start';
-                        const isEndNode = node.type === 'oval' && node.data.label === 'End';
+                        const isStartNode = node.data.role === 'start' || (node.type === 'oval' && node.data.label === 'Start');
+                        const isEndNode = node.data.role === 'end' || (node.type === 'oval' && (node.data.label === 'End' || node.data.label === 'Kết thúc'));
                         
                         // Validation Logic
                         let error = null;
@@ -1400,53 +1402,21 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                                             e.stopPropagation();
                                                             setEdges(eds => eds.filter(ed => ed.id !== edge.id));
                                                         }}
-                                                        className="text-slate-400 hover:text-red-500"
+                                                        className="text-slate-400 hover:text-red-500 p-0.5"
                                                     >
                                                         <X size={12}/>
                                                     </button>
                                                 </div>
                                             ))}
-                                            <div className="flex gap-1">
-                                                 <input 
-                                                    id={`cond-${node.id}`}
-                                                    placeholder="Điều kiện (VD: Có)" 
-                                                    className="w-1/3 text-xs p-1 border border-slate-300 rounded"
-                                                    onClick={e => e.stopPropagation()}
-                                                 />
-                                                 <select 
-                                                    id={`target-${node.id}`}
-                                                    className="flex-1 text-xs p-1 border border-slate-300 rounded"
-                                                    onClick={e => e.stopPropagation()}
-                                                 >
-                                                    <option value="">-- Chọn bước --</option>
-                                                    {nodes.filter(n => n.id !== node.id).map(n => (
-                                                        <option key={n.id} value={n.id}>{n.data.label}</option>
-                                                    ))}
-                                                 </select>
-                                                 <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const condInput = document.getElementById(`cond-${node.id}`) as HTMLInputElement;
-                                                        const targetSelect = document.getElementById(`target-${node.id}`) as HTMLSelectElement;
-                                                        if (condInput.value && targetSelect.value) {
-                                                            const newEdge: Edge = {
-                                                                id: `e${node.id}-${targetSelect.value}-${uuidv4()}`,
-                                                                source: node.id,
-                                                                target: targetSelect.value,
-                                                                label: condInput.value,
-                                                                type: 'smoothstep',
-                                                                markerEnd: { type: MarkerType.ArrowClosed },
-                                                            };
-                                                            setEdges(eds => addEdge(newEdge, eds));
-                                                            condInput.value = '';
-                                                            targetSelect.value = '';
-                                                        }
-                                                    }}
-                                                    className="bg-blue-100 text-blue-600 p-1 rounded hover:bg-blue-200"
-                                                >
-                                                    <Plus size={12}/>
-                                                </button>
-                                            </div>
+                                            <button 
+                                                className="w-full text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded p-1 hover:bg-blue-100 flex items-center justify-center gap-1"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConditionModal({ isOpen: true, nodeId: node.id, condition: '', targetId: '' });
+                                                }}
+                                            >
+                                                <Plus size={12}/> Thêm nhánh rẽ
+                                            </button>
                                         </div>
                                     ) : (
                                         // Standard Node (1 outgoing max)
@@ -1551,7 +1521,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                                   <Diamond size={14} className="text-amber-600"/> Điểm quyết định
                               </button>
                               <button 
-                                  onClick={() => handleAddNodeFromMenu('oval', 'Kết thúc')}
+                                  onClick={() => handleAddNodeFromMenu('oval', 'Kết thúc', 'end')}
                                   className="flex items-center gap-2 px-2 py-2 hover:bg-slate-100 text-slate-700 rounded text-sm text-left"
                               >
                                   <Circle size={14} className="text-slate-600"/> Kết thúc
