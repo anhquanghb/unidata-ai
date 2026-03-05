@@ -1317,12 +1317,31 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                     )}
                     {nodes.map((node, index) => {
                         const outgoingEdges = edges.filter(e => e.source === node.id);
-                        const isEndNode = node.type === 'oval' && node.data.label === 'End'; // Simple check
+                        const incomingEdges = edges.filter(e => e.target === node.id);
+                        const isStartNode = node.type === 'oval' && node.data.label === 'Start';
+                        const isEndNode = node.type === 'oval' && node.data.label === 'End';
                         
+                        // Validation Logic
+                        let error = null;
+                        if (isStartNode) {
+                            if (outgoingEdges.length === 0) error = "Điểm đầu chưa có bước tiếp theo";
+                        } else if (isEndNode) {
+                            if (incomingEdges.length === 0) error = "Điểm kết thúc chưa có bước phía trước";
+                        } else if (node.type === 'process') {
+                            if (incomingEdges.length === 0 && outgoingEdges.length === 0) error = "Bước thực hiện bị cô lập";
+                            else if (incomingEdges.length === 0) error = "Thiếu bước phía trước";
+                            else if (outgoingEdges.length === 0) error = "Thiếu bước phía sau";
+                        } else if (node.type === 'diamond') {
+                            if (outgoingEdges.length < 2) error = "Điểm quyết định cần ít nhất 2 nhánh rẽ";
+                        }
+
                         return (
                         <div 
                             key={node.id}
-                            className={`p-3 border rounded transition-colors flex flex-col gap-2 ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}`}
+                            className={`p-3 border rounded transition-colors flex flex-col gap-2 relative group/item 
+                                ${selectedNodeId === node.id ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-slate-200 hover:border-blue-300'}
+                                ${error ? 'border-red-400 bg-red-50' : ''}
+                            `}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedNodeId(node.id);
@@ -1330,13 +1349,37 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                <div className="text-slate-500">
+                                <div className={`text-slate-500 ${error ? 'text-red-500' : ''}`}>
                                     {node.type === 'oval' ? <Circle size={14} /> : node.type === 'diamond' ? <Diamond size={14} /> : <Square size={14} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-slate-700 truncate">{node.data.label}</div>
+                                    <div className={`text-xs font-bold truncate ${error ? 'text-red-700' : 'text-slate-700'}`}>{node.data.label}</div>
                                 </div>
+                                {selectedNodeId === node.id && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Trigger delete
+                                            const nodeToDelete = nodes.find(n => n.id === node.id);
+                                            if (nodeToDelete) {
+                                                onNodesDelete([nodeToDelete]);
+                                                setNodes(nds => nds.filter(n => n.id !== node.id));
+                                            }
+                                        }}
+                                        className="text-slate-400 hover:text-red-600 p-1"
+                                        title="Xóa bước này"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
                             </div>
+                            
+                            {error && (
+                                <div className="text-[10px] text-red-600 flex items-center gap-1 font-medium">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                                    {error}
+                                </div>
+                            )}
                             
                             {!isEndNode && (
                                 <div className="mt-1 pt-2 border-t border-slate-200/50">
