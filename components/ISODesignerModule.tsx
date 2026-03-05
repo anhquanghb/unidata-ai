@@ -5,6 +5,7 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
+  reconnectEdge,
   Handle,
   Position,
   Node,
@@ -40,6 +41,11 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         {data.label}
       </div>
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      
+      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
       <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
       <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
@@ -59,14 +65,18 @@ const OvalNode = ({ data, isConnectable }: any) => {
       {!isStart && (
         <>
           <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
           <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
         </>
       )}
       
       {/* Source handles (output) - hide for end node */}
       {!isEnd && (
         <>
+          <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
           <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
           <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
         </>
       )}
@@ -79,8 +89,13 @@ const ProcessNode = ({ data, isConnectable }: any) => {
     <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
       <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      
+      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
     </div>
   );
@@ -547,7 +562,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       target: e.target,
       label: e.label,
       type: 'smoothstep',
-      markerEnd: { type: MarkerType.ArrowClosed }
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
+      style: { strokeWidth: 2.5, stroke: '#475569' }
     }));
 
     setNodes(initialNodes);
@@ -892,7 +908,17 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     setSelectedDefId(null);
   };
 
-  const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge({ ...params, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, eds)), [setEdges]);
+  const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge({ 
+    ...params, 
+    type: 'smoothstep', 
+    style: { strokeWidth: 2.5, stroke: '#475569' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
+  }, eds)), [setEdges]);
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
+    [setEdges]
+  );
 
   // --- Drag & Drop Logic ---
   const onDragStart = (event: React.DragEvent, nodeType: string, label: string) => {
@@ -1501,16 +1527,37 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                       onNodesChange={onNodesChange}
                       onEdgesChange={onEdgesChange}
                       onConnect={onConnect}
+                      onReconnect={onReconnect}
                       onConnectStart={onConnectStart}
                       onConnectEnd={onConnectEnd}
                       onNodeClick={onNodeClick}
                       onEdgeClick={onEdgeClick}
                       onNodesDelete={onNodesDelete}
                       nodeTypes={nodeTypes}
+                      defaultEdgeOptions={{
+                        style: { strokeWidth: 2.5, stroke: '#475569' },
+                        markerEnd: { 
+                          type: MarkerType.ArrowClosed,
+                          color: '#475569',
+                          width: 20,
+                          height: 20
+                        }
+                      }}
                       fitView
                       snapToGrid={true}
                       snapGrid={[15, 15]}
                     >
+                      <style>{`
+                        .react-flow__edges {
+                          z-index: 10 !important;
+                        }
+                        .react-flow__nodes {
+                          z-index: 5 !important;
+                        }
+                        .react-flow__edge-path {
+                          stroke-width: 2.5;
+                        }
+                      `}</style>
                       <Background color="#e2e8f0" gap={16} />
                       <Controls />
                       <Panel position="top-right" className="bg-white p-2 rounded shadow text-xs text-slate-500">
