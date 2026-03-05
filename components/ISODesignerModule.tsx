@@ -48,13 +48,28 @@ const DiamondNode = ({ data, isConnectable }: any) => {
 };
 
 const OvalNode = ({ data, isConnectable }: any) => {
+  const isStart = data.role === 'start' || data.label?.toLowerCase().includes('start') || data.label?.toLowerCase().includes('bắt đầu');
+  const isEnd = data.role === 'end' || data.label?.toLowerCase().includes('end') || data.label?.toLowerCase().includes('kết thúc');
+
   return (
-    <div className="px-6 py-3 rounded-[50px] border-2 border-slate-800 bg-white shadow-sm min-w-[120px] text-center relative group">
-      <div className="text-sm font-bold text-slate-800">{data.label}</div>
-      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+    <div className={`px-6 py-3 rounded-[50px] border-2 bg-white shadow-sm min-w-[120px] text-center relative group ${isStart ? 'border-green-600' : isEnd ? 'border-red-600' : 'border-slate-800'}`}>
+      <div className={`text-sm font-bold ${isStart ? 'text-green-800' : isEnd ? 'text-red-800' : 'text-slate-800'}`}>{data.label}</div>
+      
+      {/* Target handles (input) - hide for start node */}
+      {!isStart && (
+        <>
+          <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+        </>
+      )}
+      
+      {/* Source handles (output) - hide for end node */}
+      {!isEnd && (
+        <>
+          <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+        </>
+      )}
     </div>
   );
 };
@@ -1320,8 +1335,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
                     {nodes.map((node, index) => {
                         const outgoingEdges = edges.filter(e => e.source === node.id);
                         const incomingEdges = edges.filter(e => e.target === node.id);
-                        const isStartNode = node.data.role === 'start' || (node.type === 'oval' && node.data.label === 'Start');
-                        const isEndNode = node.data.role === 'end' || (node.type === 'oval' && (node.data.label === 'End' || node.data.label === 'Kết thúc'));
+                        const isStartNode = node.data.role === 'start' || node.type === 'start' || (node.type === 'oval' && (node.data.label?.toLowerCase().includes('start') || node.data.label?.toLowerCase().includes('bắt đầu')));
+                        const isEndNode = node.data.role === 'end' || node.type === 'end' || (node.type === 'oval' && (node.data.label?.toLowerCase().includes('end') || node.data.label?.toLowerCase().includes('kết thúc')));
                         
                         // Validation Logic
                         let error = null;
