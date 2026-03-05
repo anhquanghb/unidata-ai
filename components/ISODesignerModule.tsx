@@ -287,6 +287,9 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       document.addEventListener('click', handleClick);
       return () => document.removeEventListener('click', handleClick);
   }, [showAddMenu]);
+
+  // Resizable Panels State
+  const [sidebarWidth, setSidebarWidth] = useState(250);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
   const [isResizing, setIsResizing] = useState<'sidebar' | 'bottom' | null>(null);
 
