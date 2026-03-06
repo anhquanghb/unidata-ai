@@ -538,6 +538,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
       label: e.label,
       type: 'smoothstep',
       markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
@@ -850,6 +852,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
       id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
       label: e.label as string
     }));
 

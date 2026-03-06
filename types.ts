@@ -177,6 +177,8 @@ export interface IsoFlowchartEdgeData {
   source: string;
   target: string;
   label?: string; // Yes/No for decision
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
 }
 
 export interface IsoProcess {
