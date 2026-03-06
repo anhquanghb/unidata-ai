@@ -459,7 +459,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       try {
           // 1. Ensure Folder
           let folderId = '';
-          const folderName = 'Quy trình công việc';
+          const folderName = 'ISO';
           const q = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${driveSession.zoneCId}' in parents and trashed=false`;
           const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
           if (resp.result.files && resp.result.files.length > 0) {
@@ -669,7 +669,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     try {
         // 1. Ensure Folder
         let folderId = '';
-        const folderName = 'Quy trình công việc';
+        const folderName = 'ISO';
         const q = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${driveSession.zoneCId}' in parents and trashed=false`;
         const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
         if (resp.result.files && resp.result.files.length > 0) {
@@ -994,12 +994,6 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     }
 
     onUpdateIsoDefinitions(newDefs);
-    
-    // Trigger Cloud Save if Primary Admin
-    if (currentUser?.role === 'school_admin' && currentUser?.isPrimary) {
-        handleSaveToCloud(newDefs);
-    }
-
     setIsEditing(false);
     setSelectedDefId(null);
   };

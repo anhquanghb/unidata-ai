@@ -625,6 +625,7 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
@@ -656,6 +657,7 @@ const App: React.FC = () => {
           // --- ZONE C UPDATE LOGIC ---
           if (currentUser?.role === 'school_admin' && currentUser?.isPrimary && driveSession.zoneCId) {
               try {
+                  // 1. Update Registry (Zone_C.json)
                   const registryData = units.map(u => ({
                       unit_id: u.unit_id,
                       unit_name: u.unit_name,
@@ -668,46 +670,46 @@ const App: React.FC = () => {
                   const regBlob = new Blob([regContent], { type: 'application/json' });
                   const regFileName = 'Zone_C.json';
 
-                  // 1. Find existing file
-                  const listResp = await window.gapi.client.drive.files.list({
-                      q: `name = '${regFileName}' and '${driveSession.zoneCId}' in parents and trashed = false`,
-                      fields: 'files(id)',
-                  });
+                  // 2. Publish ISO Data (isodata.json)
+                  const isoContent = JSON.stringify(isoDefinitions, null, 2);
+                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
+                  const isoFileName = 'isodata.json';
+
+                  const publishFile = async (name: string, blob: Blob) => {
+                      const listResp = await window.gapi.client.drive.files.list({
+                          q: `name = '${name}' and '${driveSession.zoneCId}' in parents and trashed = false`,
+                          fields: 'files(id)',
+                      });
+                      const existingFileId = listResp.result.files?.[0]?.id;
+
+                      if (existingFileId) {
+                          const form = new FormData();
+                          form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+                          form.append('file', blob);
+                          await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
+                              method: 'PATCH',
+                              headers: { 'Authorization': 'Bearer ' + accessToken },
+                              body: form
+                          });
+                      } else {
+                          const metadata = { name, mimeType: 'application/json', parents: [driveSession.zoneCId] };
+                          const form = new FormData();
+                          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                          form.append('file', blob);
+                          await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+                              method: 'POST',
+                              headers: { 'Authorization': 'Bearer ' + accessToken },
+                              body: form
+                          });
+                      }
+                  };
+
+                  await publishFile(regFileName, regBlob);
+                  await publishFile(isoFileName, isoBlob);
                   
-                  const existingFileId = listResp.result.files?.[0]?.id;
-
-                  if (existingFileId) {
-                      // Update
-                      const regForm = new FormData();
-                      regForm.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-                      regForm.append('file', regBlob);
-                      
-                      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
-                          method: 'PATCH',
-                          headers: { 'Authorization': 'Bearer ' + accessToken },
-                          body: regForm
-                      });
-                  } else {
-                      // Create
-                      const regMeta = {
-                          name: regFileName,
-                          mimeType: 'application/json',
-                          parents: [driveSession.zoneCId]
-                      };
-                      const regForm = new FormData();
-                      regForm.append('metadata', new Blob([JSON.stringify(regMeta)], { type: 'application/json' }));
-                      regForm.append('file', regBlob);
-
-                      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-                          method: 'POST',
-                          headers: { 'Authorization': 'Bearer ' + accessToken },
-                          body: regForm
-                      });
-                  }
-                  console.log('Updated Zone_C.json registry.');
+                  console.log('Updated Zone_C.json and isodata.json in Zone C.');
               } catch (regError) {
-                  console.error('Failed to update registry:', regError);
-                  // Non-blocking error
+                  console.error('Failed to update public zone files:', regError);
               }
           }
 
@@ -725,6 +727,7 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
+          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
