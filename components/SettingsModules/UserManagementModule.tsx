@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { UserProfile, Unit } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Shield, User, Building, CheckCircle, Mail, Crown, AlertCircle } from 'lucide-react';
+import { Shield, User, Building, CheckCircle, Mail, Crown, AlertCircle, Edit, X } from 'lucide-react';
 
 interface UserManagementModuleProps {
   users: UserProfile[];
@@ -13,6 +13,7 @@ interface UserManagementModuleProps {
 }
 
 const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, currentUser, units, onAddUser, onUpdateUsers, onRemoveUser }) => {
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUser, setNewUser] = useState<Partial<UserProfile>>({ 
       fullName: '', 
       username: '', 
@@ -68,7 +69,9 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
     
     // Safety check: if adding a primary school admin, check if one already exists
     if (newUser.role === 'school_admin' && newUser.isPrimary) {
-        if (users.some(u => u.role === 'school_admin' && u.isPrimary)) {
+        // If editing, exclude self from check
+        const otherAdmins = users.filter(u => u.role === 'school_admin' && u.isPrimary && u.id !== editingUserId);
+        if (otherAdmins.length > 0) {
             alert("Đã có tài khoản Quản lý cấp trường CHÍNH. Vui lòng bỏ chọn 'Tài khoản chính' hoặc hạ cấp tài khoản cũ trước.");
             return;
         }
@@ -76,7 +79,9 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
 
     // Safety check: if adding a primary unit manager, check if unit already has one
     if (newUser.role === 'unit_manager' && newUser.isPrimary && newUser.managedUnitId) {
-        if (users.some(u => u.role === 'unit_manager' && u.managedUnitId === newUser.managedUnitId && u.isPrimary)) {
+        // If editing, exclude self from check
+        const otherManagers = users.filter(u => u.role === 'unit_manager' && u.managedUnitId === newUser.managedUnitId && u.isPrimary && u.id !== editingUserId);
+        if (otherManagers.length > 0) {
             alert("Đơn vị này đã có tài khoản Quản lý CHÍNH.");
             return;
         }
@@ -88,18 +93,56 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
         finalIsPrimary = false; // Ensure it stays false if disabled
     }
 
-    onAddUser({
-      id: uuidv4(),
-      fullName: newUser.fullName!,
-      username: newUser.username!,
-      role: newUser.role as 'school_admin' | 'unit_manager',
-      email: newUser.email,
-      isPrimary: finalIsPrimary || false,
-      managedUnitId: newUser.role === 'unit_manager' ? newUser.managedUnitId : undefined
-    });
+    if (editingUserId) {
+        // UPDATE EXISTING USER
+        const updatedUsers = users.map(u => {
+            if (u.id === editingUserId) {
+                return {
+                    ...u,
+                    fullName: newUser.fullName!,
+                    username: newUser.username!,
+                    role: newUser.role as 'school_admin' | 'unit_manager',
+                    email: newUser.email,
+                    isPrimary: finalIsPrimary || false,
+                    managedUnitId: newUser.role === 'unit_manager' ? newUser.managedUnitId : undefined
+                };
+            }
+            return u;
+        });
+        onUpdateUsers(updatedUsers);
+        handleCancelEdit();
+    } else {
+        // ADD NEW USER
+        onAddUser({
+            id: uuidv4(),
+            fullName: newUser.fullName!,
+            username: newUser.username!,
+            role: newUser.role as 'school_admin' | 'unit_manager',
+            email: newUser.email,
+            isPrimary: finalIsPrimary || false,
+            managedUnitId: newUser.role === 'unit_manager' ? newUser.managedUnitId : undefined
+        });
+        
+        // Reset form
+        setNewUser({ fullName: '', username: '', role: isUnitManager ? 'unit_manager' : 'school_admin', email: '', isPrimary: false, managedUnitId: '' });
+    }
+  };
 
-    // Reset form
-    setNewUser({ fullName: '', username: '', role: isUnitManager ? 'unit_manager' : 'school_admin', email: '', isPrimary: false, managedUnitId: '' });
+  const handleEditUser = (user: UserProfile) => {
+      setEditingUserId(user.id);
+      setNewUser({
+          fullName: user.fullName,
+          username: user.username,
+          role: user.role,
+          email: user.email,
+          isPrimary: user.isPrimary,
+          managedUnitId: user.managedUnitId
+      });
+  };
+
+  const handleCancelEdit = () => {
+      setEditingUserId(null);
+      setNewUser({ fullName: '', username: '', role: isUnitManager ? 'unit_manager' : 'school_admin', email: '', isPrimary: false, managedUnitId: '' });
   };
 
   const togglePrimaryStatus = (userId: string) => {
@@ -169,8 +212,10 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
        {/* ADD FORM - Only for Primary Users */}
        {(isSchoolAdmin || isUnitManager) && (
        <div>
-           <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Thêm người dùng mới</h3>
-           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+           <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">
+               {editingUserId ? 'Chỉnh sửa thông tin người dùng' : 'Thêm người dùng mới'}
+           </h3>
+           <div className={`p-4 rounded-lg border grid grid-cols-1 md:grid-cols-2 gap-4 ${editingUserId ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
                {/* Line 1: Basic Info */}
                <div>
                    <label className="block text-xs font-semibold text-slate-500 mb-1">Tên đăng nhập (Hệ thống)</label>
@@ -253,13 +298,23 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
                            (Mặc định là tài khoản phụ cho vai trò này/đơn vị này)
                        </span>
                    )}
-                   <button 
-                      onClick={handleAddUser}
-                      disabled={!newUser.username || !newUser.fullName || (newUser.role === 'unit_manager' && !newUser.managedUnitId)}
-                      className={`ml-auto px-6 py-2 rounded text-sm font-bold text-white transition-colors ${(!newUser.username || !newUser.fullName) ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                   >
-                       Thêm User
-                   </button>
+                   <div className="flex gap-2 ml-auto">
+                       {editingUserId && (
+                           <button 
+                               onClick={handleCancelEdit}
+                               className="px-4 py-2 rounded text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors flex items-center gap-1"
+                           >
+                               <X size={14} /> Hủy
+                           </button>
+                       )}
+                       <button 
+                          onClick={handleAddUser}
+                          disabled={!newUser.username || !newUser.fullName || (newUser.role === 'unit_manager' && !newUser.managedUnitId)}
+                          className={`px-6 py-2 rounded text-sm font-bold text-white transition-colors ${(!newUser.username || !newUser.fullName) ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                       >
+                           {editingUserId ? 'Lưu thay đổi' : 'Thêm User'}
+                       </button>
+                   </div>
                </div>
            </div>
        </div>
@@ -327,13 +382,22 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, curr
                                </td>
                                <td className="px-4 py-3 text-right">
                                    {(isSchoolAdmin || isUnitManager) && (
-                                       <button 
-                                           onClick={() => onRemoveUser(user.id)}
-                                           className="text-red-400 hover:text-red-600 text-xs font-medium"
-                                           disabled={user.id === currentUser?.id} // Cannot delete self
-                                       >
-                                           Xóa
-                                       </button>
+                                       <div className="flex justify-end gap-2">
+                                           <button 
+                                               onClick={() => handleEditUser(user)}
+                                               className="text-blue-500 hover:text-blue-700 text-xs font-medium flex items-center gap-1"
+                                               disabled={user.id === currentUser?.id} // Cannot edit self (safety)
+                                           >
+                                               <Edit size={14}/> Sửa
+                                           </button>
+                                           <button 
+                                               onClick={() => onRemoveUser(user.id)}
+                                               className="text-red-400 hover:text-red-600 text-xs font-medium"
+                                               disabled={user.id === currentUser?.id} // Cannot delete self
+                                           >
+                                               Xóa
+                                           </button>
+                                       </div>
                                    )}
                                </td>
                            </tr>
