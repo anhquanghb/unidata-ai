@@ -24,7 +24,10 @@ import {
   ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, HumanResourceRecord, Faculty, GoogleDriveConfig } from '../types';
+import { 
+  IsoDefinition, IsoProcess, IsoFlowchartNodeData, IsoFlowchartEdgeData, Unit, 
+  HumanResourceRecord, Faculty, GoogleDriveConfig, UserProfile, SchoolInfo 
+} from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
@@ -116,12 +119,25 @@ interface ISODesignerModuleProps {
   humanResources: HumanResourceRecord[];
   faculties: Faculty[];
   driveSession: GoogleDriveConfig;
+  currentUser?: UserProfile;
+  schoolInfo: SchoolInfo;
 }
 
-const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, onUpdateIsoDefinitions, units, humanResources, faculties, driveSession }) => {
+const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ 
+  isoDefinitions, 
+  onUpdateIsoDefinitions, 
+  units, 
+  humanResources, 
+  faculties, 
+  driveSession,
+  currentUser,
+  schoolInfo
+}) => {
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'control' | 'purpose' | 'definitions' | 'flowchart' | 'kpi' | 'records'>('flowchart');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Editor State
   const [processData, setProcessData] = useState<IsoProcess | null>(null);
@@ -131,6 +147,96 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // --- CLOUD STORAGE LOGIC (isodata.json in Zone C) ---
+  
+  // Load isodata.json on mount
+  useEffect(() => {
+    const loadIsoData = async () => {
+      if (!schoolInfo.publicDriveId || !driveSession.isConnected) return;
+      
+      setIsLoading(true);
+      try {
+        const fileName = 'isodata.json';
+        const q = `name = '${fileName}' and '${schoolInfo.publicDriveId}' in parents and trashed = false`;
+        const listResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+        
+        const fileId = listResp.result.files?.[0]?.id;
+        if (fileId) {
+          const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { 'Authorization': `Bearer ${driveSession.accessToken}` }
+          });
+          if (contentResp.ok) {
+            const data = await contentResp.json();
+            if (Array.isArray(data)) {
+              onUpdateIsoDefinitions(data);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load ISO data from public drive:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadIsoData();
+  }, [schoolInfo.publicDriveId, driveSession.isConnected]);
+
+  const handleSaveToCloud = async (newDefs: IsoDefinition[]) => {
+    if (!driveSession.isConnected || !driveSession.zoneCId) return;
+    if (currentUser?.role !== 'school_admin' || !currentUser?.isPrimary) return;
+
+    setIsSaving(true);
+    try {
+      const fileName = 'isodata.json';
+      const content = JSON.stringify(newDefs, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+
+      // 1. Find existing file
+      const listResp = await window.gapi.client.drive.files.list({
+        q: `name = '${fileName}' and '${driveSession.zoneCId}' in parents and trashed = false`,
+        fields: 'files(id)',
+      });
+      
+      const existingFileId = listResp.result.files?.[0]?.id;
+      const accessToken = driveSession.accessToken;
+
+      if (existingFileId) {
+        // Update
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+        form.append('file', blob);
+        
+        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+          body: form
+        });
+      } else {
+        // Create
+        const metadata = {
+          name: fileName,
+          mimeType: 'application/json',
+          parents: [driveSession.zoneCId]
+        };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', blob);
+
+        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+          body: form
+        });
+      }
+      console.log("ISO data saved to cloud successfully.");
+    } catch (e) {
+      console.error("Failed to save ISO data:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
@@ -345,35 +451,36 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   // --- Helpers ---
 
   const handleUploadRecord = async (file: File, recordIndex: number) => {
-      if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneBId) {
-          alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục hệ thống.");
+      if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneCId) {
+          alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục công khai.");
           return;
       }
 
       try {
-          // 1. Ensure ISO Folder
-          let isoFolderId = '';
-          const q = `mimeType='application/vnd.google-apps.folder' and name='ISO' and '${driveSession.zoneBId}' in parents and trashed=false`;
+          // 1. Ensure Folder
+          let folderId = '';
+          const folderName = 'Quy trình công việc';
+          const q = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${driveSession.zoneCId}' in parents and trashed=false`;
           const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
           if (resp.result.files && resp.result.files.length > 0) {
-              isoFolderId = resp.result.files[0].id;
+              folderId = resp.result.files[0].id;
           } else {
               const meta = {
-                  name: 'ISO',
+                  name: folderName,
                   mimeType: 'application/vnd.google-apps.folder',
-                  parents: [driveSession.zoneBId]
+                  parents: [driveSession.zoneCId]
               };
               const createResp = await window.gapi.client.drive.files.create({
                   resource: meta,
                   fields: 'id'
               });
-              isoFolderId = createResp.result.id;
+              folderId = createResp.result.id;
           }
 
           // 2. Upload File
           const metadata = {
               name: file.name,
-              parents: [isoFolderId]
+              parents: [folderId]
           };
           const form = new FormData();
           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -554,35 +661,36 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
   };
 
   const handleUploadScan = async (file: File) => {
-    if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneBId) {
-        alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục hệ thống.");
+    if (!driveSession.isConnected || !driveSession.accessToken || !driveSession.zoneCId) {
+        alert("Chưa kết nối Google Drive hoặc không tìm thấy thư mục công khai.");
         return;
     }
 
     try {
-        // 1. Ensure ISO Folder
-        let isoFolderId = '';
-        const q = `mimeType='application/vnd.google-apps.folder' and name='ISO' and '${driveSession.zoneBId}' in parents and trashed=false`;
+        // 1. Ensure Folder
+        let folderId = '';
+        const folderName = 'Quy trình công việc';
+        const q = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${driveSession.zoneCId}' in parents and trashed=false`;
         const resp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
         if (resp.result.files && resp.result.files.length > 0) {
-            isoFolderId = resp.result.files[0].id;
+            folderId = resp.result.files[0].id;
         } else {
             const meta = {
-                name: 'ISO',
+                name: folderName,
                 mimeType: 'application/vnd.google-apps.folder',
-                parents: [driveSession.zoneBId]
+                parents: [driveSession.zoneCId]
             };
             const createResp = await window.gapi.client.drive.files.create({
                 resource: meta,
                 fields: 'id'
             });
-            isoFolderId = createResp.result.id;
+            folderId = createResp.result.id;
         }
 
         // 2. Upload File
         const metadata = {
             name: file.name,
-            parents: [isoFolderId]
+            parents: [folderId]
         };
         const form = new FormData();
         form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -886,6 +994,12 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     }
 
     onUpdateIsoDefinitions(newDefs);
+    
+    // Trigger Cloud Save if Primary Admin
+    if (currentUser?.role === 'school_admin' && currentUser?.isPrimary) {
+        handleSaveToCloud(newDefs);
+    }
+
     setIsEditing(false);
     setSelectedDefId(null);
   };
@@ -2155,7 +2269,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ isoDefinitions, o
     <div className="p-6 h-full flex flex-col bg-slate-50">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Thiết kế Quy trình ISO</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Quy trình công việc</h2>
           <p className="text-slate-500">Xây dựng và quản lý các quy trình vận hành chuẩn (SOPs).</p>
         </div>
         <button 

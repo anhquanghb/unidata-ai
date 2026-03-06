@@ -625,7 +625,6 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
-          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
@@ -726,7 +725,6 @@ const App: React.FC = () => {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
-          isoDefinitions,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
@@ -850,6 +848,8 @@ const App: React.FC = () => {
             humanResources={humanResources}
             faculties={faculties}
             driveSession={driveSession}
+            currentUser={currentUser}
+            schoolInfo={schoolInfo}
         />;
       default:
         return <div>View not found</div>;
