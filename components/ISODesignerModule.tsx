@@ -2839,103 +2839,144 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-20">
         {Object.entries(groupedDefinitions).map(([groupId, groupDefs]: [string, IsoDefinition[]]) => {
-          const latestDef = groupDefs[0]; // First one is latest due to sort
-          const historyDefs = groupDefs.slice(1);
+          // 1. Find Latest Published Version
+          const publishedDef = groupDefs.find(d => d.status === 'đã ban hành');
+          
+          // 2. Find Drafts (currently being edited)
+          const draftDefs = groupDefs.filter(d => ['đang thiết kế', 'đang chỉnh sửa', 'đã chuẩn bị đề xuất'].includes(d.status || ''));
+          const hasDraft = draftDefs.length > 0;
+          
+          // 3. Find History (Stopped or older versions)
+          const historyDefs = groupDefs.filter(d => d.status === 'dừng ban hành' || (d.status === 'đã ban hành' && d.id !== publishedDef?.id));
+
+          // Determine Main Display Definition: Published if exists, else Latest Draft
+          const mainDef = publishedDef || draftDefs[0] || historyDefs[0];
+          
+          if (!mainDef) return null;
           
           return (
-          <div key={latestDef.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-all group relative flex flex-col">
+          <div key={mainDef.id} className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-all group relative flex flex-col ${mainDef.status === 'dừng ban hành' ? 'opacity-75 grayscale' : ''}`}>
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center gap-2">
                 <div className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-mono font-bold">
-                  {latestDef.code}
+                  {mainDef.code}
                 </div>
                 <div className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold border border-slate-200">
-                   v{latestDef.version || '1.0'}
+                   v{mainDef.version || '1.0'}
                 </div>
-                {latestDef.status && (
-                  <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${latestDef.status === 'đã ban hành' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {latestDef.status}
+                {mainDef.status && (
+                  <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider 
+                    ${mainDef.status === 'đã ban hành' ? 'bg-green-100 text-green-700' : 
+                      mainDef.status === 'dừng ban hành' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
+                    {mainDef.status}
                   </div>
                 )}
               </div>
-              <div className={`w-2 h-2 rounded-full ${latestDef.active ? 'bg-green-500' : 'bg-slate-300'}`} title={latestDef.active ? 'Active' : 'Inactive'} />
+              <div className={`w-2 h-2 rounded-full ${mainDef.active ? 'bg-green-500' : 'bg-slate-300'}`} title={mainDef.active ? 'Active' : 'Inactive'} />
             </div>
             
             <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
-              {latestDef.name}
+              {mainDef.name}
             </h3>
-            <p className="text-sm text-slate-500 mb-4 line-clamp-2 flex-1">
-              {latestDef.description || 'Chưa có mô tả.'}
+            <p className="text-sm text-slate-500 mb-4 line-clamp-2">
+              {mainDef.description || 'Chưa có mô tả.'}
             </p>
 
+            {/* Main Action Buttons */}
             <div className="flex items-center gap-2 pt-4 border-t border-slate-100 mt-auto">
+              {/* "Xem quy trình" button */}
               <button 
-                onClick={() => handleEdit(latestDef)}
-                className="flex-1 flex items-center justify-center gap-2 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
+                onClick={() => handleEdit(mainDef, true)}
+                className="flex-[2] flex items-center justify-center gap-2 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
               >
-                {currentUser?.role === 'school_admin' ? (
-                  <><Edit2 size={16} /> {latestDef.status === 'đã ban hành' ? 'Sửa đổi / Nâng cấp' : 'Chỉnh sửa'}</>
-                ) : (
-                  <><FileText size={16} /> Xem chi tiết</>
-                )}
+                <FileText size={16} /> Xem quy trình
               </button>
+
+              {/* "Sửa đổi / Nâng cấp" button - Only if Published and NO draft exists */}
+              {currentUser?.role === 'school_admin' && mainDef.status === 'đã ban hành' && !hasDraft && (
+                  <button 
+                    onClick={() => handleEdit(mainDef)}
+                    className="flex-1 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
+                    title="Sửa đổi / Nâng cấp"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+              )}
+
+              {/* "Chỉnh sửa" button - If mainDef is a draft */}
+              {currentUser?.role === 'school_admin' && ['đang thiết kế', 'đang chỉnh sửa', 'đã chuẩn bị đề xuất'].includes(mainDef.status || '') && (
+                  <button 
+                    onClick={() => handleEdit(mainDef)}
+                    className="flex-1 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
+                  >
+                    <Edit2 size={16} /> Chỉnh sửa
+                  </button>
+              )}
               
-              {currentUser?.role === 'school_admin' && currentUser?.isPrimary && (
+              {/* Stop Publishing Button */}
+              {currentUser?.role === 'school_admin' && currentUser?.isPrimary && mainDef.status === 'đã ban hành' && (
                 <button 
                   onClick={() => {
-                    const newStatus = latestDef.status === 'đã ban hành' ? 'đang thiết kế' : 'đã ban hành';
-                    const confirmMsg = newStatus === 'đã ban hành' 
-                      ? "Bạn có chắc chắn muốn BAN HÀNH quy trình này lên Cloud?" 
-                      : "Bạn có chắc chắn muốn GỠ BAN HÀNH quy trình này?";
-                    
-                    if (confirm(confirmMsg)) {
+                    if (confirm("Bạn có chắc chắn muốn DỪNG BAN HÀNH quy trình này? Trạng thái sẽ chuyển sang 'Dừng ban hành'.")) {
                       const updatedDefs = isoDefinitions.map(d => 
-                        d.id === latestDef.id ? { ...d, status: newStatus, updatedAt: new Date().toISOString() } : d
+                        d.id === mainDef.id ? { ...d, status: 'dừng ban hành' as const, updatedAt: new Date().toISOString() } : d
                       );
                       onUpdateIsoDefinitions(updatedDefs);
                     }
                   }}
-                  className={`p-2 rounded-lg transition-colors ${
-                    latestDef.status === 'đã ban hành' 
-                      ? 'text-green-600 bg-green-50 hover:bg-green-100' 
-                      : 'text-amber-600 bg-amber-50 hover:bg-amber-100'
-                  }`}
-                  title={latestDef.status === 'đã ban hành' ? 'Gỡ ban hành' : 'Ban hành'}
+                  className="p-2 rounded-lg transition-colors text-amber-600 bg-amber-50 hover:bg-amber-100"
+                  title="Dừng ban hành"
                 >
-                  <CheckCircle size={18} />
+                  <X size={18} />
                 </button>
               )}
 
-              {currentUser?.role === 'school_admin' && (
+              {/* Delete Button (Only for Drafts/Stopped) */}
+              {currentUser?.role === 'school_admin' && mainDef.status !== 'đã ban hành' && (
                 <button 
                   onClick={() => {
                       if (confirm("Bạn có chắc chắn muốn xóa quy trình này?")) {
-                          onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== latestDef.id));
+                          onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== mainDef.id));
                       }
                   }}
                   className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Xóa"
                 >
                   <Trash2 size={18} />
                 </button>
               )}
             </div>
             
-            {/* History Section */}
-            {historyDefs.length > 0 && (
+            {/* Drafts & History Section */}
+            {(draftDefs.length > 0 || historyDefs.length > 0) && (
                 <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Lịch sử phiên bản</p>
-                    <div className="flex flex-wrap gap-2">
-                        {historyDefs.map(hist => (
+                    {/* Drafts */}
+                    {draftDefs.map(draft => (
+                        draft.id !== mainDef.id && (
+                            <button 
+                                key={draft.id}
+                                onClick={() => handleEdit(draft)}
+                                className="w-full flex items-center gap-2 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg text-xs text-orange-700 font-bold mb-2 transition-colors"
+                                title={`Bản thảo v${draft.version} - ${draft.status}`}
+                            >
+                                <Edit2 size={14}/> Phiên bản {draft.version} (Sửa)
+                            </button>
+                        )
+                    ))}
+                    
+                    {/* History */}
+                    {historyDefs.map(hist => (
+                        hist.id !== mainDef.id && (
                             <button 
                                 key={hist.id}
                                 onClick={() => handleEdit(hist, true)} // Open Read Only
-                                className="px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-600 font-mono flex items-center gap-1"
+                                className="w-full flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 font-mono mb-2 transition-colors"
                                 title={`Trạng thái: ${hist.status} - ${new Date(hist.updatedAt).toLocaleDateString()}`}
                             >
-                                <Clock size={10}/> v{hist.version}
+                                <Clock size={14}/> Phiên bản {hist.version}
                             </button>
-                        ))}
-                    </div>
+                        )
+                    ))}
                 </div>
             )}
           </div>
