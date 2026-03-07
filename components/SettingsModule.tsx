@@ -50,7 +50,7 @@ interface SettingsModuleProps {
   onUpdateAcademicYear: (year: AcademicYear) => void;
   onDeleteAcademicYear: (id: string) => void;
   onToggleLockAcademicYear: (id: string) => void;
-  onImportData: (data: any) => void;
+  onImportData: (data: any, markAsUnsaved?: boolean) => void;
   onUpdateSchoolInfo: (info: SchoolInfo) => void;
   onShowVersions?: () => void;
   onResetSystemData: () => void; // New prop for clearing data
@@ -681,7 +681,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
       try {
         const json = JSON.parse(e.target?.result as string);
         if (window.confirm(`Bạn có chắc chắn muốn nhập dữ liệu từ file này? \nDữ liệu hiện tại sẽ bị thay thế.`)) {
-            onImportData(json);
+            onImportData(json, true);
         }
       } catch (error) {
         alert("Lỗi: File không hợp lệ hoặc bị lỗi định dạng JSON.");

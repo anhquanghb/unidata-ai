@@ -543,7 +543,7 @@ const App: React.FC = () => {
   };
 
   // Full System Import Handler
-  const handleSystemDataImport = (data: any) => {
+  const handleSystemDataImport = (data: any, markAsUnsaved: boolean = false) => {
       if (data === 'RESET') {
           setUsers([{ id: 'administrator', username: 'admin', fullName: 'System Administrator', role: 'school_admin', isPrimary: true }]);
           setUnits([]);
@@ -559,7 +559,7 @@ const App: React.FC = () => {
           setDataConfigGroups([]);
           setDynamicDataStore({});
           setSettings({ ...initialSettings }); // Reset to default permissions
-          setHasUnsavedChanges(false); 
+          setHasUnsavedChanges(markAsUnsaved); 
           return;
       }
 
@@ -598,7 +598,7 @@ const App: React.FC = () => {
       if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
       if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
       
-      setHasUnsavedChanges(false); 
+      setHasUnsavedChanges(markAsUnsaved); 
   };
 
   // --- GOOGLE DRIVE LOGIC (GLOBAL) ---

@@ -6,7 +6,7 @@ import DataSyncModule from './DataSyncModule';
 interface VersionSelectorModalProps {
   isOpen: boolean;
   driveConfig: GoogleDriveConfig;
-  onImportData: (data: any) => void; // Changed to mandatory
+  onImportData: (data: any, markAsUnsaved?: boolean) => void; // Changed to mandatory
   onClose: () => void;
   currentData?: any; // To compare
 }
@@ -242,7 +242,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
   };
 
   const executeMerge = (finalData: any) => {
-      onImportData(finalData);
+      onImportData(finalData, true);
       alert("Đồng bộ dữ liệu thành công!");
       onClose();
   };
@@ -308,7 +308,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
 
   const handleFinalConfirm = async () => {
       if (activeTab === 'empty') {
-          onImportData('RESET'); // Signal to reset
+          onImportData('RESET', true); // Signal to reset
           onClose();
       } else {
           const fileId = activeTab === 'my_drive' ? selectedMyId : selectedExternalFileId;
@@ -318,7 +318,7 @@ const VersionSelectorModal: React.FC<VersionSelectorModalProps> = ({ isOpen, dri
           try {
               const rawData = await fetchFileContent(fileId);
               const data = migrateDataLocal(rawData);
-              onImportData(data);
+              onImportData(data, true);
               alert("Đã tải dữ liệu thành công!");
               onClose();
           } catch (e: any) {
