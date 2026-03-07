@@ -105,8 +105,8 @@ const App: React.FC = () => {
           const userEmail = userInfo.result.user.emailAddress;
           const accountName = userInfo.result.user.displayName;
 
-          // Find Root
-          const q = `mimeType='application/vnd.google-apps.folder' and name='${ROOT_FOLDER_NAME}' and trashed=false and 'me' in owners`;
+          // Find Root - Allow finding Shared Folders (removed 'me' in owners)
+          const q = `mimeType='application/vnd.google-apps.folder' and name='${ROOT_FOLDER_NAME}' and trashed=false`;
           const folderResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
           const rootFolderId = folderResp.result.files?.[0]?.id || '';
 
@@ -116,12 +116,22 @@ const App: React.FC = () => {
               const qB = `mimeType='application/vnd.google-apps.folder' and name='${ZONE_B_NAME}' and '${rootFolderId}' in parents and trashed=false`;
               const zoneResp = await window.gapi.client.drive.files.list({ q: qB, fields: 'files(id)' });
               zoneBId = zoneResp.result.files?.[0]?.id || '';
+          } else {
+              // Fallback: Search for Zone B directly (if shared directly)
+              const qB = `mimeType='application/vnd.google-apps.folder' and name='${ZONE_B_NAME}' and trashed=false`;
+              const zoneResp = await window.gapi.client.drive.files.list({ q: qB, fields: 'files(id)' });
+              zoneBId = zoneResp.result.files?.[0]?.id || '';
           }
 
-          // Search Zone C (Public) mainly for ID updates
+          // Find Zone C (Public)
           let zoneCId = '';
           if (rootFolderId) {
               const qC = `mimeType='application/vnd.google-apps.folder' and name='UniData_Public' and '${rootFolderId}' in parents and trashed=false`;
+              const zoneCResp = await window.gapi.client.drive.files.list({ q: qC, fields: 'files(id)' });
+              zoneCId = zoneCResp.result.files?.[0]?.id || '';
+          } else {
+              // Fallback: Search for Zone C directly
+              const qC = `mimeType='application/vnd.google-apps.folder' and name='UniData_Public' and trashed=false`;
               const zoneCResp = await window.gapi.client.drive.files.list({ q: qC, fields: 'files(id)' });
               zoneCId = zoneCResp.result.files?.[0]?.id || '';
           }
@@ -605,8 +615,8 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveToCloud = async (overrideIsoDefinitions?: IsoDefinition[]) => {
-      if (!driveSession.isConnected || !driveSession.folderId) {
-          alert("Chưa kết nối Google Drive hoặc chưa cấu hình thư mục.");
+      if (!driveSession.isConnected) {
+          alert("Chưa kết nối Google Drive.");
           return;
       }
 
@@ -633,94 +643,99 @@ const App: React.FC = () => {
           version: "2.1.0"
       };
 
-      const fileName = `unidata_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       const fileContent = JSON.stringify(data, null, 2);
-      const file = new Blob([fileContent], {type: 'application/json'});
+      const fileBlob = new Blob([fileContent], {type: 'application/json'});
       
-      const metadata = {
-          name: fileName,
-          mimeType: 'application/json',
-          parents: [driveSession.folderId]
-      };
+      // Filenames
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFileName = `unidata_backup_${timestamp}.json`;
+      const isoFileName = `isodata_${timestamp}.json`;
 
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', file);
+      // Helper to upload file
+      const uploadFile = async (name: string, blob: Blob, parentId: string) => {
+          const metadata = {
+              name: name,
+              mimeType: 'application/json',
+              parents: [parentId]
+          };
+          const form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          form.append('file', blob);
 
-      try {
           const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
               method: 'POST',
               headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
               body: form,
           });
-          
-          if (!response.ok) throw new Error("Upload failed");
-          
-          // --- ZONE C UPDATE LOGIC ---
-          if (driveSession.zoneCId) {
-              try {
-                  const publishFile = async (name: string, blob: Blob) => {
-                      const listResp = await window.gapi.client.drive.files.list({
-                          q: `name = '${name}' and '${driveSession.zoneCId}' in parents and trashed = false`,
-                          fields: 'files(id)',
-                      });
-                      const existingFileId = listResp.result.files?.[0]?.id;
+          if (!response.ok) throw new Error(`Failed to upload ${name}`);
+          return await response.json();
+      };
 
-                      if (existingFileId) {
-                          const form = new FormData();
-                          form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-                          form.append('file', blob);
-                          await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
-                              method: 'PATCH',
-                              headers: { 'Authorization': 'Bearer ' + accessToken },
-                              body: form
-                          });
-                      } else {
-                          const metadata = { name, mimeType: 'application/json', parents: [driveSession.zoneCId] };
-                          const form = new FormData();
-                          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                          form.append('file', blob);
-                          await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-                              method: 'POST',
-                              headers: { 'Authorization': 'Bearer ' + accessToken },
-                              body: form
-                          });
-                      }
-                  };
+      // Helper to update/create file (Overwrite if exists)
+      const publishFile = async (name: string, blob: Blob, parentId: string) => {
+          const listResp = await window.gapi.client.drive.files.list({
+              q: `name = '${name}' and '${parentId}' in parents and trashed = false`,
+              fields: 'files(id)',
+          });
+          const existingFileId = listResp.result.files?.[0]?.id;
 
-                  // 1. Update Registry (Zone_C.json) - Restricted to School Admin
-                  if (currentUser?.role === 'school_admin' && currentUser?.isPrimary) {
-                      const registryData = units.map(u => ({
-                          unit_id: u.unit_id,
-                          unit_name: u.unit_name,
-                          unit_code: u.unit_code,
-                          unit_type: u.unit_type,
-                          unit_publicDriveId: u.unit_publicDriveId
-                      }));
-                      
-                      const regContent = JSON.stringify(registryData, null, 2);
-                      const regBlob = new Blob([regContent], { type: 'application/json' });
-                      await publishFile('Zone_C.json', regBlob);
-                  }
+          if (existingFileId) {
+              const form = new FormData();
+              form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+              form.append('file', blob);
+              await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
+                  method: 'PATCH',
+                  headers: { 'Authorization': 'Bearer ' + accessToken },
+                  body: form
+              });
+          } else {
+              await uploadFile(name, blob, parentId);
+          }
+      };
 
-                  // 2. Publish ISO Data (isodata.json) - Only published ones
-                  // This is now executed for any user with write access to Zone C
-                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
-                  const isoContent = JSON.stringify(publishedOnly, null, 2);
-                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
-                  await publishFile('isodata.json', isoBlob);
-                  
-                  console.log('Updated isodata.json in Zone C.');
-              } catch (regError) {
-                  console.error('Failed to update public zone files:', regError);
+      try {
+          let messages = [];
+
+          // 1. Save unidata_backup & external.json to Zone B
+          if (currentUser?.role === 'school_admin' || currentUser?.role === 'unit_manager') {
+              if (driveSession.zoneBId) {
+                  // Backup -> New File
+                  await uploadFile(backupFileName, fileBlob, driveSession.zoneBId);
+                  messages.push(`- Đã lưu backup: ${backupFileName} vào Zone B`);
+
+                  // External -> Update/Overwrite
+                  await publishFile('external.json', fileBlob, driveSession.zoneBId);
+                  messages.push(`- Đã cập nhật external.json vào Zone B`);
+              } else {
+                  console.warn("Zone B ID missing, skipping system backup.");
               }
           }
 
-          alert("Đã lưu bản cập nhật mới lên Cloud thành công!" + (driveSession.zoneCId ? "\n(Đã cập nhật isodata.json trên Zone C)" : ""));
-          setHasUnsavedChanges(false);
-      } catch (error) {
+          // 2. Save isodata_*.json to Zone C
+          if (currentUser?.permissions?.canProposeEditProcess || (currentUser?.role === 'school_admin' && currentUser?.isPrimary)) {
+              if (driveSession.zoneCId) {
+                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  const isoContent = JSON.stringify(publishedOnly, null, 2);
+                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
+                  
+                  // NEW: Save as isodata_[timestamp].json (New File)
+                  await uploadFile(isoFileName, isoBlob, driveSession.zoneCId);
+                  messages.push(`- Đã lưu ${isoFileName} vào Zone C`);
+              } else {
+                  console.warn("Zone C ID missing, skipping ISO publish.");
+              }
+          }
+
+          if (messages.length > 0) {
+              alert(`Lưu trữ thành công:\n${messages.join('\n')}`);
+              setHasUnsavedChanges(false);
+          } else {
+              alert("Không có hành động lưu trữ nào được thực hiện (do thiếu quyền hoặc thiếu thư mục đích).");
+          }
+
+      } catch (error: any) {
           console.error(error);
-          alert("Lỗi khi lưu lên Cloud. Vui lòng kiểm tra kết nối.");
+          alert("Lỗi khi lưu lên Cloud: " + error.message);
       }
   };
 
@@ -846,6 +861,7 @@ const App: React.FC = () => {
             onUpdateSchoolInfo={(info) => { setSchoolInfo(info); markDirty(); }}
             onShowVersions={() => setIsVersionModalOpen(true)} 
             onResetSystemData={() => handleSystemDataImport('RESET')}
+            onSaveToCloud={handleSaveToCloud}
         />;
       case 'iso_designer':
         return <ISODesignerModule 

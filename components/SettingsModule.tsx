@@ -54,6 +54,7 @@ interface SettingsModuleProps {
   onUpdateSchoolInfo: (info: SchoolInfo) => void;
   onShowVersions?: () => void;
   onResetSystemData: () => void; // New prop for clearing data
+  onSaveToCloud?: () => void; // New prop for saving to cloud
 }
 
 // Updated SCOPES to include readonly access for restoring backups
@@ -106,7 +107,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onImportData,
   onUpdateSchoolInfo,
   onShowVersions,
-  onResetSystemData
+  onResetSystemData,
+  onSaveToCloud
 }) => {
   // Ordered: Backup -> Users -> DataConfig -> General
   const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'data_config' | 'general'>('backup');
@@ -573,6 +575,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   // --- SAVE TO DRIVE HANDLER ---
   const handleSaveToDrive = async () => {
+    if (onSaveToCloud) {
+        await onSaveToCloud();
+        return;
+    }
+    
+    // Fallback Legacy Logic (Only if onSaveToCloud is not provided)
     // Save to Zone B (System)
     if (!driveSession.isConnected || !driveSession.zoneBId) {
         alert("Chưa kết nối Google Drive hoặc chưa có thư mục Zone B (System).");
