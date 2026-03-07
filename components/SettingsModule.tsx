@@ -755,6 +755,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             faculties={faculties}
             units={units}
             currentUser={currentUser}
+            driveSession={driveSession} // Pass driveSession
           />
         )}
 

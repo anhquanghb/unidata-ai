@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { UserProfile, HumanResourceRecord, Faculty, Unit } from '../../types';
 import { Search, Shield, Building, User, Crown, AlertCircle, Trash2 } from 'lucide-react';
 
+import { GoogleDriveConfig } from '../../types';
+
 interface RolesModuleProps {
   users: UserProfile[];
   onUpdateUsers: (users: UserProfile[]) => void;
@@ -9,15 +11,86 @@ interface RolesModuleProps {
   faculties: Faculty[];
   units: Unit[];
   currentUser?: UserProfile;
+  driveSession: GoogleDriveConfig;
 }
 
-const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanResources, faculties, units, currentUser }) => {
+const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanResources, faculties, units, currentUser, driveSession }) => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // --- LOGIC HELPERS ---
   const isSchoolAdmin = currentUser?.role === 'school_admin' && currentUser.isPrimary;
   const isUnitManager = currentUser?.role === 'unit_manager' && currentUser.isPrimary;
+
+  // --- DRIVE HELPERS ---
+  const handleGrantIsoPermission = async (targetEmail: string) => {
+      if (!driveSession.isConnected || !driveSession.zoneCId) {
+          alert("Chưa kết nối Google Drive hoặc không tìm thấy Zone C (Public).");
+          return;
+      }
+
+      const accessToken = window.gapi.client.getToken()?.access_token || driveSession.accessToken;
+      if (!accessToken) {
+          alert("Phiên làm việc hết hạn. Vui lòng kết nối lại.");
+          return;
+      }
+
+      try {
+          // 1. Find or Create ISO_proposal folder in Zone C
+          const q = `mimeType='application/vnd.google-apps.folder' and name='ISO_proposal' and '${driveSession.zoneCId}' in parents and trashed=false`;
+          const listResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+          let folderId = listResp.result.files?.[0]?.id;
+
+          if (!folderId) {
+              const metadata = {
+                  name: 'ISO_proposal',
+                  mimeType: 'application/vnd.google-apps.folder',
+                  parents: [driveSession.zoneCId]
+              };
+              const createResp = await window.gapi.client.drive.files.create({
+                  resource: metadata,
+                  fields: 'id'
+              });
+              folderId = createResp.result.id;
+          }
+
+          if (!folderId) throw new Error("Could not create ISO_proposal folder");
+
+          // 2. Grant 'writer' (Can edit) permission to the user
+          await window.gapi.client.drive.permissions.create({
+              fileId: folderId,
+              resource: {
+                  role: 'writer',
+                  type: 'user',
+                  emailAddress: targetEmail
+              },
+              sendNotificationEmail: false
+          });
+
+          alert(`Đã tạo thư mục ISO_proposal và cấp quyền chỉnh sửa cho ${targetEmail}`);
+
+      } catch (error: any) {
+          console.error("Drive Permission Error:", error);
+          alert("Lỗi khi cấp quyền trên Drive: " + error.message);
+      }
+  };
+
+  const handlePermissionChange = async (permission: keyof UserProfile['permissions'], value: boolean) => {
+      if (!selectedUser) return;
+
+      // Special Logic for 'canProposeEditProcess'
+      if (permission === 'canProposeEditProcess' && value === true && isSchoolAdmin) {
+          if (window.confirm(`Phân quyền upload dữ liệu lên thư mục ISO_proposal cho ${selectedUser.email}?`)) {
+              await handleGrantIsoPermission(selectedUser.email);
+          }
+      }
+
+      const updatedUser = {
+          ...selectedUser,
+          permissions: { ...selectedUser.permissions, [permission]: value }
+      };
+      handleUpdateUser(updatedUser);
+  };
 
   // Filter Units based on permission
   const allowedUnits = useMemo(() => {
@@ -315,10 +388,7 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
                                 <input 
                                     type="checkbox" 
                                     checked={selectedUser.permissions?.canProposeEditProcess || false} 
-                                    onChange={e => handleUpdateUser({
-                                        ...selectedUser, 
-                                        permissions: { ...selectedUser.permissions, canProposeEditProcess: e.target.checked }
-                                    })} 
+                                    onChange={e => handlePermissionChange('canProposeEditProcess', e.target.checked)} 
                                 />
                                 <div>
                                     <span className="text-sm font-medium block">Đề xuất - Chỉnh sửa quy trình</span>
@@ -332,10 +402,7 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
                                 <input 
                                     type="checkbox" 
                                     checked={selectedUser.permissions?.canEditDataConfig || false} 
-                                    onChange={e => handleUpdateUser({
-                                        ...selectedUser, 
-                                        permissions: { ...selectedUser.permissions, canEditDataConfig: e.target.checked }
-                                    })} 
+                                    onChange={e => handlePermissionChange('canEditDataConfig', e.target.checked)} 
                                 />
                                 <div>
                                     <span className="text-sm font-medium block">Cấu hình dữ liệu (Data Config)</span>
@@ -349,10 +416,7 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
                                 <input 
                                     type="checkbox" 
                                     checked={selectedUser.permissions?.canEditOrgStructure || false} 
-                                    onChange={e => handleUpdateUser({
-                                        ...selectedUser, 
-                                        permissions: { ...selectedUser.permissions, canEditOrgStructure: e.target.checked }
-                                    })} 
+                                    onChange={e => handlePermissionChange('canEditOrgStructure', e.target.checked)} 
                                 />
                                 <div>
                                     <span className="text-sm font-medium block">Chỉnh sửa Cấu trúc tổ chức</span>

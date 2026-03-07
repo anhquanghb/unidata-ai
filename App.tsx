@@ -711,16 +711,42 @@ const App: React.FC = () => {
               }
           }
 
-          // 2. Save isodata_*.json to Zone C
+          // 2. Save isodata_*.json to Zone C (ISO_proposal)
           if (currentUser?.permissions?.canProposeEditProcess || (currentUser?.role === 'school_admin' && currentUser?.isPrimary)) {
               if (driveSession.zoneCId) {
-                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
-                  const isoContent = JSON.stringify(publishedOnly, null, 2);
-                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
-                  
-                  // NEW: Save as isodata_[timestamp].json (New File)
-                  await uploadFile(isoFileName, isoBlob, driveSession.zoneCId);
-                  messages.push(`- Đã lưu ${isoFileName} vào Zone C`);
+                  // Find ISO_proposal folder
+                  const q = `mimeType='application/vnd.google-apps.folder' and name='ISO_proposal' and '${driveSession.zoneCId}' in parents and trashed=false`;
+                  const listResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+                  let targetFolderId = listResp.result.files?.[0]?.id;
+
+                  // If not found, try to create it (if user has permission)
+                  if (!targetFolderId) {
+                      try {
+                          const metadata = {
+                              name: 'ISO_proposal',
+                              mimeType: 'application/vnd.google-apps.folder',
+                              parents: [driveSession.zoneCId]
+                          };
+                          const createResp = await window.gapi.client.drive.files.create({
+                              resource: metadata,
+                              fields: 'id'
+                          });
+                          targetFolderId = createResp.result.id;
+                      } catch (e) {
+                          console.warn("Could not create ISO_proposal folder, falling back to Zone C root.", e);
+                          targetFolderId = driveSession.zoneCId;
+                      }
+                  }
+
+                  if (targetFolderId) {
+                      const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                      const isoContent = JSON.stringify(publishedOnly, null, 2);
+                      const isoBlob = new Blob([isoContent], { type: 'application/json' });
+                      
+                      // Save as isodata_[timestamp].json (New File)
+                      await uploadFile(isoFileName, isoBlob, targetFolderId);
+                      messages.push(`- Đã lưu ${isoFileName} vào thư mục ISO_proposal (Zone C)`);
+                  }
               } else {
                   console.warn("Zone C ID missing, skipping ISO publish.");
               }
