@@ -204,6 +204,8 @@ export interface IsoProcess {
 // Legacy IsoDefinition (Keep for compatibility if needed, or replace usages)
 export interface IsoDefinition {
   id: string;
+  familyId?: string; // Grouping ID for versions
+  version?: string; // e.g. "1.0", "1.1"
   name: string;
   code: string; // ISO Code e.g., "ISO-01"
   description?: string;

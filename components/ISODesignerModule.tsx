@@ -705,6 +705,175 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     };
   }, [isResizing]);
 
+  // --- Versioning Logic ---
+  const [versionModal, setVersionModal] = useState<{ isOpen: boolean; baseDef: IsoDefinition | null } | null>(null);
+  const [viewingVersionId, setViewingVersionId] = useState<string | null>(null); // For Read-only view
+  
+  const getNextVersion = (currentVer: string, type: 'minor' | 'major'): string => {
+      const [major, minor] = (currentVer || '1.0').split('.').map(Number);
+      if (type === 'major') return `${major + 1}.0`;
+      return `${major}.${minor + 1}`;
+  };
+
+  const handleCreateVersion = (type: 'minor' | 'major') => {
+      if (!versionModal?.baseDef) return;
+      
+      const base = versionModal.baseDef;
+      const newVersion = getNextVersion(base.version || '1.0', type);
+      const newId = uuidv4();
+      
+      const newDef: IsoDefinition = {
+          ...base,
+          id: newId,
+          familyId: base.familyId || base.id, // Ensure family linkage
+          version: newVersion,
+          status: 'đang chỉnh sửa',
+          updatedAt: new Date().toISOString(),
+          processData: base.processData ? {
+              ...base.processData,
+              id: newId, // Update internal ID
+              controlInfo: {
+                  ...base.processData.controlInfo,
+                  revision: newVersion
+              },
+              updatedAt: new Date().toISOString()
+          } : undefined
+      };
+      
+      onUpdateIsoDefinitions([...isoDefinitions, newDef]);
+      setVersionModal(null);
+      
+      // Open Editor for new version
+      setSelectedDefId(newId);
+      setProcessData(newDef.processData || null);
+      setIsEditing(true);
+      
+      // Load React Flow
+      if (newDef.processData?.flowchart) {
+          setNodes(newDef.processData.flowchart.nodes.map(n => ({ ...n, data: { label: n.label } })));
+          setEdges(newDef.processData.flowchart.edges.map(e => ({ ...e, label: e.label })));
+      }
+  };
+
+  const handleEdit = (def: IsoDefinition, isReadOnly: boolean = false) => {
+      // Legacy Migration / Fallback
+      const proc: IsoProcess = def.processData || {
+          id: def.id,
+          name: def.name,
+          controlInfo: {
+              documentCode: def.code,
+              revision: '1.0',
+              effectiveDate: new Date().toISOString().split('T')[0],
+              drafter: '',
+              reviewer: '',
+              approver: ''
+          },
+          purposeScope: { purpose: def.description || '', scope: '' },
+          definitions: [],
+          flowchart: { nodes: [], edges: [] },
+          stepDetails: {},
+          kpis: [],
+          records: [],
+          updatedAt: def.updatedAt
+      };
+
+      if (isReadOnly) {
+          // Read Only Mode
+          setViewingVersionId(def.id);
+          setSelectedDefId(def.id);
+          setProcessData(proc);
+          setIsEditing(true);
+          
+          if (proc.flowchart) {
+              setNodes(proc.flowchart.nodes.map(n => ({ 
+                  ...n, 
+                  data: { label: n.label }, // Fix: label is top-level in IsoFlowchartNodeData
+                  draggable: false, 
+                  connectable: false 
+              })));
+              setEdges(proc.flowchart.edges.map(e => ({ ...e, label: e.label, animated: false })));
+          }
+          return;
+      }
+
+      if (def.status === 'đã ban hành') {
+          // Prompt for Versioning
+          setVersionModal({ isOpen: true, baseDef: def });
+      } else {
+          // Normal Edit
+          setViewingVersionId(null);
+          setSelectedDefId(def.id);
+          setProcessData(proc);
+          setIsEditing(true);
+          
+          if (proc.flowchart) {
+              setNodes(proc.flowchart.nodes.map(n => ({ 
+                  ...n, 
+                  data: { label: n.label } // Fix: label is top-level
+              })));
+              setEdges(proc.flowchart.edges.map(e => ({ ...e, label: e.label })));
+          }
+      }
+  };
+
+  const handleCreateNew = () => {
+      const newId = uuidv4();
+      const newDef: IsoDefinition = {
+          id: newId,
+          familyId: newId, // Self is root
+          version: '1.0',
+          name: 'Quy trình mới',
+          code: 'ISO-NEW',
+          active: true,
+          status: 'đang thiết kế',
+          updatedAt: new Date().toISOString(),
+          steps: [],
+          transitions: [],
+          processData: {
+              id: newId,
+              name: 'Quy trình mới',
+              controlInfo: {
+                  documentCode: 'ISO-NEW',
+                  revision: '1.0',
+                  effectiveDate: new Date().toISOString().slice(0, 10),
+                  drafter: currentUser?.fullName || '',
+                  reviewer: '',
+                  approver: '',
+              },
+              purposeScope: { purpose: '', scope: '' },
+              definitions: [],
+              flowchart: { nodes: [], edges: [] },
+              stepDetails: {},
+              kpis: [],
+              records: [],
+              updatedAt: new Date().toISOString()
+          }
+      };
+      onUpdateIsoDefinitions([...isoDefinitions, newDef]);
+      handleEdit(newDef);
+  };
+  
+  // Group Definitions for List View
+  const groupedDefinitions = useMemo(() => {
+      const groups: Record<string, IsoDefinition[]> = {};
+      isoDefinitions.forEach(def => {
+          const key = def.familyId || def.code; // Fallback to code if familyId missing
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(def);
+      });
+      
+      // Sort each group by version desc
+      Object.keys(groups).forEach(key => {
+          groups[key].sort((a, b) => {
+             const vA = a.version || '0.0';
+             const vB = b.version || '0.0';
+             return vB.localeCompare(vA, undefined, { numeric: true, sensitivity: 'base' });
+          });
+      });
+      
+      return groups;
+  }, [isoDefinitions]);
+
   // --- Handlers ---
 
   // --- Helpers ---
@@ -838,85 +1007,6 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
               )}
           </div>
       );
-  };
-
-  const handleCreateNew = () => {
-    const newProcess: IsoProcess = {
-      id: uuidv4(),
-      name: 'Quy trình Mới',
-      controlInfo: {
-        documentCode: 'QT-XX-00',
-        revision: '1.0',
-        effectiveDate: new Date().toISOString().split('T')[0],
-        drafter: '',
-        reviewer: '',
-        approver: ''
-      },
-      purposeScope: { purpose: '', scope: '' },
-      definitions: [],
-      flowchart: { nodes: [], edges: [] },
-      stepDetails: {},
-      kpis: [],
-      records: [],
-      updatedAt: new Date().toISOString()
-    };
-    
-    setProcessData(newProcess);
-    setNodes([]);
-    setEdges([]);
-    setIsEditing(true);
-    setSelectedDefId(null); // New, so no existing ID yet
-  };
-
-  const handleEdit = (def: IsoDefinition) => {
-    // Load existing or migrate
-    const proc: IsoProcess = def.processData || {
-      id: def.id,
-      name: def.name,
-      controlInfo: {
-        documentCode: def.code,
-        revision: '1.0',
-        effectiveDate: new Date().toISOString().split('T')[0],
-        drafter: '',
-        reviewer: '',
-        approver: ''
-      },
-      purposeScope: { purpose: def.description || '', scope: '' },
-      definitions: [],
-      flowchart: { nodes: [], edges: [] },
-      stepDetails: {},
-      kpis: [],
-      records: [],
-      updatedAt: def.updatedAt
-    };
-
-    setProcessData(proc);
-    
-    // Restore Flow
-    const initialNodes = proc.flowchart.nodes.map(n => ({
-      id: n.id,
-      type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
-      position: n.position,
-      data: { label: n.label }
-    }));
-    
-    const initialEdges = proc.flowchart.edges.map(e => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: e.sourceHandle,
-      targetHandle: e.targetHandle,
-      label: e.label,
-      type: 'smoothstep',
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
-      style: { strokeWidth: 2.5, stroke: '#475569' }
-    }));
-
-    setNodes(initialNodes);
-    setEdges(initialEdges);
-    
-    setSelectedDefId(def.id);
-    setIsEditing(true);
   };
 
   const handleUploadScan = async (file: File) => {
@@ -2642,36 +2732,43 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-20">
-        {isoDefinitions.map(def => (
-          <div key={def.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-all group relative">
+        {Object.entries(groupedDefinitions).map(([groupId, groupDefs]: [string, IsoDefinition[]]) => {
+          const latestDef = groupDefs[0]; // First one is latest due to sort
+          const historyDefs = groupDefs.slice(1);
+          
+          return (
+          <div key={latestDef.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-all group relative flex flex-col">
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center gap-2">
                 <div className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-mono font-bold">
-                  {def.code}
+                  {latestDef.code}
                 </div>
-                {def.status && (
-                  <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${def.status === 'đã ban hành' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {def.status}
+                <div className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold border border-slate-200">
+                   v{latestDef.version || '1.0'}
+                </div>
+                {latestDef.status && (
+                  <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${latestDef.status === 'đã ban hành' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {latestDef.status}
                   </div>
                 )}
               </div>
-              <div className={`w-2 h-2 rounded-full ${def.active ? 'bg-green-500' : 'bg-slate-300'}`} title={def.active ? 'Active' : 'Inactive'} />
+              <div className={`w-2 h-2 rounded-full ${latestDef.active ? 'bg-green-500' : 'bg-slate-300'}`} title={latestDef.active ? 'Active' : 'Inactive'} />
             </div>
             
             <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
-              {def.name}
+              {latestDef.name}
             </h3>
-            <p className="text-sm text-slate-500 mb-4 line-clamp-2">
-              {def.description || 'Chưa có mô tả.'}
+            <p className="text-sm text-slate-500 mb-4 line-clamp-2 flex-1">
+              {latestDef.description || 'Chưa có mô tả.'}
             </p>
 
-            <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
+            <div className="flex items-center gap-2 pt-4 border-t border-slate-100 mt-auto">
               <button 
-                onClick={() => handleEdit(def)}
+                onClick={() => handleEdit(latestDef)}
                 className="flex-1 flex items-center justify-center gap-2 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
               >
                 {currentUser?.role === 'school_admin' ? (
-                  <><Edit2 size={16} /> Chỉnh sửa</>
+                  <><Edit2 size={16} /> {latestDef.status === 'đã ban hành' ? 'Sửa đổi / Nâng cấp' : 'Chỉnh sửa'}</>
                 ) : (
                   <><FileText size={16} /> Xem chi tiết</>
                 )}
@@ -2680,24 +2777,24 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
               {currentUser?.role === 'school_admin' && currentUser?.isPrimary && (
                 <button 
                   onClick={() => {
-                    const newStatus = def.status === 'đã ban hành' ? 'đang thiết kế' : 'đã ban hành';
+                    const newStatus = latestDef.status === 'đã ban hành' ? 'đang thiết kế' : 'đã ban hành';
                     const confirmMsg = newStatus === 'đã ban hành' 
                       ? "Bạn có chắc chắn muốn BAN HÀNH quy trình này lên Cloud?" 
                       : "Bạn có chắc chắn muốn GỠ BAN HÀNH quy trình này?";
                     
                     if (confirm(confirmMsg)) {
                       const updatedDefs = isoDefinitions.map(d => 
-                        d.id === def.id ? { ...d, status: newStatus, updatedAt: new Date().toISOString() } : d
+                        d.id === latestDef.id ? { ...d, status: newStatus, updatedAt: new Date().toISOString() } : d
                       );
                       onUpdateIsoDefinitions(updatedDefs);
                     }
                   }}
                   className={`p-2 rounded-lg transition-colors ${
-                    def.status === 'đã ban hành' 
+                    latestDef.status === 'đã ban hành' 
                       ? 'text-green-600 bg-green-50 hover:bg-green-100' 
                       : 'text-amber-600 bg-amber-50 hover:bg-amber-100'
                   }`}
-                  title={def.status === 'đã ban hành' ? 'Gỡ ban hành' : 'Ban hành'}
+                  title={latestDef.status === 'đã ban hành' ? 'Gỡ ban hành' : 'Ban hành'}
                 >
                   <CheckCircle size={18} />
                 </button>
@@ -2707,7 +2804,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                 <button 
                   onClick={() => {
                       if (confirm("Bạn có chắc chắn muốn xóa quy trình này?")) {
-                          onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== def.id));
+                          onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== latestDef.id));
                       }
                   }}
                   className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -2716,8 +2813,28 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                 </button>
               )}
             </div>
+            
+            {/* History Section */}
+            {historyDefs.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Lịch sử phiên bản</p>
+                    <div className="flex flex-wrap gap-2">
+                        {historyDefs.map(hist => (
+                            <button 
+                                key={hist.id}
+                                onClick={() => handleEdit(hist, true)} // Open Read Only
+                                className="px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-600 font-mono flex items-center gap-1"
+                                title={`Trạng thái: ${hist.status} - ${new Date(hist.updatedAt).toLocaleDateString()}`}
+                            >
+                                <Clock size={10}/> v{hist.version}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
           </div>
-        ))}
+          );
+        })}
 
         {isoDefinitions.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
@@ -2727,6 +2844,59 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           </div>
         )}
       </div>
+
+      {/* Version Creation Modal */}
+      {versionModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-800">Tạo phiên bản mới</h3>
+                    <p className="text-sm text-slate-500">Quy trình này đã được ban hành. Bạn muốn thực hiện loại thay đổi nào?</p>
+                </div>
+                <div className="p-6 space-y-3">
+                    <button 
+                        onClick={() => handleCreateVersion('minor')}
+                        className="w-full flex items-center p-4 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group text-left"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-4 group-hover:bg-blue-200">
+                            <Edit2 size={20}/>
+                        </div>
+                        <div>
+                            <div className="font-bold text-slate-800 group-hover:text-blue-700">Sửa phiên bản (Minor)</div>
+                            <div className="text-xs text-slate-500">Sửa lỗi nhỏ, cập nhật nội dung không thay đổi luồng chính.</div>
+                            <div className="text-xs font-mono font-bold text-blue-600 mt-1">
+                                {versionModal.baseDef?.version || '1.0'} &rarr; {getNextVersion(versionModal.baseDef?.version || '1.0', 'minor')}
+                            </div>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => handleCreateVersion('major')}
+                        className="w-full flex items-center p-4 border border-slate-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group text-left"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-4 group-hover:bg-purple-200">
+                            <Upload size={20}/>
+                        </div>
+                        <div>
+                            <div className="font-bold text-slate-800 group-hover:text-purple-700">Ban hành phiên bản mới (Major)</div>
+                            <div className="text-xs text-slate-500">Thay đổi lớn về quy trình, luồng công việc hoặc biểu mẫu.</div>
+                            <div className="text-xs font-mono font-bold text-purple-600 mt-1">
+                                {versionModal.baseDef?.version || '1.0'} &rarr; {getNextVersion(versionModal.baseDef?.version || '1.0', 'major')}
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button 
+                        onClick={() => setVersionModal(null)}
+                        className="px-4 py-2 text-slate-500 hover:text-slate-700 font-medium text-sm"
+                    >
+                        Hủy bỏ
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Sync Modal */}
       {showSyncModal && (
