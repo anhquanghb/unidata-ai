@@ -470,7 +470,13 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     if (!handleSaveToCloud) return;
     setIsSyncing(true);
     try {
-      // Just trigger the save, App.tsx handles filtering published ones
+      // Filter only 'đã ban hành' processes to push to Cloud
+      // Note: handleSaveToCloud in App.tsx handles the actual filtering for 'isodata.json' (Public)
+      // based on the logic we saw in App.tsx (it filters d.status === 'đã ban hành').
+      // So we just need to trigger it.
+      // However, we should ensure that when we "Publish" locally, we also stop older versions.
+      // This logic is handled in the "Publish" button action, not here.
+      
       await handleSaveToCloud();
       setShowSyncModal(false);
       alert("Đã cập nhật dữ liệu lên Cloud thành công. Chỉ các quy trình ở trạng thái 'Đã ban hành' mới xuất hiện trên phiên bản công khai.");

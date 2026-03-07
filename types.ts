@@ -213,7 +213,7 @@ export interface IsoDefinition {
   transitions: IsoTransition[];
   active: boolean;
   updatedAt: string;
-  status?: 'đang thiết kế' | 'đã ban hành' | 'đang chỉnh sửa' | 'đã chuẩn bị đề xuất';
+  status?: 'đang thiết kế' | 'đã ban hành' | 'đang chỉnh sửa' | 'đã chuẩn bị đề xuất' | 'dừng ban hành';
   // New structure integration (optional migration)
   processData?: IsoProcess;
 }
