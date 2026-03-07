@@ -93,6 +93,9 @@ const App: React.FC = () => {
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [showInitDataPrompt, setShowInitDataPrompt] = useState(false);
   const [hasCheckedAutoLoad, setHasCheckedAutoLoad] = useState(false);
+  
+  // Settings Tab State
+  const [settingsTab, setSettingsTab] = useState<'backup' | 'users' | 'data_config' | 'general'>('backup');
 
   // --- GOOGLE DRIVE LOGIC ---
   
@@ -831,6 +834,11 @@ const App: React.FC = () => {
       document.body.removeChild(link);
   };
   
+  const handleSidebarSaveClick = () => {
+      setSettingsTab('backup');
+      setCurrentView('settings');
+  };
+  
   // Get Current Permission based on the identified User
   // Fallback to default permissions if no user is found/connected
   const activePermission = currentUser 
@@ -931,6 +939,8 @@ const App: React.FC = () => {
             onShowVersions={() => setIsVersionModalOpen(true)} 
             onResetSystemData={() => handleSystemDataImport('RESET')}
             onSaveToCloud={handleSaveToCloud}
+            activeTab={settingsTab}
+            onTabChange={setSettingsTab}
         />;
       case 'iso_designer':
         return <ISODesignerModule 
@@ -959,8 +969,7 @@ const App: React.FC = () => {
         isCollapsed={isSidebarCollapsed}
         toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         hasUnsavedChanges={hasUnsavedChanges}
-        onSaveToCloud={handleSaveToCloud}
-        onExportData={handleExportData}
+        onSaveToCloud={handleSidebarSaveClick}
         
         // Auth Props
         driveSession={driveSession}

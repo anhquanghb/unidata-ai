@@ -55,6 +55,10 @@ interface SettingsModuleProps {
   onShowVersions?: () => void;
   onResetSystemData: () => void; // New prop for clearing data
   onSaveToCloud?: () => void; // New prop for saving to cloud
+  
+  // Tab Control Props
+  activeTab?: 'backup' | 'users' | 'data_config' | 'general';
+  onTabChange?: (tab: 'backup' | 'users' | 'data_config' | 'general') => void;
 }
 
 // Updated SCOPES to include readonly access for restoring backups
@@ -108,10 +112,21 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
   onUpdateSchoolInfo,
   onShowVersions,
   onResetSystemData,
-  onSaveToCloud
+  onSaveToCloud,
+  activeTab: propActiveTab,
+  onTabChange
 }) => {
   // Ordered: Backup -> Users -> DataConfig -> General
-  const [activeTab, setActiveTab] = useState<'backup' | 'users' | 'data_config' | 'general'>('backup');
+  const [localActiveTab, setLocalActiveTab] = useState<'backup' | 'users' | 'data_config' | 'general'>('backup');
+  
+  const activeTab = propActiveTab || localActiveTab;
+  const setActiveTab = (tab: 'backup' | 'users' | 'data_config' | 'general') => {
+      if (onTabChange) {
+          onTabChange(tab);
+      } else {
+          setLocalActiveTab(tab);
+      }
+  };
 
   // Drive State
   // Prioritize Environment Variable

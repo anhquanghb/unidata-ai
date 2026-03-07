@@ -11,7 +11,6 @@ interface SidebarProps {
   toggleSidebar: () => void;
   hasUnsavedChanges: boolean;
   onSaveToCloud: () => void;
-  onExportData: () => void;
   
   // Auth & User Props
   driveSession: GoogleDriveConfig;
@@ -30,7 +29,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   toggleSidebar,
   hasUnsavedChanges,
   onSaveToCloud,
-  onExportData,
   driveSession,
   currentUser,
   managedUnitName,
@@ -138,19 +136,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                     <CloudUpload size={14}/>
                     Lưu Cloud
-                </button>
-                <button 
-                    onClick={onExportData}
-                    disabled={!hasUnsavedChanges}
-                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-xs font-bold transition-all ${
-                        hasUnsavedChanges 
-                            ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
-                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                    }`}
-                    title="Xuất dữ liệu ra file JSON"
-                >
-                    <Download size={14}/>
-                    Xuất File
                 </button>
             </div>
         )}
