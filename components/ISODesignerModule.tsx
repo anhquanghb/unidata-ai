@@ -1361,9 +1361,11 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             <button onClick={handleExportDocx} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-sm">
                 <FileText size={16} /> Xuất Docx
             </button>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
-              <Save size={18} /> Lưu Quy trình
-            </button>
+            {currentUser?.role === 'school_admin' && (
+              <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
+                <Save size={18} /> Lưu Quy trình
+              </button>
+            )}
           </div>
         </div>
 
@@ -2554,12 +2556,14 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           <h2 className="text-2xl font-bold text-slate-800">Quy trình công việc</h2>
           <p className="text-slate-500">Xây dựng và quản lý các quy trình vận hành chuẩn (SOPs).</p>
         </div>
-        <button 
-          onClick={handleCreateNew}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-all"
-        >
-          <Plus size={20} /> Tạo Quy trình Mới
-        </button>
+        {currentUser?.role === 'school_admin' && (
+          <button 
+            onClick={handleCreateNew}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-all"
+          >
+            <Plus size={20} /> Tạo Quy trình Mới
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-20">
@@ -2591,7 +2595,11 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                 onClick={() => handleEdit(def)}
                 className="flex-1 flex items-center justify-center gap-2 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 py-2 rounded-lg transition-colors text-sm font-medium"
               >
-                <Edit2 size={16} /> Chỉnh sửa
+                {currentUser?.role === 'school_admin' ? (
+                  <><Edit2 size={16} /> Chỉnh sửa</>
+                ) : (
+                  <><FileText size={16} /> Xem chi tiết</>
+                )}
               </button>
               
               {currentUser?.role === 'school_admin' && currentUser?.isPrimary && (
@@ -2620,16 +2628,18 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                 </button>
               )}
 
-              <button 
-                onClick={() => {
-                    if (confirm("Bạn có chắc chắn muốn xóa quy trình này?")) {
-                        onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== def.id));
-                    }
-                }}
-                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <Trash2 size={18} />
-              </button>
+              {currentUser?.role === 'school_admin' && (
+                <button 
+                  onClick={() => {
+                      if (confirm("Bạn có chắc chắn muốn xóa quy trình này?")) {
+                          onUpdateIsoDefinitions(isoDefinitions.filter(d => d.id !== def.id));
+                      }
+                  }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
             </div>
           </div>
         ))}
