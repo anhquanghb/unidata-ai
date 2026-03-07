@@ -632,12 +632,23 @@ const App: React.FC = () => {
 
       // Prepare Data
       const currentIsoDefs = overrideIsoDefinitions || isoDefinitions;
+      
+      // Split ISO Definitions
+      // 1. Proposed Processes (To be moved to Zone C)
+      const proposedProcesses = currentIsoDefs.filter(d => d.status === 'đã chuẩn bị đề xuất');
+      
+      // 2. Remaining Processes (To be kept in Backup)
+      // Exclude 'đã chuẩn bị đề xuất' from backup as per request
+      const backupIsoDefs = currentIsoDefs.filter(d => d.status !== 'đã chuẩn bị đề xuất');
+
       const { driveConfig: _ignored, ...safeSettings } = (settings as any);
+      
+      // Backup Data Payload (Using backupIsoDefs)
       const data = {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
-          isoDefinitions: currentIsoDefs,
+          isoDefinitions: backupIsoDefs, // Use filtered list
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
@@ -650,6 +661,7 @@ const App: React.FC = () => {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupFileName = `unidata_backup_${timestamp}.json`;
       const isoFileName = `isodata_${timestamp}.json`;
+      const proposalFileName = `isodata_proposal_${timestamp}.json`; // New name for proposals
 
       // Helper to upload file
       const uploadFile = async (name: string, blob: Blob, parentId: string) => {
@@ -714,38 +726,50 @@ const App: React.FC = () => {
           // 2. Save isodata_*.json to Zone C (ISO_proposal)
           if (currentUser?.permissions?.canProposeEditProcess || (currentUser?.role === 'school_admin' && currentUser?.isPrimary)) {
               if (driveSession.zoneCId) {
-                  // Find ISO_proposal folder
-                  const q = `mimeType='application/vnd.google-apps.folder' and name='ISO_proposal' and '${driveSession.zoneCId}' in parents and trashed=false`;
-                  const listResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
-                  let targetFolderId = listResp.result.files?.[0]?.id;
-
-                  // If not found, try to create it (if user has permission)
-                  if (!targetFolderId) {
-                      try {
-                          const metadata = {
-                              name: 'ISO_proposal',
-                              mimeType: 'application/vnd.google-apps.folder',
-                              parents: [driveSession.zoneCId]
-                          };
-                          const createResp = await window.gapi.client.drive.files.create({
-                              resource: metadata,
-                              fields: 'id'
-                          });
-                          targetFolderId = createResp.result.id;
-                      } catch (e) {
-                          console.warn("Could not create ISO_proposal folder, falling back to Zone C root.", e);
-                          targetFolderId = driveSession.zoneCId;
-                      }
-                  }
-
-                  if (targetFolderId) {
-                      const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  // A. Save Published Processes (isodata_*.json) - Only if there are any
+                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  if (publishedOnly.length > 0) {
                       const isoContent = JSON.stringify(publishedOnly, null, 2);
                       const isoBlob = new Blob([isoContent], { type: 'application/json' });
-                      
-                      // Save as isodata_[timestamp].json (New File)
-                      await uploadFile(isoFileName, isoBlob, targetFolderId);
-                      messages.push(`- Đã lưu ${isoFileName} vào thư mục ISO_proposal (Zone C)`);
+                      await uploadFile(isoFileName, isoBlob, driveSession.zoneCId);
+                      messages.push(`- Đã lưu ${isoFileName} (Đã ban hành) vào Zone C`);
+                  }
+
+                  // B. Save Proposed Processes (isodata_proposal_*.json) to ISO_proposal folder
+                  if (proposedProcesses.length > 0) {
+                      // Find ISO_proposal folder
+                      const q = `mimeType='application/vnd.google-apps.folder' and name='ISO_proposal' and '${driveSession.zoneCId}' in parents and trashed=false`;
+                      const listResp = await window.gapi.client.drive.files.list({ q, fields: 'files(id)' });
+                      let targetFolderId = listResp.result.files?.[0]?.id;
+
+                      // If not found, try to create it (if user has permission)
+                      if (!targetFolderId) {
+                          try {
+                              const metadata = {
+                                  name: 'ISO_proposal',
+                                  mimeType: 'application/vnd.google-apps.folder',
+                                  parents: [driveSession.zoneCId]
+                              };
+                              const createResp = await window.gapi.client.drive.files.create({
+                                  resource: metadata,
+                                  fields: 'id'
+                              });
+                              targetFolderId = createResp.result.id;
+                          } catch (e) {
+                              console.warn("Could not create ISO_proposal folder.", e);
+                          }
+                      }
+
+                      if (targetFolderId) {
+                          const proposalContent = JSON.stringify(proposedProcesses, null, 2);
+                          const proposalBlob = new Blob([proposalContent], { type: 'application/json' });
+                          
+                          // Save as isodata_proposal_[timestamp].json
+                          await uploadFile(proposalFileName, proposalBlob, targetFolderId);
+                          messages.push(`- Đã lưu ${proposalFileName} (Đề xuất) vào thư mục ISO_proposal`);
+                      } else {
+                          messages.push(`- CẢNH BÁO: Không tìm thấy thư mục ISO_proposal để lưu đề xuất.`);
+                      }
                   }
               } else {
                   console.warn("Zone C ID missing, skipping ISO publish.");

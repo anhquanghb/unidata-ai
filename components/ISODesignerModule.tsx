@@ -1230,6 +1230,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       updatedAt: new Date().toISOString()
     };
 
+    // Determine Status
+    // If user has 'canProposeEditProcess' but is NOT Primary Admin, status is 'đang chỉnh sửa'
+    // If Primary Admin, they can keep it 'đang thiết kế' or 'đã ban hành' (handled elsewhere?)
+    // For now, let's default to 'đang chỉnh sửa' if it's an edit, unless it was already 'đã ban hành' and we are just saving a draft?
+    // The requirement says: "Quy trình của các thành viên này sẽ có 2 trạng thái 'Đang chỉnh sửa' nếu có bất kỳ chỉnh sửa nào"
+    
+    const isProposer = currentUser?.permissions?.canProposeEditProcess && !currentUser?.isPrimary;
+    const newStatus = isProposer ? 'đang chỉnh sửa' : (isoDefinitions.find(d => d.id === updatedProcess.id)?.status || 'đang thiết kế');
+
     // Update or Create Parent Definition
     const updatedDef: IsoDefinition = {
       id: updatedProcess.id,
@@ -1240,7 +1249,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       transitions: [],
       active: true,
       updatedAt: updatedProcess.updatedAt,
-      status: 'đang thiết kế',
+      status: newStatus,
       processData: updatedProcess
     };
 
@@ -1256,6 +1265,62 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     onUpdateIsoDefinitions(newDefs);
     setIsEditing(false);
     setSelectedDefId(null);
+  };
+
+  const handlePropose = () => {
+      if (!processData) return;
+      if (!window.confirm("Bạn có chắc chắn muốn đề xuất quy trình này? Trạng thái sẽ chuyển thành 'Đã chuẩn bị đề xuất'.")) return;
+
+      // Save first to ensure data is up to date
+      // Serialize Flow
+      const flowNodes: IsoFlowchartNodeData[] = nodes.map(n => ({
+        id: n.id,
+        type: n.type === 'oval' ? (n.data.label === 'Start' ? 'start' : 'end') : n.type === 'diamond' ? 'decision' : 'process',
+        label: n.data.label,
+        position: n.position
+      }));
+
+      const flowEdges: IsoFlowchartEdgeData[] = edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        label: e.label as string
+      }));
+
+      const updatedProcess: IsoProcess = {
+        ...processData,
+        flowchart: { nodes: flowNodes, edges: flowEdges },
+        updatedAt: new Date().toISOString()
+      };
+
+      const updatedDef: IsoDefinition = {
+        id: updatedProcess.id,
+        name: updatedProcess.name,
+        code: updatedProcess.controlInfo.documentCode,
+        description: updatedProcess.purposeScope.purpose,
+        steps: [],
+        transitions: [],
+        active: true,
+        updatedAt: updatedProcess.updatedAt,
+        status: 'đã chuẩn bị đề xuất', // Change status
+        processData: updatedProcess
+      };
+
+      const existingIndex = isoDefinitions.findIndex(d => d.id === updatedDef.id);
+      let newDefs;
+      if (existingIndex >= 0) {
+        newDefs = [...isoDefinitions];
+        newDefs[existingIndex] = updatedDef;
+      } else {
+        newDefs = [...isoDefinitions, updatedDef];
+      }
+
+      onUpdateIsoDefinitions(newDefs);
+      setIsEditing(false);
+      setSelectedDefId(null);
+      alert("Đã chuyển trạng thái thành 'Đã chuẩn bị đề xuất'. Vui lòng bấm 'Lưu Cloud' để gửi đề xuất.");
   };
 
   const onConnect = useCallback((params: Connection) => {
@@ -1365,6 +1430,16 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
               <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
                 <Save size={18} /> Lưu Quy trình
               </button>
+            )}
+            {currentUser?.permissions?.canProposeEditProcess && !currentUser?.isPrimary && (
+                <>
+                    <button onClick={handleSave} className="flex items-center gap-2 bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 shadow-sm font-medium">
+                        <Save size={18} /> Lưu Nháp (Đang chỉnh sửa)
+                    </button>
+                    <button onClick={handlePropose} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 shadow-sm font-medium">
+                        <CheckCircle size={18} /> Đề xuất
+                    </button>
+                </>
             )}
           </div>
         </div>
