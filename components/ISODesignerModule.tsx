@@ -44,16 +44,88 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         {data.label}
       </div>
       {/* Target Handles */}
-      <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[40%]" />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[40%]" />
-      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[40%]" />
-      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[40%]" />
+      <Handle 
+        type="target" 
+        position={Position.Top} 
+        id="t-top" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-slate-500 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">▲</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Bottom} 
+        id="t-bottom" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-slate-500 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">▼</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="t-left" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-slate-500 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">◄</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        id="t-right" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-slate-500 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">►</span>
+      </Handle>
       
       {/* Source Handles */}
-      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[60%]" />
-      <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[60%]" />
-      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[60%]" />
-      <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[60%]" />
+      <Handle 
+        type="source" 
+        position={Position.Top} 
+        id="s-top" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-slate-400 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        id="s-bottom" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-slate-400 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        id="s-left" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-slate-400 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        id="s-right" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-slate-400 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
     </div>
   );
 };
@@ -69,20 +141,92 @@ const OvalNode = ({ data, isConnectable }: any) => {
       {/* Target handles (input) - hide for start node */}
       {!isStart && (
         <>
-          <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[40%]" />
-          <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[40%]" />
-          <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[40%]" />
-          <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[40%]" />
+          <Handle 
+            type="target" 
+            position={Position.Top} 
+            id="t-top" 
+            isConnectable={isConnectable} 
+            isConnectableStart={false}
+            className="w-4 h-4 !bg-slate-700 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">▲</span>
+          </Handle>
+          <Handle 
+            type="target" 
+            position={Position.Bottom} 
+            id="t-bottom" 
+            isConnectable={isConnectable} 
+            isConnectableStart={false}
+            className="w-4 h-4 !bg-slate-700 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">▼</span>
+          </Handle>
+          <Handle 
+            type="target" 
+            position={Position.Left} 
+            id="t-left" 
+            isConnectable={isConnectable} 
+            isConnectableStart={false}
+            className="w-4 h-4 !bg-slate-700 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">◄</span>
+          </Handle>
+          <Handle 
+            type="target" 
+            position={Position.Right} 
+            id="t-right" 
+            isConnectable={isConnectable} 
+            isConnectableStart={false}
+            className="w-4 h-4 !bg-slate-700 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">►</span>
+          </Handle>
         </>
       )}
       
       {/* Source handles (output) - hide for end node */}
       {!isEnd && (
         <>
-          <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[60%]" />
-          <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[60%]" />
-          <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[60%]" />
-          <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[60%]" />
+          <Handle 
+            type="source" 
+            position={Position.Top} 
+            id="s-top" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-4 h-4 !bg-slate-800 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Bottom} 
+            id="s-bottom" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-4 h-4 !bg-slate-800 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Left} 
+            id="s-left" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-4 h-4 !bg-slate-800 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="s-right" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-4 h-4 !bg-slate-800 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
         </>
       )}
     </div>
@@ -94,16 +238,88 @@ const ProcessNode = ({ data, isConnectable }: any) => {
     <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
       {/* Target Handles */}
-      <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[40%]" />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[40%]" />
-      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[40%]" />
-      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[40%]" />
+      <Handle 
+        type="target" 
+        position={Position.Top} 
+        id="t-top" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-blue-600 !left-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">▲</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Bottom} 
+        id="t-bottom" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-blue-600 !left-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">▼</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="t-left" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-blue-600 !top-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">◄</span>
+      </Handle>
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        id="t-right" 
+        isConnectable={isConnectable} 
+        isConnectableStart={false}
+        className="w-4 h-4 !bg-blue-600 !top-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">►</span>
+      </Handle>
       
       {/* Source Handles */}
-      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[60%]" />
-      <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[60%]" />
-      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[60%]" />
-      <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[60%]" />
+      <Handle 
+        type="source" 
+        position={Position.Top} 
+        id="s-top" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-blue-600 !left-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        id="s-bottom" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-blue-600 !left-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        id="s-left" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-blue-600 !top-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        id="s-right" 
+        isConnectable={isConnectable} 
+        isConnectableEnd={false}
+        className="w-4 h-4 !bg-blue-600 !top-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+      >
+        <span className="text-[10px] text-white leading-none">□</span>
+      </Handle>
     </div>
   );
 };
@@ -321,7 +537,22 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
   }, []);
 
   const onConnectEnd = useCallback(
-    () => {
+    (event: any) => {
+      const targetIsPane = event.target.classList.contains('react-flow__pane');
+      const start = (window as any).currentConnectionStart;
+
+      if (targetIsPane && start) {
+        const { nodeId, handleId } = start;
+        const x = event.clientX || (event.touches && event.touches[0].clientX);
+        const y = event.clientY || (event.touches && event.touches[0].clientY);
+
+        setContextMenu({
+          x,
+          y,
+          sourceNodeId: nodeId,
+          sourceHandle: handleId
+        });
+      }
       (window as any).currentConnectionStart = null;
     },
     []
@@ -1012,12 +1243,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     setSelectedDefId(null);
   };
 
-  const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge({ 
-    ...params, 
-    type: 'smoothstep', 
-    style: { strokeWidth: 2.5, stroke: '#475569' },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
-  }, eds)), [setEdges]);
+  const onConnect = useCallback((params: Connection) => {
+    if (params.source === params.target) return;
+    setEdges((eds) => addEdge({ 
+      ...params, 
+      type: 'smoothstep', 
+      style: { strokeWidth: 2.5, stroke: '#475569' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
+    }, eds));
+  }, [setEdges]);
 
   const onReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
@@ -2052,31 +2286,31 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Điểm bắt đầu</label>
                                     <select
-                                        value={edges.find(e => e.id === selectedEdgeId)?.sourceHandle || 'bottom'}
+                                        value={edges.find(e => e.id === selectedEdgeId)?.sourceHandle || 's-bottom'}
                                         onChange={(e) => {
                                             setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, sourceHandle: e.target.value } : edge));
                                         }}
                                         className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
                                     >
-                                        <option value="top">Trên (Top)</option>
-                                        <option value="bottom">Dưới (Bottom)</option>
-                                        <option value="left">Trái (Left)</option>
-                                        <option value="right">Phải (Right)</option>
+                                        <option value="s-top">Trên (Top)</option>
+                                        <option value="s-bottom">Dưới (Bottom)</option>
+                                        <option value="s-left">Trái (Left)</option>
+                                        <option value="s-right">Phải (Right)</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Điểm kết thúc</label>
                                     <select
-                                        value={edges.find(e => e.id === selectedEdgeId)?.targetHandle || 'top'}
+                                        value={edges.find(e => e.id === selectedEdgeId)?.targetHandle || 't-top'}
                                         onChange={(e) => {
                                             setEdges(eds => eds.map(edge => edge.id === selectedEdgeId ? { ...edge, targetHandle: e.target.value } : edge));
                                         }}
                                         className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
                                     >
-                                        <option value="top">Trên (Top)</option>
-                                        <option value="bottom">Dưới (Bottom)</option>
-                                        <option value="left">Trái (Left)</option>
-                                        <option value="right">Phải (Right)</option>
+                                        <option value="t-top">Trên (Top)</option>
+                                        <option value="t-bottom">Dưới (Bottom)</option>
+                                        <option value="t-left">Trái (Left)</option>
+                                        <option value="t-right">Phải (Right)</option>
                                     </select>
                                 </div>
                             </div>
