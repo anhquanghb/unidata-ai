@@ -750,8 +750,23 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       
       // Load React Flow
       if (newDef.processData?.flowchart) {
-          setNodes(newDef.processData.flowchart.nodes.map(n => ({ ...n, data: { label: n.label } })));
-          setEdges(newDef.processData.flowchart.edges.map(e => ({ ...e, label: e.label })));
+          setNodes(newDef.processData.flowchart.nodes.map(n => ({ 
+              id: n.id,
+              type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+              position: n.position,
+              data: { label: n.label, role: n.type }
+          })));
+          setEdges(newDef.processData.flowchart.edges.map(e => ({ 
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle,
+              label: e.label,
+              type: 'smoothstep',
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
+              style: { strokeWidth: 2.5, stroke: '#475569' }
+          })));
       }
   };
 
@@ -786,12 +801,25 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           
           if (proc.flowchart) {
               setNodes(proc.flowchart.nodes.map(n => ({ 
-                  ...n, 
-                  data: { label: n.label }, // Fix: label is top-level in IsoFlowchartNodeData
+                  id: n.id,
+                  type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+                  position: n.position,
+                  data: { label: n.label, role: n.type }, // Store role for logic
                   draggable: false, 
                   connectable: false 
               })));
-              setEdges(proc.flowchart.edges.map(e => ({ ...e, label: e.label, animated: false })));
+              setEdges(proc.flowchart.edges.map(e => ({ 
+                  id: e.id,
+                  source: e.source,
+                  target: e.target,
+                  sourceHandle: e.sourceHandle,
+                  targetHandle: e.targetHandle,
+                  label: e.label,
+                  type: 'smoothstep',
+                  markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
+                  style: { strokeWidth: 2.5, stroke: '#475569' },
+                  animated: false 
+              })));
           }
           return;
       }
@@ -808,10 +836,22 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           
           if (proc.flowchart) {
               setNodes(proc.flowchart.nodes.map(n => ({ 
-                  ...n, 
-                  data: { label: n.label } // Fix: label is top-level
+                  id: n.id,
+                  type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+                  position: n.position,
+                  data: { label: n.label, role: n.type } // Store role
               })));
-              setEdges(proc.flowchart.edges.map(e => ({ ...e, label: e.label })));
+              setEdges(proc.flowchart.edges.map(e => ({ 
+                  id: e.id,
+                  source: e.source,
+                  target: e.target,
+                  sourceHandle: e.sourceHandle,
+                  targetHandle: e.targetHandle,
+                  label: e.label,
+                  type: 'smoothstep',
+                  markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
+                  style: { strokeWidth: 2.5, stroke: '#475569' }
+              })));
           }
       }
   };
