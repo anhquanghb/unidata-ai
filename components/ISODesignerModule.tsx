@@ -393,6 +393,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
   // Load isodata.json on mount
   useEffect(() => {
     const loadAndCompare = async () => {
+      // Use schoolInfo.publicDriveId as the source of truth for everyone
       if (!schoolInfo.publicDriveId || !driveSession.isConnected) return;
       
       setIsLoading(true);
@@ -412,7 +413,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
               const isPrimaryAdmin = currentUser?.role === 'school_admin' && currentUser?.isPrimary;
               
               if (isPrimaryAdmin) {
-                // Compare with local data (isoDefinitions)
+                // Primary Admin Logic: Compare and Sync
                 const diffs: string[] = [];
                 
                 // Check for new/updated in cloud
@@ -439,7 +440,9 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                   setShowSyncModal(true);
                 }
               } else {
-                // Regular users always follow the published version
+                // Regular Users (Default): ALWAYS load published data from Cloud
+                // This ensures they see what the Admin has published
+                console.log("Loading published ISO data for regular user.");
                 onUpdateIsoDefinitions(cloudData);
               }
             }
