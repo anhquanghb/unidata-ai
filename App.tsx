@@ -603,7 +603,7 @@ const App: React.FC = () => {
     if (!window.google) loadGis();
   }, []);
 
-  const handleSaveToCloud = async () => {
+  const handleSaveToCloud = async (overrideIsoDefinitions?: IsoDefinition[]) => {
       if (!driveSession.isConnected || !driveSession.folderId) {
           alert("Chưa kết nối Google Drive hoặc chưa cấu hình thư mục.");
           return;
@@ -620,12 +620,13 @@ const App: React.FC = () => {
       const accessToken = window.gapi.client.getToken()?.access_token || driveSession.accessToken;
 
       // Prepare Data
+      const currentIsoDefs = overrideIsoDefinitions || isoDefinitions;
       const { driveConfig: _ignored, ...safeSettings } = (settings as any);
       const data = {
           units, users, settings: safeSettings, academicYears, schoolInfo,
           faculties, facultyTitles, humanResources,
           scientificRecords, trainingRecords, personnelRecords, admissionRecords, classRecords, departmentRecords, businessRecords,
-          isoDefinitions,
+          isoDefinitions: currentIsoDefs,
           dataConfigGroups, dynamicDataStore,
           backupDate: new Date().toISOString(),
           version: "2.1.0"
@@ -670,8 +671,9 @@ const App: React.FC = () => {
                   const regBlob = new Blob([regContent], { type: 'application/json' });
                   const regFileName = 'Zone_C.json';
 
-                  // 2. Publish ISO Data (isodata.json)
-                  const isoContent = JSON.stringify(isoDefinitions, null, 2);
+                  // 2. Publish ISO Data (isodata.json) - Only published ones
+                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  const isoContent = JSON.stringify(publishedOnly, null, 2);
                   const isoBlob = new Blob([isoContent], { type: 'application/json' });
                   const isoFileName = 'isodata.json';
 
@@ -847,6 +849,7 @@ const App: React.FC = () => {
         return <ISODesignerModule 
             isoDefinitions={isoDefinitions}
             onUpdateIsoDefinitions={handleUpdateIsoDefinitions}
+            handleSaveToCloud={handleSaveToCloud}
             units={units}
             humanResources={humanResources}
             faculties={faculties}

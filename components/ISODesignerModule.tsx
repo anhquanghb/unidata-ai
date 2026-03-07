@@ -21,7 +21,7 @@ import {
   Save, Plus, Trash2, Edit2, FileText, Settings, 
   Layout, List, CheckSquare, BarChart2, ArrowLeft,
   MousePointer, Type, Square, Circle, Diamond,
-  ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock
+  ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock, CheckCircle
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -115,6 +115,7 @@ const nodeTypes = {
 interface ISODesignerModuleProps {
   isoDefinitions: IsoDefinition[];
   onUpdateIsoDefinitions: (defs: IsoDefinition[]) => void;
+  handleSaveToCloud?: (overrideIsoDefinitions?: IsoDefinition[]) => Promise<void>;
   units: Unit[];
   humanResources: HumanResourceRecord[];
   faculties: Faculty[];
@@ -126,6 +127,7 @@ interface ISODesignerModuleProps {
 const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({ 
   isoDefinitions, 
   onUpdateIsoDefinitions, 
+  handleSaveToCloud,
   units, 
   humanResources, 
   faculties, 
@@ -138,6 +140,12 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
   const [activeTab, setActiveTab] = useState<'control' | 'purpose' | 'definitions' | 'flowchart' | 'kpi' | 'records'>('flowchart');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Sync State
+  const [publishedIsoData, setPublishedIsoData] = useState<IsoDefinition[] | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncDiffs, setSyncDiffs] = useState<string[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Editor State
   const [processData, setProcessData] = useState<IsoProcess | null>(null);
@@ -152,7 +160,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
   
   // Load isodata.json on mount
   useEffect(() => {
-    const loadIsoData = async () => {
+    const loadAndCompare = async () => {
       if (!schoolInfo.publicDriveId || !driveSession.isConnected) return;
       
       setIsLoading(true);
@@ -167,9 +175,41 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             headers: { 'Authorization': `Bearer ${driveSession.accessToken}` }
           });
           if (contentResp.ok) {
-            const data = await contentResp.json();
-            if (Array.isArray(data)) {
-              onUpdateIsoDefinitions(data);
+            const cloudData = await contentResp.json();
+            if (Array.isArray(cloudData)) {
+              const isPrimaryAdmin = currentUser?.role === 'school_admin' && currentUser?.isPrimary;
+              
+              if (isPrimaryAdmin) {
+                // Compare with local data (isoDefinitions)
+                const diffs: string[] = [];
+                
+                // Check for new/updated in cloud
+                cloudData.forEach(cloudDef => {
+                  const localDef = isoDefinitions.find(d => d.id === cloudDef.id);
+                  if (!localDef) {
+                    diffs.push(`Quy trình mới từ Cloud: ${cloudDef.name} (${cloudDef.code})`);
+                  } else if (cloudDef.updatedAt !== localDef.updatedAt) {
+                    diffs.push(`Cập nhật từ Cloud: ${cloudDef.name} (Cloud: ${new Date(cloudDef.updatedAt).toLocaleString()} vs Local: ${new Date(localDef.updatedAt).toLocaleString()})`);
+                  }
+                });
+
+                // Check for new in local
+                isoDefinitions.forEach(localDef => {
+                  const cloudDef = cloudData.find(d => d.id === localDef.id);
+                  if (!cloudDef) {
+                    diffs.push(`Quy trình mới tại Local: ${localDef.name} (${localDef.code})`);
+                  }
+                });
+
+                if (diffs.length > 0) {
+                  setPublishedIsoData(cloudData);
+                  setSyncDiffs(diffs);
+                  setShowSyncModal(true);
+                }
+              } else {
+                // Regular users always follow the published version
+                onUpdateIsoDefinitions(cloudData);
+              }
             }
           }
         }
@@ -180,61 +220,30 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       }
     };
     
-    loadIsoData();
+    loadAndCompare();
   }, [schoolInfo.publicDriveId, driveSession.isConnected]);
 
-  const handleSaveToCloud = async (newDefs: IsoDefinition[]) => {
-    if (!driveSession.isConnected || !driveSession.zoneCId) return;
-    if (currentUser?.role !== 'school_admin' || !currentUser?.isPrimary) return;
+  const handleUpdateFromCloud = () => {
+    if (publishedIsoData) {
+      onUpdateIsoDefinitions(publishedIsoData);
+      setShowSyncModal(false);
+      alert("Đã cập nhật dữ liệu từ phiên bản Ban hành (Cloud).");
+    }
+  };
 
-    setIsSaving(true);
+  const handlePublishToCloud = async () => {
+    if (!handleSaveToCloud) return;
+    setIsSyncing(true);
     try {
-      const fileName = 'isodata.json';
-      const content = JSON.stringify(newDefs, null, 2);
-      const blob = new Blob([content], { type: 'application/json' });
-
-      // 1. Find existing file
-      const listResp = await window.gapi.client.drive.files.list({
-        q: `name = '${fileName}' and '${driveSession.zoneCId}' in parents and trashed = false`,
-        fields: 'files(id)',
-      });
-      
-      const existingFileId = listResp.result.files?.[0]?.id;
-      const accessToken = driveSession.accessToken;
-
-      if (existingFileId) {
-        // Update
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-        form.append('file', blob);
-        
-        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`, {
-          method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-          body: form
-        });
-      } else {
-        // Create
-        const metadata = {
-          name: fileName,
-          mimeType: 'application/json',
-          parents: [driveSession.zoneCId]
-        };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', blob);
-
-        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-          body: form
-        });
-      }
-      console.log("ISO data saved to cloud successfully.");
+      // Just trigger the save, App.tsx handles filtering published ones
+      await handleSaveToCloud();
+      setShowSyncModal(false);
+      alert("Đã cập nhật dữ liệu lên Cloud thành công. Chỉ các quy trình ở trạng thái 'Đã ban hành' mới xuất hiện trên phiên bản công khai.");
     } catch (e) {
-      console.error("Failed to save ISO data:", e);
+      console.error(e);
+      alert("Lỗi khi ban hành lên Cloud.");
     } finally {
-      setIsSaving(false);
+      setIsSyncing(false);
     }
   };
 
@@ -981,6 +990,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       transitions: [],
       active: true,
       updatedAt: updatedProcess.updatedAt,
+      status: 'đang thiết kế',
       processData: updatedProcess
     };
 
@@ -2278,8 +2288,15 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
         {isoDefinitions.map(def => (
           <div key={def.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-all group relative">
             <div className="flex justify-between items-start mb-3">
-              <div className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-mono font-bold">
-                {def.code}
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-mono font-bold">
+                  {def.code}
+                </div>
+                {def.status && (
+                  <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${def.status === 'đã ban hành' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {def.status}
+                  </div>
+                )}
               </div>
               <div className={`w-2 h-2 rounded-full ${def.active ? 'bg-green-500' : 'bg-slate-300'}`} title={def.active ? 'Active' : 'Inactive'} />
             </div>
@@ -2298,6 +2315,33 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
               >
                 <Edit2 size={16} /> Chỉnh sửa
               </button>
+              
+              {currentUser?.role === 'school_admin' && currentUser?.isPrimary && (
+                <button 
+                  onClick={() => {
+                    const newStatus = def.status === 'đã ban hành' ? 'đang thiết kế' : 'đã ban hành';
+                    const confirmMsg = newStatus === 'đã ban hành' 
+                      ? "Bạn có chắc chắn muốn BAN HÀNH quy trình này lên Cloud?" 
+                      : "Bạn có chắc chắn muốn GỠ BAN HÀNH quy trình này?";
+                    
+                    if (confirm(confirmMsg)) {
+                      const updatedDefs = isoDefinitions.map(d => 
+                        d.id === def.id ? { ...d, status: newStatus, updatedAt: new Date().toISOString() } : d
+                      );
+                      onUpdateIsoDefinitions(updatedDefs);
+                    }
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    def.status === 'đã ban hành' 
+                      ? 'text-green-600 bg-green-50 hover:bg-green-100' 
+                      : 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                  }`}
+                  title={def.status === 'đã ban hành' ? 'Gỡ ban hành' : 'Ban hành'}
+                >
+                  <CheckCircle size={18} />
+                </button>
+              )}
+
               <button 
                 onClick={() => {
                     if (confirm("Bạn có chắc chắn muốn xóa quy trình này?")) {
@@ -2320,6 +2364,66 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           </div>
         )}
       </div>
+
+      {/* Sync Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 bg-amber-50 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                <Clock size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Phát hiện sự khác biệt dữ liệu</h3>
+                <p className="text-slate-600">Dữ liệu Quy trình công việc hiện tại khác với phiên bản đã Ban hành trên Cloud.</p>
+              </div>
+            </div>
+            
+            <div className="p-6 max-h-[400px] overflow-y-auto">
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Chi tiết khác biệt:</h4>
+              <ul className="space-y-2">
+                {syncDiffs.map((diff, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    {diff}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={handleUpdateFromCloud}
+                disabled={isSyncing}
+                className="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-xl hover:bg-slate-100 transition-all font-medium disabled:opacity-50"
+              >
+                <Upload size={20} className="rotate-180" /> Cập nhật phiên bản từ Cloud
+              </button>
+              <button
+                onClick={handlePublishToCloud}
+                disabled={isSyncing}
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all font-medium disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Upload size={20} />
+                )}
+                Ban hành phiên bản mới lên Cloud
+              </button>
+            </div>
+            
+            <div className="px-6 pb-6 bg-slate-50 flex justify-center">
+              <button 
+                onClick={() => setShowSyncModal(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 underline"
+              >
+                Để sau (Tiếp tục với dữ liệu hiện tại)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

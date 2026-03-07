@@ -207,6 +207,7 @@ export interface IsoDefinition {
   transitions: IsoTransition[];
   active: boolean;
   updatedAt: string;
+  status?: 'đang thiết kế' | 'đã ban hành';
   // New structure integration (optional migration)
   processData?: IsoProcess;
 }
