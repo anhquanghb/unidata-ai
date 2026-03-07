@@ -37,6 +37,8 @@ import { saveAs } from 'file-saver';
 // --- Custom Node Components ---
 
 const DiamondNode = ({ data, isConnectable }: any) => {
+  const isEnd = data.role === 'end';
+
   return (
     <div className="relative flex items-center justify-center w-32 h-32 group">
       <div className="absolute inset-0 bg-white border-2 border-slate-400 transform rotate-45 rounded-sm shadow-sm hover:border-blue-500 transition-colors" />
@@ -85,54 +87,58 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         <span className="text-[10px] text-white leading-none">►</span>
       </Handle>
       
-      {/* Source Handles */}
-      <Handle 
-        type="source" 
-        position={Position.Top} 
-        id="s-top" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        id="s-bottom" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        id="s-left" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="s-right" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
+      {/* Source Handles - Hide if End Point */}
+      {!isEnd && (
+        <>
+          <Handle 
+            type="source" 
+            position={Position.Top} 
+            id="s-top" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Bottom} 
+            id="s-bottom" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Left} 
+            id="s-left" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="s-right" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+        </>
+      )}
     </div>
   );
 };
 
 const OvalNode = ({ data, isConnectable }: any) => {
-  const isStart = data.role === 'start' || data.label?.toLowerCase().includes('start') || data.label?.toLowerCase().includes('bắt đầu');
-  const isEnd = data.role === 'end' || data.label?.toLowerCase().includes('end') || data.label?.toLowerCase().includes('kết thúc');
+  const isStart = data.role === 'start';
+  const isEnd = data.role === 'end';
 
   return (
     <div className={`px-6 py-3 rounded-[50px] border-2 bg-white shadow-sm min-w-[120px] text-center relative group ${isStart ? 'border-green-600' : isEnd ? 'border-red-600' : 'border-slate-800'}`}>
@@ -234,6 +240,8 @@ const OvalNode = ({ data, isConnectable }: any) => {
 };
 
 const ProcessNode = ({ data, isConnectable }: any) => {
+  const isEnd = data.role === 'end';
+
   return (
     <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
@@ -279,47 +287,51 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         <span className="text-[10px] text-white leading-none">►</span>
       </Handle>
       
-      {/* Source Handles */}
-      <Handle 
-        type="source" 
-        position={Position.Top} 
-        id="s-top" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        id="s-bottom" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        id="s-left" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="s-right" 
-        isConnectable={isConnectable} 
-        isConnectableEnd={false}
-        className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
-      >
-        <span className="text-[10px] text-white leading-none">□</span>
-      </Handle>
+      {/* Source Handles - Hide if End Point */}
+      {!isEnd && (
+        <>
+          <Handle 
+            type="source" 
+            position={Position.Top} 
+            id="s-top" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Bottom} 
+            id="s-bottom" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Left} 
+            id="s-left" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="s-right" 
+            isConnectable={isConnectable} 
+            isConnectableEnd={false}
+            className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
+          >
+            <span className="text-[10px] text-white leading-none">□</span>
+          </Handle>
+        </>
+      )}
     </div>
   );
 };
@@ -1915,7 +1927,13 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                       <Panel position="top-right" className="bg-white p-2 rounded shadow text-xs text-slate-500">
                         {nodes.length} Steps | {edges.length} Connections
                       </Panel>
-                      {contextMenu && (
+                      {contextMenu && (() => {
+                        const sourceNode = nodes.find(n => n.id === contextMenu.sourceNodeId);
+                        const isEndNode = sourceNode?.data.role === 'end';
+                        
+                        if (isEndNode) return null;
+
+                        return (
                           <div 
                               style={{ top: contextMenu.y, left: contextMenu.x }} 
                               className="absolute bg-white border border-slate-200 shadow-lg rounded-lg p-2 flex flex-col gap-1 z-50 w-48"
@@ -1941,7 +1959,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                                   <Circle size={14} className="text-slate-600"/> Kết thúc
                               </button>
                           </div>
-                      )}
+                        );
+                      })()}
                     </ReactFlow>
                   </ReactFlowProvider>
                 </div>
@@ -1978,23 +1997,41 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                   
                   {selectedNodeId && processData.stepDetails[selectedNodeId] ? (
                     <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 gap-6">
-                      <div className="col-span-2">
-                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên bước (Task)</label>
-                         <input 
-                           value={nodes.find(n => n.id === selectedNodeId)?.data.label}
-                           onChange={e => {
-                             setNodes(nds => nds.map(n => n.id === selectedNodeId ? { ...n, data: { ...n.data, label: e.target.value } } : n));
-                             // Update detail 'what' as well
-                             setProcessData(prev => prev ? ({
-                               ...prev,
-                               stepDetails: {
-                                 ...prev.stepDetails,
-                                 [selectedNodeId]: { ...prev.stepDetails[selectedNodeId], what: e.target.value }
-                               }
-                             }) : null);
-                           }}
-                           className="w-full p-2 border border-slate-300 rounded font-medium focus:border-blue-500 focus:outline-none"
-                         />
+                      <div className="col-span-2 grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên bước (Task)</label>
+                          <input 
+                            value={nodes.find(n => n.id === selectedNodeId)?.data.label}
+                            onChange={e => {
+                              setNodes(nds => nds.map(n => n.id === selectedNodeId ? { ...n, data: { ...n.data, label: e.target.value } } : n));
+                              // Update detail 'what' as well
+                              setProcessData(prev => prev ? ({
+                                ...prev,
+                                stepDetails: {
+                                  ...prev.stepDetails,
+                                  [selectedNodeId]: { ...prev.stepDetails[selectedNodeId], what: e.target.value }
+                                }
+                              }) : null);
+                            }}
+                            className="w-full p-2 border border-slate-300 rounded font-medium focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vai trò bước</label>
+                          <select
+                            value={nodes.find(n => n.id === selectedNodeId)?.data.role || 'process'}
+                            onChange={(e) => {
+                              const newRole = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNodeId ? { ...n, data: { ...n.data, role: newRole } } : n));
+                            }}
+                            className="w-full p-2 border border-slate-300 rounded text-sm focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="process">Bước thực hiện</option>
+                            <option value="decision">Điểm quyết định</option>
+                            <option value="start">Điểm bắt đầu</option>
+                            <option value="end">Điểm kết thúc</option>
+                          </select>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Who (Ai thực hiện?)</label>
