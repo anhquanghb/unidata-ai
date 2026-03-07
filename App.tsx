@@ -29,7 +29,7 @@ const initialSettings: SystemSettings = {
   currentAcademicYear: '2023-2024',
   extractionPrompt: '',
   analysisPrompt: '',
-  permissionProfile: { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true }
+  permissionProfile: { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true, canProposeEditProcess: true }
 };
 
 const initialDriveSession: GoogleDriveConfig = { isConnected: false };
@@ -491,6 +491,7 @@ const App: React.FC = () => {
           role: 'unit_manager',
           canEditDataConfig: false, // Unit cannot edit schema
           canEditOrgStructure: false, // Unit cannot edit structure (globally), but can edit children
+          canProposeEditProcess: false,
           managedUnitId: targetUnit.unit_id // Locked to this unit
       };
 
@@ -753,6 +754,7 @@ const App: React.FC = () => {
           role: currentUser.role, 
           canEditDataConfig: currentUser.role === 'school_admin' || (currentUser.role === 'unit_manager' && currentUser.isPrimary), 
           canEditOrgStructure: true,
+          canProposeEditProcess: currentUser.permissions?.canProposeEditProcess || false,
           managedUnitId: currentUser.managedUnitId
         }
       : (settings.permissionProfile || initialSettings.permissionProfile);

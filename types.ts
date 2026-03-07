@@ -23,12 +23,16 @@ export interface HumanResourceRecord {
 
 export interface UserProfile {
   id: string;
-  username: string;
   fullName: string;
-  role: 'school_admin' | 'unit_manager'; // Updated roles
-  isPrimary: boolean; // Is this the Main Account for this scope?
-  managedUnitId?: string; // Required if role is unit_manager
-  email?: string; // Google Account Email for identification
+  email: string; // Used as unique identifier
+  role: 'school_admin' | 'unit_manager';
+  isPrimary: boolean;
+  managedUnitId?: string;
+  permissions: {
+    canEditDataConfig: boolean;
+    canEditOrgStructure: boolean;
+    canProposeEditProcess: boolean; // New: Đề xuất - Chỉnh sửa quy trình
+  };
 }
 
 export interface WorkingSession {
@@ -435,6 +439,7 @@ export interface PermissionProfile {
   role: 'school_admin' | 'unit_manager'; // Define broad role
   canEditDataConfig: boolean; // Can change Schema?
   canEditOrgStructure: boolean; // Can add/delete Units?
+  canProposeEditProcess: boolean; // New: Đề xuất - Chỉnh sửa quy trình
   managedUnitId?: string; // If set, restricted to this unit
 }
 

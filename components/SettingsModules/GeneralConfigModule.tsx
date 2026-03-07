@@ -109,7 +109,7 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
   const [editingYearConfigId, setEditingYearConfigId] = useState<string | null>(null);
   const [tempYearConfig, setTempYearConfig] = useState<AcademicYearConfig | null>(null);
 
-  const permission = settings.permissionProfile || { role: 'school_admin' };
+  const permission = settings.permissionProfile || { role: 'school_admin', canEditDataConfig: true, canEditOrgStructure: true, canProposeEditProcess: true };
   const isUnitManager = permission.role === 'unit_manager';
 
   const DEFAULT_WORKING_SCHEDULE: DailySchedule[] = [
@@ -276,11 +276,13 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
           role: 'school_admin',
           canEditDataConfig: true,
           canEditOrgStructure: true,
+          canProposeEditProcess: true,
           managedUnitId: undefined
       } : {
           role: 'unit_manager',
           canEditDataConfig: false,
           canEditOrgStructure: false,
+          canProposeEditProcess: false,
           managedUnitId: 'dummy-unit-id' // Simulate restricted
       };
       

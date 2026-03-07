@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SystemSettings, UserProfile, Unit, AcademicYear, SchoolInfo, ScientificRecord, TrainingRecord, PersonnelRecord, AdmissionRecord, ClassRecord, DepartmentRecord, BusinessRecord, DataConfigGroup, GoogleDriveConfig, Faculty, FacultyTitles, HumanResourceRecord, DynamicRecord } from '../types';
 import BackupDataModule from './SettingsModules/BackupDataModule';
-import UserManagementModule from './SettingsModules/UserManagementModule';
+import RolesModule from './SettingsModules/RolesModule';
 import GeneralConfigModule from './SettingsModules/GeneralConfigModule';
 import DataConfigModule from './SettingsModules/DataConfigModule';
 
@@ -740,13 +740,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
 
         {/* TAB: USERS (Only rendered if tab is active, which depends on isPrimary) */}
         {activeTab === 'users' && onUpdateUsers && (
-          <UserManagementModule 
+          <RolesModule 
             users={users}
-            currentUser={currentUser} // Pass Identified User
-            units={units}
-            onAddUser={onAddUser}
             onUpdateUsers={onUpdateUsers}
-            onRemoveUser={onRemoveUser}
+            humanResources={humanResources}
+            faculties={faculties}
+            units={units}
           />
         )}
 
