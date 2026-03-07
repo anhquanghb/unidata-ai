@@ -43,15 +43,17 @@ const DiamondNode = ({ data, isConnectable }: any) => {
       <div className="relative z-10 text-xs font-medium text-center p-2 pointer-events-none transform">
         {data.label}
       </div>
-      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      {/* Target Handles */}
+      <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[40%]" />
+      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[40%]" />
+      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[40%]" />
+      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[40%]" />
       
-      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
-      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400" />
+      {/* Source Handles */}
+      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[60%]" />
+      <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !left-[60%]" />
+      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[60%]" />
+      <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-400 !top-[60%]" />
     </div>
   );
 };
@@ -67,20 +69,20 @@ const OvalNode = ({ data, isConnectable }: any) => {
       {/* Target handles (input) - hide for start node */}
       {!isStart && (
         <>
-          <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[40%]" />
+          <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[40%]" />
+          <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[40%]" />
+          <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[40%]" />
         </>
       )}
       
       {/* Source handles (output) - hide for end node */}
       {!isEnd && (
         <>
-          <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
-          <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800" />
+          <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[60%]" />
+          <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !left-[60%]" />
+          <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[60%]" />
+          <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-slate-800 !top-[60%]" />
         </>
       )}
     </div>
@@ -91,15 +93,17 @@ const ProcessNode = ({ data, isConnectable }: any) => {
   return (
     <div className="px-4 py-3 rounded-md border-2 border-blue-600 bg-white shadow-sm min-w-[150px] text-center relative group">
       <div className="text-sm font-medium text-slate-800">{data.label}</div>
-      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      {/* Target Handles */}
+      <Handle type="target" position={Position.Top} id="t-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[40%]" />
+      <Handle type="target" position={Position.Bottom} id="t-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[40%]" />
+      <Handle type="target" position={Position.Left} id="t-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[40%]" />
+      <Handle type="target" position={Position.Right} id="t-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[40%]" />
       
-      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
-      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600" />
+      {/* Source Handles */}
+      <Handle type="source" position={Position.Top} id="s-top" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[60%]" />
+      <Handle type="source" position={Position.Bottom} id="s-bottom" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !left-[60%]" />
+      <Handle type="source" position={Position.Left} id="s-left" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[60%]" />
+      <Handle type="source" position={Position.Right} id="s-right" isConnectable={isConnectable} className="w-2 h-2 !bg-blue-600 !top-[60%]" />
     </div>
   );
 };
@@ -370,7 +374,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           source: sourceNodeId,
           sourceHandle: sourceHandle,
           target: newNodeId,
-          targetHandle: type === 'diamond' ? 'top' : 'left', // Default target handle
+          targetHandle: type === 'diamond' ? 't-top' : 't-left', // Default target handle
           type: 'smoothstep',
           markerEnd: { type: MarkerType.ArrowClosed },
       };
