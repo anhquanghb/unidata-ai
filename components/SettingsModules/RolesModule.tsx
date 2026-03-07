@@ -99,17 +99,47 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
   // Determine if Primary Checkbox should be enabled/defaulted
   const canSetPrimary = useMemo(() => {
       if (!selectedUser) return false;
-      if (selectedUser.role === 'school_admin') return false; // Rule 1
+      if (!currentUser?.isPrimary) return false; // Only Primary users can set Primary status
+
+      if (selectedUser.role === 'school_admin') {
+          // Check if there is already a primary school admin (excluding self if editing)
+          const hasPrimaryAdmin = users.some(u => u.role === 'school_admin' && u.isPrimary && u.id !== selectedUser.id);
+          return !hasPrimaryAdmin; 
+      }
       
       if (selectedUser.role === 'unit_manager') {
-          if (isSchoolAdmin) return true; // Rule 2
+          if (isSchoolAdmin) return true; // School Admin can set Primary for any Unit Manager
           if (isUnitManager) {
-              if (selectedUser.managedUnitId === currentUser?.managedUnitId) return false; // Rule 3
-              return true; // Rule 4 (Child unit)
+              // Unit Manager can set Primary for their child units
+              if (selectedUser.managedUnitId === currentUser?.managedUnitId) return false; // Cannot change own unit's primary status (unless self, but logic handles that)
+              
+              // Check if target unit already has a primary manager
+              const hasPrimaryManager = users.some(u => u.role === 'unit_manager' && u.managedUnitId === selectedUser.managedUnitId && u.isPrimary && u.id !== selectedUser.id);
+              return !hasPrimaryManager;
           }
       }
       return false;
-  }, [selectedUser?.role, selectedUser?.managedUnitId, isSchoolAdmin, isUnitManager, currentUser]);
+  }, [selectedUser, users, isSchoolAdmin, isUnitManager, currentUser]);
+
+  const showPrimaryOption = useMemo(() => {
+      if (!selectedUser) return false;
+      // Show if user is Primary OR if no Primary exists for the target level (allowing self-claim or first-time setup)
+      if (currentUser?.isPrimary) return true;
+
+      // Special Case: Self-claim if no primary exists
+      if (selectedUser.id === currentUser?.id) {
+          if (selectedUser.role === 'school_admin') {
+               const hasPrimaryAdmin = users.some(u => u.role === 'school_admin' && u.isPrimary);
+               return !hasPrimaryAdmin;
+          }
+          if (selectedUser.role === 'unit_manager' && selectedUser.managedUnitId) {
+               const hasPrimaryManager = users.some(u => u.role === 'unit_manager' && u.managedUnitId === selectedUser.managedUnitId && u.isPrimary);
+               return !hasPrimaryManager;
+          }
+      }
+      
+      return false;
+  }, [selectedUser, currentUser, users]);
 
   return (
     <div className="p-6 grid grid-cols-3 gap-6 h-full">
@@ -244,26 +274,28 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
                         )}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-200 mt-2">
-                        <label className={`flex items-center ${!canSetPrimary ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                            <input 
-                                type="checkbox" 
-                                className="w-4 h-4 text-blue-600 rounded"
-                                checked={selectedUser.isPrimary}
-                                onChange={(e) => canSetPrimary && handleUpdateUser({...selectedUser, isPrimary: e.target.checked})}
-                                disabled={!canSetPrimary}
-                            />
-                            <span className="ml-2 text-sm font-bold text-slate-700 flex items-center gap-1">
-                                <Crown size={14} className={selectedUser.isPrimary ? "text-amber-500 fill-current" : "text-slate-400"} />
-                                Đặt làm Tài khoản CHÍNH (Quản lý Drive)
-                            </span>
-                        </label>
-                        {!canSetPrimary && (
-                            <p className="text-[10px] text-slate-400 ml-6 mt-1 italic">
-                                (Bạn không có quyền thay đổi trạng thái này hoặc trạng thái này bị khóa theo quy tắc hệ thống)
-                            </p>
-                        )}
-                    </div>
+                    {showPrimaryOption && (
+                        <div className="pt-2 border-t border-slate-200 mt-2">
+                            <label className={`flex items-center ${!canSetPrimary ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                    checked={selectedUser.isPrimary}
+                                    onChange={(e) => canSetPrimary && handleUpdateUser({...selectedUser, isPrimary: e.target.checked})}
+                                    disabled={!canSetPrimary}
+                                />
+                                <span className="ml-2 text-sm font-bold text-slate-700 flex items-center gap-1">
+                                    <Crown size={14} className={selectedUser.isPrimary ? "text-amber-500 fill-current" : "text-slate-400"} />
+                                    Đặt làm Tài khoản CHÍNH (Quản lý Drive)
+                                </span>
+                            </label>
+                            {!canSetPrimary && (
+                                <p className="text-[10px] text-slate-400 ml-6 mt-1 italic">
+                                    (Bạn không có quyền thay đổi trạng thái này hoặc trạng thái này bị khóa theo quy tắc hệ thống)
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Permissions */}
