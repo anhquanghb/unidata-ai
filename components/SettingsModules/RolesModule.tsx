@@ -26,6 +26,14 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
     }).filter(p => p.email);
   }, [humanResources, faculties, units]);
 
+  const filteredPersonnel = useMemo(() => {
+    if (!searchTerm) return [];
+    return availablePersonnel.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      p.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [availablePersonnel, searchTerm]);
+
   const handleAddUser = (person: { email: string; name: string }) => {
     if (users.find(u => u.email === person.email)) return;
     const newUser: UserProfile = {
@@ -41,10 +49,15 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
       }
     };
     onUpdateUsers([...users, newUser]);
+    setSelectedUser(newUser); // Select the newly added user
   };
 
   const updatePermissions = (userId: string, newPermissions: UserProfile['permissions']) => {
     onUpdateUsers(users.map(u => u.id === userId ? { ...u, permissions: newPermissions } : u));
+    // Update selectedUser state to reflect changes
+    if (selectedUser && selectedUser.id === userId) {
+        setSelectedUser(prev => prev ? {...prev, permissions: newPermissions} : null);
+    }
   };
 
   return (
@@ -59,7 +72,7 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
           onChange={e => setSearchTerm(e.target.value)}
         />
         <div className="flex-1 overflow-y-auto space-y-2">
-          {availablePersonnel.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p, i) => (
+          {searchTerm && filteredPersonnel.map((p, i) => (
             <div key={i} className="p-3 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer flex justify-between items-center" onClick={() => handleAddUser(p)}>
               <div>
                 <div className="text-sm font-bold">{p.name}</div>
@@ -68,6 +81,18 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
               {!users.find(u => u.email === p.email) && <button className="text-blue-600 text-xs font-bold">Thêm</button>}
             </div>
           ))}
+          
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Đã là User</h4>
+            {users.map(u => (
+                <div key={u.id} className={`p-3 rounded-lg cursor-pointer flex justify-between items-center ${selectedUser?.id === u.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedUser(u)}>
+                    <div>
+                        <div className="text-sm font-bold">{u.fullName}</div>
+                        <div className="text-xs text-slate-500">{u.email}</div>
+                    </div>
+                </div>
+            ))}
+          </div>
         </div>
       </div>
 
