@@ -746,6 +746,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({
             humanResources={humanResources}
             faculties={faculties}
             units={units}
+            currentUser={currentUser}
           />
         )}
 
