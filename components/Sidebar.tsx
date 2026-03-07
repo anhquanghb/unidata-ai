@@ -128,11 +128,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-full flex gap-2 mt-2">
                 <button 
                     onClick={onSaveToCloud}
-                    disabled={!hasUnsavedChanges || !isConnected}
+                    disabled={!isConnected}
                     className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-xs font-bold transition-all ${
                         hasUnsavedChanges 
                             ? 'bg-green-600 text-white shadow-md hover:bg-green-700 animate-pulse' 
-                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
                     }`}
                     title={isConnected ? "Lưu thay đổi lên Đám mây" : "Chưa kết nối Google Drive"}
                 >

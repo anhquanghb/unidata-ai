@@ -401,35 +401,6 @@ const GeneralConfigModule: React.FC<GeneralConfigModuleProps> = ({
 
   return (
     <div className="space-y-8 animate-fade-in">
-        {/* SECTION 0: Role Simulation - HIDE IF UNIT MANAGER */}
-        {!isUnitManager && (
-            <div className="bg-gradient-to-r from-slate-100 to-slate-200 p-4 rounded-lg border border-slate-300">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                    <Shield size={16} className="text-indigo-600"/> Trạng thái Quyền hạn (System Permission Scope)
-                </h3>
-                <p className="text-xs text-slate-600 mb-3">
-                    Thay đổi trạng thái này để kiểm thử giao diện của các cấp độ người dùng khác nhau.
-                    Lưu ý: Khi nhập file JSON từ cấp khác, quyền hạn này sẽ tự động thay đổi theo file đó.
-                </p>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => handleToggleRole('school_admin')}
-                        className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'school_admin' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
-                    >
-                        <CheckCircle size={16} className={settings.permissionProfile?.role === 'school_admin' ? 'opacity-100' : 'opacity-0'}/>
-                        Cấp Trường (Root Admin)
-                    </button>
-                    <button 
-                        onClick={() => handleToggleRole('unit_manager')}
-                        className={`px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all ${settings.permissionProfile?.role === 'unit_manager' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-slate-600 border'}`}
-                    >
-                        <CheckCircle size={16} className={settings.permissionProfile?.role === 'unit_manager' ? 'opacity-100' : 'opacity-0'}/>
-                        Cấp Đơn vị (Unit Manager)
-                    </button>
-                </div>
-            </div>
-        )}
-
         {/* SECTION 1: School Info */}
         <div>
            <div className="flex justify-between items-center mb-4">

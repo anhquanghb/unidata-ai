@@ -589,7 +589,7 @@ const App: React.FC = () => {
       if (data.dataConfigGroups) setDataConfigGroups(data.dataConfigGroups);
       if (data.dynamicDataStore) setDynamicDataStore(data.dynamicDataStore);
       
-      setHasUnsavedChanges(true); 
+      setHasUnsavedChanges(false); 
   };
 
   // --- GOOGLE DRIVE LOGIC (GLOBAL) ---
@@ -728,11 +728,21 @@ const App: React.FC = () => {
               if (driveSession.zoneCId) {
                   // A. Save Published Processes (isodata_*.json) - Only if there are any
                   const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  
                   if (publishedOnly.length > 0) {
                       const isoContent = JSON.stringify(publishedOnly, null, 2);
                       const isoBlob = new Blob([isoContent], { type: 'application/json' });
-                      await uploadFile(isoFileName, isoBlob, driveSession.zoneCId);
-                      messages.push(`- Đã lưu ${isoFileName} (Đã ban hành) vào Zone C`);
+                      
+                      // Check if Primary School Admin -> Overwrite isodata.json
+                      if (currentUser?.role === 'school_admin' && currentUser?.isPrimary) {
+                          // Overwrite isodata.json directly in Zone C
+                          await publishFile('isodata.json', isoBlob, driveSession.zoneCId);
+                          messages.push(`- Đã cập nhật isodata.json (Đã ban hành) vào Zone C`);
+                      } else {
+                          // Others -> Create new version
+                          await uploadFile(isoFileName, isoBlob, driveSession.zoneCId);
+                          messages.push(`- Đã lưu ${isoFileName} (Đã ban hành) vào Zone C`);
+                      }
                   }
 
                   // B. Save Proposed Processes (isodata_proposal_*.json) to ISO_proposal folder
