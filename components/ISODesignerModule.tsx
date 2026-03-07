@@ -1669,6 +1669,66 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                 </div>
 
                 <div className="pt-4 border-t border-slate-100">
+                    {/* Action Buttons in Control Info */}
+                    {currentUser?.role === 'school_admin' && (() => {
+                        const currentDef = isoDefinitions.find(d => d.id === processData.id);
+                        const currentStatus = currentDef?.status || 'đang thiết kế';
+                        
+                        return (
+                            <div className="flex gap-2 mb-4">
+                                {['đang thiết kế', 'đang chỉnh sửa', 'đã chuẩn bị đề xuất'].includes(currentStatus) && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm("Xác nhận BAN HÀNH quy trình này?")) {
+                                                const code = processData.controlInfo.documentCode;
+                                                const updatedDefs = isoDefinitions.map(d => {
+                                                    if (d.id === processData.id) {
+                                                        return { ...d, status: 'đã ban hành', updatedAt: new Date().toISOString(), processData: processData } as IsoDefinition;
+                                                    }
+                                                    if (d.code === code && d.status === 'đã ban hành') {
+                                                        return { ...d, status: 'dừng ban hành', updatedAt: new Date().toISOString() } as IsoDefinition;
+                                                    }
+                                                    return d;
+                                                });
+                                                onUpdateIsoDefinitions(updatedDefs);
+                                                alert("Đã ban hành thành công!");
+                                            }
+                                        }}
+                                        className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
+                                    >
+                                        <CheckCircle size={16} /> Ban hành
+                                    </button>
+                                )}
+
+                                {currentStatus === 'đã ban hành' && (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                 setVersionModal({ isOpen: true, baseDef: currentDef! });
+                                            }}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg> Nâng cấp phiên bản
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm("Xác nhận DỪNG BAN HÀNH quy trình này?")) {
+                                                     const updatedDefs = isoDefinitions.map(d => 
+                                                        d.id === processData.id ? { ...d, status: 'dừng ban hành', updatedAt: new Date().toISOString() } as IsoDefinition : d
+                                                     );
+                                                     onUpdateIsoDefinitions(updatedDefs);
+                                                }
+                                            }}
+                                            className="bg-amber-600 text-white px-4 py-2 rounded shadow hover:bg-amber-700 flex items-center gap-2 text-sm font-medium"
+                                        >
+                                            <X size={16} /> Dừng ban hành
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })()}
+
                     <label className="block text-sm font-medium text-slate-700 mb-2">Bản scan đã ban hành (PDF)</label>
                     {processData.controlInfo.scanLink ? (
                         <div className="flex items-center gap-2 bg-slate-50 p-3 rounded border border-slate-200">
