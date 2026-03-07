@@ -449,6 +449,15 @@ const App: React.FC = () => {
           currentParentId = parent ? parent.unit_parentId : undefined;
       }
 
+      // **CRITICAL UPDATE: Always include 'unit_external' and its data in the export**
+      const externalUnitId = 'unit_external';
+      const externalUnit = units.find(u => u.unit_id === externalUnitId);
+      
+      if (externalUnit) {
+          relatedUnitIds.add(externalUnitId);
+          dataScopeIds.add(externalUnitId); // Add external unit to data scope so its "personnel" (objects) are included
+      }
+
       // **CRITICAL UPDATE: Preserve School Public ID when exporting**
       const filteredUnits = units.filter(u => relatedUnitIds.has(u.unit_id));
 

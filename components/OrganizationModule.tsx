@@ -103,8 +103,13 @@ const OrganizationModule: React.FC<OrganizationModuleProps> = ({
   };
 
   const getChildUnits = (parentId?: string) => {
-    const children = units.filter(u => u.unit_parentId === parentId || (!parentId && !u.unit_parentId));
+    let children = units.filter(u => u.unit_parentId === parentId || (!parentId && !u.unit_parentId));
     
+    // Hide 'unit_school_mgmt' if not school_admin
+    if (role !== 'school_admin') {
+        children = children.filter(u => u.unit_id !== 'unit_school_mgmt');
+    }
+
     // Sort logic for Root Level
     if (!parentId) {
         return children.sort((a, b) => {
