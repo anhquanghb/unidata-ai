@@ -141,6 +141,11 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
       return false;
   }, [selectedUser, currentUser, users]);
 
+  const canGrantPermission = (perm: keyof NonNullable<UserProfile['permissions']>) => {
+      if (isSchoolAdmin) return true;
+      return currentUser?.permissions?.[perm] === true;
+  };
+
   return (
     <div className="p-6 grid grid-cols-3 gap-6 h-full">
       {/* Left Column: Search & List */}
@@ -305,52 +310,56 @@ const RolesModule: React.FC<RolesModuleProps> = ({ users, onUpdateUsers, humanRe
                     </h4>
                     
                     <div className="space-y-3">
-                        <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
-                            <input 
-                                type="checkbox" 
-                                checked={selectedUser.permissions?.canProposeEditProcess || false} 
-                                onChange={e => handleUpdateUser({
-                                    ...selectedUser, 
-                                    permissions: { ...selectedUser.permissions, canProposeEditProcess: e.target.checked }
-                                })} 
-                            />
-                            <div>
-                                <span className="text-sm font-medium block">Đề xuất - Chỉnh sửa quy trình</span>
-                                <span className="text-xs text-slate-500">Cho phép người dùng đề xuất thay đổi hoặc chỉnh sửa các quy trình ISO.</span>
-                            </div>
-                        </label>
+                        {canGrantPermission('canProposeEditProcess') && (
+                            <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedUser.permissions?.canProposeEditProcess || false} 
+                                    onChange={e => handleUpdateUser({
+                                        ...selectedUser, 
+                                        permissions: { ...selectedUser.permissions, canProposeEditProcess: e.target.checked }
+                                    })} 
+                                />
+                                <div>
+                                    <span className="text-sm font-medium block">Đề xuất - Chỉnh sửa quy trình</span>
+                                    <span className="text-xs text-slate-500">Cho phép người dùng đề xuất thay đổi hoặc chỉnh sửa các quy trình ISO.</span>
+                                </div>
+                            </label>
+                        )}
 
-                        <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
-                            <input 
-                                type="checkbox" 
-                                checked={selectedUser.permissions?.canEditDataConfig || false} 
-                                onChange={e => handleUpdateUser({
-                                    ...selectedUser, 
-                                    permissions: { ...selectedUser.permissions, canEditDataConfig: e.target.checked }
-                                })} 
-                                disabled={!isSchoolAdmin} // Only School Admin can grant Data Config rights
-                            />
-                            <div className={!isSchoolAdmin ? 'opacity-50' : ''}>
-                                <span className="text-sm font-medium block">Cấu hình dữ liệu (Data Config)</span>
-                                <span className="text-xs text-slate-500">Cho phép chỉnh sửa cấu trúc dữ liệu, thêm trường mới.</span>
-                            </div>
-                        </label>
+                        {canGrantPermission('canEditDataConfig') && (
+                            <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedUser.permissions?.canEditDataConfig || false} 
+                                    onChange={e => handleUpdateUser({
+                                        ...selectedUser, 
+                                        permissions: { ...selectedUser.permissions, canEditDataConfig: e.target.checked }
+                                    })} 
+                                />
+                                <div>
+                                    <span className="text-sm font-medium block">Cấu hình dữ liệu (Data Config)</span>
+                                    <span className="text-xs text-slate-500">Cho phép chỉnh sửa cấu trúc dữ liệu, thêm trường mới.</span>
+                                </div>
+                            </label>
+                        )}
 
-                        <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
-                            <input 
-                                type="checkbox" 
-                                checked={selectedUser.permissions?.canEditOrgStructure || false} 
-                                onChange={e => handleUpdateUser({
-                                    ...selectedUser, 
-                                    permissions: { ...selectedUser.permissions, canEditOrgStructure: e.target.checked }
-                                })} 
-                                disabled={!isSchoolAdmin} // Only School Admin can grant Org Structure rights
-                            />
-                            <div className={!isSchoolAdmin ? 'opacity-50' : ''}>
-                                <span className="text-sm font-medium block">Chỉnh sửa Cấu trúc tổ chức</span>
-                                <span className="text-xs text-slate-500">Cho phép thêm/sửa/xóa các đơn vị, phòng ban trong hệ thống.</span>
-                            </div>
-                        </label>
+                        {canGrantPermission('canEditOrgStructure') && (
+                            <label className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:bg-slate-50 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedUser.permissions?.canEditOrgStructure || false} 
+                                    onChange={e => handleUpdateUser({
+                                        ...selectedUser, 
+                                        permissions: { ...selectedUser.permissions, canEditOrgStructure: e.target.checked }
+                                    })} 
+                                />
+                                <div>
+                                    <span className="text-sm font-medium block">Chỉnh sửa Cấu trúc tổ chức</span>
+                                    <span className="text-xs text-slate-500">Cho phép thêm/sửa/xóa các đơn vị, phòng ban trong hệ thống.</span>
+                                </div>
+                            </label>
+                        )}
                     </div>
                 </div>
             </div>
