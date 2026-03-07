@@ -38,7 +38,7 @@ import { saveAs } from 'file-saver';
 
 const DiamondNode = ({ data, isConnectable }: any) => {
   return (
-    <div className="relative flex items-center justify-center w-32 h-32">
+    <div className="relative flex items-center justify-center w-32 h-32 group">
       <div className="absolute inset-0 bg-white border-2 border-slate-400 transform rotate-45 rounded-sm shadow-sm hover:border-blue-500 transition-colors" />
       <div className="relative z-10 text-xs font-medium text-center p-2 pointer-events-none transform">
         {data.label}
@@ -50,7 +50,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="t-top" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-slate-500 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-500 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">▲</span>
       </Handle>
@@ -60,7 +60,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="t-bottom" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-slate-500 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-500 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">▼</span>
       </Handle>
@@ -70,7 +70,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="t-left" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-slate-500 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-500 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">◄</span>
       </Handle>
@@ -80,7 +80,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="t-right" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-slate-500 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-500 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">►</span>
       </Handle>
@@ -92,7 +92,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="s-top" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-slate-400 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -102,7 +102,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="s-bottom" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-slate-400 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-400 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -112,7 +112,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="s-left" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-slate-400 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -122,7 +122,7 @@ const DiamondNode = ({ data, isConnectable }: any) => {
         id="s-right" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-slate-400 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-slate-400 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -147,7 +147,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="t-top" 
             isConnectable={isConnectable} 
             isConnectableStart={false}
-            className="w-4 h-4 !bg-slate-700 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-700 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">▲</span>
           </Handle>
@@ -157,7 +157,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="t-bottom" 
             isConnectable={isConnectable} 
             isConnectableStart={false}
-            className="w-4 h-4 !bg-slate-700 !left-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-700 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">▼</span>
           </Handle>
@@ -167,7 +167,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="t-left" 
             isConnectable={isConnectable} 
             isConnectableStart={false}
-            className="w-4 h-4 !bg-slate-700 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-700 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">◄</span>
           </Handle>
@@ -177,7 +177,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="t-right" 
             isConnectable={isConnectable} 
             isConnectableStart={false}
-            className="w-4 h-4 !bg-slate-700 !top-[40%] hover:!bg-blue-600 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-700 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">►</span>
           </Handle>
@@ -193,7 +193,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="s-top" 
             isConnectable={isConnectable} 
             isConnectableEnd={false}
-            className="w-4 h-4 !bg-slate-800 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-800 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">□</span>
           </Handle>
@@ -203,7 +203,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="s-bottom" 
             isConnectable={isConnectable} 
             isConnectableEnd={false}
-            className="w-4 h-4 !bg-slate-800 !left-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-800 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">□</span>
           </Handle>
@@ -213,7 +213,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="s-left" 
             isConnectable={isConnectable} 
             isConnectableEnd={false}
-            className="w-4 h-4 !bg-slate-800 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-800 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">□</span>
           </Handle>
@@ -223,7 +223,7 @@ const OvalNode = ({ data, isConnectable }: any) => {
             id="s-right" 
             isConnectable={isConnectable} 
             isConnectableEnd={false}
-            className="w-4 h-4 !bg-slate-800 !top-[60%] hover:!bg-blue-500 transition-colors flex items-center justify-center border-none"
+            className="w-5 h-5 !bg-slate-800 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
           >
             <span className="text-[10px] text-white leading-none">□</span>
           </Handle>
@@ -244,7 +244,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="t-top" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-blue-600 !left-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">▲</span>
       </Handle>
@@ -254,7 +254,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="t-bottom" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-blue-600 !left-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !left-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">▼</span>
       </Handle>
@@ -264,7 +264,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="t-left" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-blue-600 !top-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">◄</span>
       </Handle>
@@ -274,7 +274,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="t-right" 
         isConnectable={isConnectable} 
         isConnectableStart={false}
-        className="w-4 h-4 !bg-blue-600 !top-[40%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !top-[40%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">►</span>
       </Handle>
@@ -286,7 +286,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="s-top" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-blue-600 !left-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -296,7 +296,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="s-bottom" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-blue-600 !left-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !left-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -306,7 +306,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="s-left" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-blue-600 !top-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
@@ -316,7 +316,7 @@ const ProcessNode = ({ data, isConnectable }: any) => {
         id="s-right" 
         isConnectable={isConnectable} 
         isConnectableEnd={false}
-        className="w-4 h-4 !bg-blue-600 !top-[60%] hover:!bg-blue-400 transition-colors flex items-center justify-center border-none"
+        className="w-5 h-5 !bg-blue-600 !top-[60%] opacity-0 group-hover:opacity-20 hover:!opacity-80 transition-opacity flex items-center justify-center border-none"
       >
         <span className="text-[10px] text-white leading-none">□</span>
       </Handle>
