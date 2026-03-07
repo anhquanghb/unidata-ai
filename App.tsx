@@ -656,27 +656,8 @@ const App: React.FC = () => {
           if (!response.ok) throw new Error("Upload failed");
           
           // --- ZONE C UPDATE LOGIC ---
-          if (currentUser?.role === 'school_admin' && currentUser?.isPrimary && driveSession.zoneCId) {
+          if (driveSession.zoneCId) {
               try {
-                  // 1. Update Registry (Zone_C.json)
-                  const registryData = units.map(u => ({
-                      unit_id: u.unit_id,
-                      unit_name: u.unit_name,
-                      unit_code: u.unit_code,
-                      unit_type: u.unit_type,
-                      unit_publicDriveId: u.unit_publicDriveId
-                  }));
-                  
-                  const regContent = JSON.stringify(registryData, null, 2);
-                  const regBlob = new Blob([regContent], { type: 'application/json' });
-                  const regFileName = 'Zone_C.json';
-
-                  // 2. Publish ISO Data (isodata.json) - Only published ones
-                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
-                  const isoContent = JSON.stringify(publishedOnly, null, 2);
-                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
-                  const isoFileName = 'isodata.json';
-
                   const publishFile = async (name: string, blob: Blob) => {
                       const listResp = await window.gapi.client.drive.files.list({
                           q: `name = '${name}' and '${driveSession.zoneCId}' in parents and trashed = false`,
@@ -706,16 +687,35 @@ const App: React.FC = () => {
                       }
                   };
 
-                  await publishFile(regFileName, regBlob);
-                  await publishFile(isoFileName, isoBlob);
+                  // 1. Update Registry (Zone_C.json) - Restricted to School Admin
+                  if (currentUser?.role === 'school_admin' && currentUser?.isPrimary) {
+                      const registryData = units.map(u => ({
+                          unit_id: u.unit_id,
+                          unit_name: u.unit_name,
+                          unit_code: u.unit_code,
+                          unit_type: u.unit_type,
+                          unit_publicDriveId: u.unit_publicDriveId
+                      }));
+                      
+                      const regContent = JSON.stringify(registryData, null, 2);
+                      const regBlob = new Blob([regContent], { type: 'application/json' });
+                      await publishFile('Zone_C.json', regBlob);
+                  }
+
+                  // 2. Publish ISO Data (isodata.json) - Only published ones
+                  // This is now executed for any user with write access to Zone C
+                  const publishedOnly = currentIsoDefs.filter(d => d.status === 'đã ban hành');
+                  const isoContent = JSON.stringify(publishedOnly, null, 2);
+                  const isoBlob = new Blob([isoContent], { type: 'application/json' });
+                  await publishFile('isodata.json', isoBlob);
                   
-                  console.log('Updated Zone_C.json and isodata.json in Zone C.');
+                  console.log('Updated isodata.json in Zone C.');
               } catch (regError) {
                   console.error('Failed to update public zone files:', regError);
               }
           }
 
-          alert("Đã lưu bản cập nhật mới lên Cloud thành công!" + (currentUser?.role === 'school_admin' && currentUser?.isPrimary && driveSession.zoneCId ? "\n(Đã cập nhật Registry Zone C)" : ""));
+          alert("Đã lưu bản cập nhật mới lên Cloud thành công!" + (driveSession.zoneCId ? "\n(Đã cập nhật isodata.json trên Zone C)" : ""));
           setHasUnsavedChanges(false);
       } catch (error) {
           console.error(error);
