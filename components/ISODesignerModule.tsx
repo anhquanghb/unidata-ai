@@ -137,9 +137,9 @@ const DiamondNode = ({ data, isConnectable }: any) => {
   );
 };
 
-const OvalNode = ({ data, isConnectable }: any) => {
-  const isStart = data.role === 'start';
-  const isEnd = data.role === 'end';
+const OvalNode = ({ type, data, isConnectable }: any) => {
+  const isStart = type === 'start' || data.role === 'start';
+  const isEnd = type === 'end' || data.role === 'end';
 
   return (
     <div className={`px-6 py-3 rounded-[50px] border-2 bg-white shadow-sm min-w-[120px] text-center relative group ${isStart ? 'border-green-600' : isEnd ? 'border-red-600' : 'border-slate-800'}`}>
@@ -341,6 +341,8 @@ const nodeTypes = {
   diamond: DiamondNode,
   oval: OvalNode,
   process: ProcessNode,
+  start: OvalNode,
+  end: OvalNode,
 };
 
 // --- Main Component ---
@@ -616,7 +618,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
         id: newNodeId,
         type,
         position: { x: x - 50, y: y - 20 }, // Center somewhat
-        data: { label, role },
+        data: { label, role: type === 'start' || type === 'end' ? type : role },
       };
 
       setNodes((nds) => nds.concat(newNode));
@@ -759,7 +761,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
       if (newDef.processData?.flowchart) {
           setNodes(newDef.processData.flowchart.nodes.map(n => ({ 
               id: n.id,
-              type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+              type: n.type === 'decision' ? 'diamond' : n.type,
               position: n.position,
               data: { label: n.label, role: n.type }
           })));
@@ -809,7 +811,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           if (proc.flowchart) {
               setNodes(proc.flowchart.nodes.map(n => ({ 
                   id: n.id,
-                  type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+                  type: n.type === 'decision' ? 'diamond' : n.type,
                   position: n.position,
                   data: { label: n.label, role: n.type }, // Store role for logic
                   draggable: false, 
@@ -844,7 +846,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
           if (proc.flowchart) {
               setNodes(proc.flowchart.nodes.map(n => ({ 
                   id: n.id,
-                  type: n.type === 'start' || n.type === 'end' ? 'oval' : n.type === 'decision' ? 'diamond' : 'process',
+                  type: n.type === 'decision' ? 'diamond' : n.type,
                   position: n.position,
                   data: { label: n.label, role: n.type } // Store role
               })));
@@ -1378,7 +1380,9 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     // Serialize Flow
     const flowNodes: IsoFlowchartNodeData[] = nodes.map(n => ({
       id: n.id,
-      type: n.type === 'oval' ? (n.data.label === 'Start' ? 'start' : 'end') : n.type === 'diamond' ? 'decision' : 'process',
+      type: (n.type === 'start' || n.data.role === 'start') ? 'start' : 
+            (n.type === 'end' || n.data.role === 'end') ? 'end' : 
+            n.type === 'diamond' ? 'decision' : 'process',
       label: n.data.label,
       position: n.position
     }));
@@ -1535,7 +1539,10 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
         id: uuidv4(),
         type,
         position,
-        data: { label: label },
+        data: { 
+          label: label,
+          role: type === 'start' ? 'start' : type === 'end' ? 'end' : undefined
+        },
       };
 
       setNodes((nds) => nds.concat(newNode));
@@ -1597,7 +1604,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             {currentUser?.role === 'school_admin' && (() => {
                 const currentDef = isoDefinitions.find(d => d.id === processData.id);
                 const isPublished = currentDef?.status === 'đã ban hành';
-                if (isPublished) return null;
+                const isStopped = currentDef?.status === 'dừng ban hành';
+                if (isPublished || isStopped) return null;
                 
                 return (
                   <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
@@ -1608,7 +1616,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             {currentUser?.permissions?.canProposeEditProcess && !currentUser?.isPrimary && (() => {
                 const currentDef = isoDefinitions.find(d => d.id === processData.id);
                 const isPublished = currentDef?.status === 'đã ban hành';
-                if (isPublished) return null;
+                const isStopped = currentDef?.status === 'dừng ban hành';
+                if (isPublished || isStopped) return null;
 
                 return (
                   <>
@@ -1939,7 +1948,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                                     onClick={() => {
                                         const newNode: Node = {
                                             id: uuidv4(),
-                                            type: 'oval',
+                                            type: 'start',
                                             position: { x: 50, y: 50 },
                                             data: { label: 'Start', role: 'start' },
                                         };
@@ -2004,7 +2013,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                                     const yPos = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.y)) + 100 : 50;
                                     const newNode: Node = {
                                         id: uuidv4(),
-                                        type: 'oval',
+                                        type: 'end',
                                         position: { x: 50, y: yPos },
                                         data: { label: 'End', role: 'end' },
                                     };
@@ -2031,8 +2040,8 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                     {nodes.map((node, index) => {
                         const outgoingEdges = edges.filter(e => e.source === node.id);
                         const incomingEdges = edges.filter(e => e.target === node.id);
-                        const isStartNode = node.data.role === 'start' || node.type === 'start' || (node.type === 'oval' && (node.data.label?.toLowerCase().includes('start') || node.data.label?.toLowerCase().includes('bắt đầu')));
-                        const isEndNode = node.data.role === 'end' || node.type === 'end' || (node.type === 'oval' && (node.data.label?.toLowerCase().includes('end') || node.data.label?.toLowerCase().includes('kết thúc')));
+                        const isStartNode = node.type === 'start' || node.data.role === 'start';
+                        const isEndNode = node.type === 'end' || node.data.role === 'end';
                         
                         // Validation Logic
                         let error = null;
@@ -2277,7 +2286,7 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                                   <Diamond size={14} className="text-amber-600"/> Điểm quyết định
                               </button>
                               <button 
-                                  onClick={() => handleAddNodeFromMenu('oval', 'Kết thúc', 'end')}
+                                  onClick={() => handleAddNodeFromMenu('end', 'Kết thúc')}
                                   className="flex items-center gap-2 px-2 py-2 hover:bg-slate-100 text-slate-700 rounded text-sm text-left"
                               >
                                   <Circle size={14} className="text-slate-600"/> Kết thúc
@@ -2997,17 +3006,17 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             
             {/* Drafts & History Section */}
             {(draftDefs.length > 0 || historyDefs.length > 0) && (
-                <div className="mt-3 pt-3 border-t border-slate-100">
+                <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                     {/* Drafts */}
                     {draftDefs.map(draft => (
                         draft.id !== mainDef.id && (
                             <button 
                                 key={draft.id}
                                 onClick={() => handleEdit(draft)}
-                                className="w-full flex items-center gap-2 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg text-xs text-orange-700 font-bold mb-2 transition-colors"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg text-xs text-orange-700 font-bold transition-colors w-fit"
                                 title={`Bản thảo v${draft.version} - ${draft.status}`}
                             >
-                                <Edit2 size={14}/> Phiên bản {draft.version} (Sửa)
+                                <Edit2 size={12}/> v{draft.version} (Sửa)
                             </button>
                         )
                     ))}
@@ -3018,10 +3027,10 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                             <button 
                                 key={hist.id}
                                 onClick={() => handleEdit(hist, true)} // Open Read Only
-                                className="w-full flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 font-mono mb-2 transition-colors"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 font-mono transition-colors w-fit"
                                 title={`Trạng thái: ${hist.status} - ${new Date(hist.updatedAt).toLocaleDateString()}`}
                             >
-                                <Clock size={14}/> Phiên bản {hist.version}
+                                <Clock size={12}/> v{hist.version}
                             </button>
                         )
                     ))}
