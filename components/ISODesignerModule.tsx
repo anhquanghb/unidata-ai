@@ -13,7 +13,8 @@ import ReactFlow, {
   Connection,
   MarkerType,
   ReactFlowProvider,
-  Panel
+  Panel,
+  ControlButton
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -21,7 +22,7 @@ import {
   Save, Plus, Trash2, Edit2, FileText, Settings, 
   Layout, List, CheckSquare, BarChart2, ArrowLeft,
   MousePointer, Type, Square, Circle, Diamond,
-  ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock, CheckCircle
+  ChevronDown, ChevronUp, Upload, Link, Search, User, Users, File, ExternalLink, X, FileType, Clock, CheckCircle, Copy
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -1118,6 +1119,37 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
     }
   };
 
+  const handleCopyFlowchart = async () => {
+    const flowElement = document.querySelector('.react-flow') as HTMLElement;
+    if (flowElement) {
+      try {
+        const canvas = await html2canvas(flowElement, {
+          ignoreElements: (element) => 
+            element.classList.contains('react-flow__controls') || 
+            element.classList.contains('react-flow__panel') ||
+            element.classList.contains('react-flow__attribution')
+        });
+        
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              const data = [new ClipboardItem({ 'image/png': blob })];
+              await navigator.clipboard.write(data);
+              alert("Đã sao chép hình ảnh lưu đồ vào clipboard!");
+            } catch (err) {
+              console.error("Failed to copy image: ", err);
+              // Fallback for browsers that don't support ClipboardItem for images
+              alert("Không thể sao chép hình ảnh vào clipboard. Bạn có thể dùng tính năng 'Xuất Docx' để lấy hình ảnh.");
+            }
+          }
+        });
+      } catch (err) {
+        console.error("html2canvas error: ", err);
+        alert("Lỗi khi chụp ảnh lưu đồ.");
+      }
+    }
+  };
+
   const handleExportDocx = async () => {
     if (!processData) return;
 
@@ -1562,21 +1594,33 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
             <button onClick={handleExportDocx} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-sm">
                 <FileText size={16} /> Xuất Docx
             </button>
-            {currentUser?.role === 'school_admin' && (
-              <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
-                <Save size={18} /> Lưu Quy trình
-              </button>
-            )}
-            {currentUser?.permissions?.canProposeEditProcess && !currentUser?.isPrimary && (
-                <>
+            {currentUser?.role === 'school_admin' && (() => {
+                const currentDef = isoDefinitions.find(d => d.id === processData.id);
+                const isPublished = currentDef?.status === 'đã ban hành';
+                if (isPublished) return null;
+                
+                return (
+                  <button onClick={handleSave} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm font-medium">
+                    <Save size={18} /> Lưu Quy trình
+                  </button>
+                );
+            })()}
+            {currentUser?.permissions?.canProposeEditProcess && !currentUser?.isPrimary && (() => {
+                const currentDef = isoDefinitions.find(d => d.id === processData.id);
+                const isPublished = currentDef?.status === 'đã ban hành';
+                if (isPublished) return null;
+
+                return (
+                  <>
                     <button onClick={handleSave} className="flex items-center gap-2 bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 shadow-sm font-medium">
                         <Save size={18} /> Lưu Nháp (Đang chỉnh sửa)
                     </button>
                     <button onClick={handlePropose} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 shadow-sm font-medium">
                         <CheckCircle size={18} /> Đề xuất
                     </button>
-                </>
-            )}
+                  </>
+                );
+            })()}
           </div>
         </div>
 
@@ -2199,7 +2243,11 @@ const ISODesignerModule: React.FC<ISODesignerModuleProps> = ({
                         }
                       `}</style>
                       <Background color="#e2e8f0" gap={16} />
-                      <Controls />
+                      <Controls>
+                        <ControlButton onClick={handleCopyFlowchart} title="Sao chép hình ảnh lưu đồ">
+                          <Copy size={14} />
+                        </ControlButton>
+                      </Controls>
                       <Panel position="top-right" className="bg-white p-2 rounded shadow text-xs text-slate-500">
                         {nodes.length} Steps | {edges.length} Connections
                       </Panel>
